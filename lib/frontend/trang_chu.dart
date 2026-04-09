@@ -405,7 +405,7 @@ class TrangChuPage extends StatelessWidget {
             ),
             InkWell(
               onTap: () {
-                Navigator.pushNamed(context, '/');
+                Navigator.pushNamed(context, '/map');
               },
               child: const Icon(
                 LucideIcons.mapPin,

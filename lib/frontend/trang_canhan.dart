@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+const double contentIndent = 52;
 ColorFilter _iconColor(bool isActive) {
   return ColorFilter.mode(
     isActive ? Colors.white : Colors.white70,
@@ -48,8 +49,9 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
   static const Color softGrey = Color(0xFF2D2D2D);
   static const Color textGrey = Color(0xFFA9A9A9);
 
-  int selectedTab = 0; // 0 = bài viết, 1 = plan
+  int selectedTab = 0;
   int selectedPlanIndex = 0;
+  bool isPlanPickerOpen = false;
 
   final List<String> postImages = const [
     'assets/images/anh1.jpg',
@@ -69,7 +71,7 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
         ProfilePlanItem(
           title: 'Cộng CF',
           timeText: 'Th2-6 - 4, 16:30',
-          actionText: 'Đi lại',
+          actionText: 'Đặt lại',
         ),
         ProfilePlanItem(
           title: 'Mỳ quảng gà Bà Đình',
@@ -91,7 +93,7 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
         ProfilePlanItem(
           title: 'Cà phê muối',
           timeText: 'Th7-5 - 5, 10:00',
-          actionText: 'Đi lại',
+          actionText: 'Đặt lại',
         ),
         ProfilePlanItem(
           title: 'Chợ Đông Ba',
@@ -113,7 +115,7 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
         ProfilePlanItem(
           title: 'Quán ốc sông cầu',
           timeText: 'Th7-5 - 5, 10:00',
-          actionText: 'Đi lại',
+          actionText: 'Đặt lại',
         ),
         ProfilePlanItem(
           title: 'Bãi biển Mỹ Khê',
@@ -169,7 +171,7 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
                     _shareBox(),
                     _postCard(),
                   ] else ...[
-                    _planList(),
+                    _planSection(),
                   ],
                   const SizedBox(height: 20),
                 ],
@@ -331,6 +333,7 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
       onTap: () {
         setState(() {
           selectedTab = 0;
+          isPlanPickerOpen = false;
         });
       },
       child: Column(
@@ -356,67 +359,15 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
   }
 
   Widget _planTabButton() {
-    return PopupMenuButton<int>(
-      color: const Color(0xFF3A3A3A),
-      surfaceTintColor: const Color(0xFF3A3A3A),
-      elevation: 8,
-      offset: const Offset(0, 34),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
-      ),
-      onOpened: () {
+    return InkWell(
+      onTap: () {
         setState(() {
-          selectedTab = 1;
-        });
-      },
-      onSelected: (value) {
-        setState(() {
-          selectedTab = 1;
-          selectedPlanIndex = value;
-        });
-      },
-      itemBuilder: (context) {
-        return List.generate(planGroups.length, (index) {
-          final plan = planGroups[index];
-          final isSelected = selectedPlanIndex == index;
-
-          return PopupMenuItem<int>(
-            value: index,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        plan.name,
-                        style: _textStyle(
-                          size: 12,
-                          weight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        plan.routeText,
-                        style: _textStyle(
-                          size: 11,
-                          weight: FontWeight.w600,
-                          color: Colors.white70,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                if (isSelected)
-                  Icon(
-                    Icons.check,
-                    color: blue,
-                    size: 16,
-                  ),
-              ],
-            ),
-          );
+          if (selectedTab == 0) {
+            selectedTab = 1;
+            isPlanPickerOpen = false;
+          } else {
+            isPlanPickerOpen = !isPlanPickerOpen;
+          }
         });
       },
       child: Column(
@@ -448,9 +399,104 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
     );
   }
 
+  Widget _planPickerOverlay() {
+    return Container(
+      width: 118,
+      decoration: BoxDecoration(
+        color: const Color(0xFF3A3A3A),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: List.generate(planGroups.length, (index) {
+          final plan = planGroups[index];
+          final isSelected = selectedPlanIndex == index;
+
+          return InkWell(
+            onTap: () {
+              setState(() {
+                selectedPlanIndex = index;
+                isPlanPickerOpen = false;
+                selectedTab = 1;
+              });
+            },
+            child: Container(
+              width: double.infinity,
+              height: 52,
+              padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
+              decoration: BoxDecoration(
+                border: index == planGroups.length - 1
+                    ? null
+                    : const Border(
+                  bottom: BorderSide(
+                    color: Color(0xFF4A4A4A),
+                    width: 1,
+                  ),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          plan.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: _textStyle(
+                            size: 12,
+                            weight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          plan.routeText,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: _textStyle(
+                            size: 10,
+                            weight: FontWeight.w600,
+                            color: Colors.white70,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (isSelected)
+                    const Icon(
+                      Icons.check,
+                      color: blue,
+                      size: 15,
+                    ),
+                ],
+              ),
+            ),
+          );
+        }),
+      ),
+    );
+  }
+
+
+  Widget _planSection() {
+    return Stack(
+      children: [
+        _planList(),
+        if (isPlanPickerOpen)
+          Positioned(
+            top: 0,
+            right: 18,
+            child: _planPickerOverlay(),
+          ),
+      ],
+    );
+  }
+
   Widget _shareBox() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
       decoration: const BoxDecoration(
         border: Border(
           bottom: BorderSide(color: divider, width: 1),
@@ -459,10 +505,10 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
       child: Row(
         children: [
           const CircleAvatar(
-            radius: 16,
+            radius: 20,
             backgroundColor: Color(0xFF5AB2FF),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -470,7 +516,7 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
                 Text(
                   'Xuthu',
                   style: _textStyle(
-                    size: 13,
+                    size: 15,
                     weight: FontWeight.w700,
                   ),
                 ),
@@ -478,7 +524,7 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
                 Text(
                   'Chia sẻ điều gì mới?',
                   style: _textStyle(
-                    size: 12,
+                    size: 13,
                     color: Colors.white70,
                   ),
                 ),
@@ -492,7 +538,7 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
 
   Widget _postCard() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
       decoration: const BoxDecoration(
         border: Border(
           bottom: BorderSide(color: divider, width: 1),
@@ -502,61 +548,78 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const CircleAvatar(
-                radius: 16,
+                radius: 20,
                 backgroundColor: Color(0xFF5AB2FF),
               ),
-              const SizedBox(width: 10),
-              Text(
-                'Xuthu',
-                style: _textStyle(
-                  size: 13,
-                  weight: FontWeight.w700,
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Xuthu',
+                  style: _textStyle(
+                    size: 18,
+                    weight: FontWeight.w700,
+                  ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          Text(
-            'Caption',
-            style: _textStyle(
-              size: 12,
-              color: Colors.white,
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.only(left: 48),
+            child: Text(
+              'Caption',
+              style: _textStyle(
+                size: 18,
+                weight: FontWeight.w600,
+              ),
             ),
           ),
           const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(child: _postImage(postImages[0])),
-              const SizedBox(width: 8),
-              Expanded(child: _postImage(postImages[1])),
-              const SizedBox(width: 8),
-              Expanded(child: _postImage(postImages[2])),
-            ],
+          SizedBox(
+            height: 280,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.only(left: contentIndent, right: 16),
+              clipBehavior: Clip.none,
+              physics: const BouncingScrollPhysics(),
+              itemCount: postImages.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 10),
+              itemBuilder: (context, index) {
+                return _postImage(postImages[index]);
+              },
+            ),
           ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              const Icon(LucideIcons.heart, color: blue, size: 18),
-              const SizedBox(width: 4),
-              Text(
-                '4',
-                style: _textStyle(size: 12),
-              ),
-              const SizedBox(width: 14),
-              const Icon(
-                LucideIcons.messageCircle,
-                color: Colors.white,
-                size: 18,
-              ),
-              const SizedBox(width: 14),
-              const Icon(
-                LucideIcons.sendHorizontal,
-                color: Colors.white,
-                size: 18,
-              ),
-            ],
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.only(left: 48),
+            child: Row(
+              children: [
+                const Icon(LucideIcons.heart, color: blue, size: 20),
+                const SizedBox(width: 5),
+                Text(
+                  '4',
+                  style: _textStyle(
+                    size: 13,
+                    weight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(width: 18),
+                const Icon(
+                  LucideIcons.messageCircle,
+                  color: Colors.white,
+                  size: 20,
+                ),
+                const SizedBox(width: 18),
+                const Icon(
+                  LucideIcons.sendHorizontal,
+                  color: Colors.white,
+                  size: 20,
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -565,9 +628,10 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
 
   Widget _postImage(String path) {
     return ClipRRect(
-      borderRadius: BorderRadius.circular(10),
+      borderRadius: BorderRadius.circular(12),
       child: SizedBox(
-        height: 105,
+        width: 270,
+        height: 270,
         child: Image.asset(
           path,
           fit: BoxFit.cover,
@@ -578,8 +642,9 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
               child: Text(
                 'Không thấy ảnh',
                 style: _textStyle(
-                  size: 11,
+                  size: 12,
                   color: Colors.white54,
+                  weight: FontWeight.w500,
                 ),
               ),
             );
@@ -662,19 +727,25 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
   }
 
   Widget _planActionButton(String text) {
-    return Container(
+    return SizedBox(
+      width: 92,
       height: 24,
-      padding: const EdgeInsets.symmetric(horizontal: 10),
-      decoration: BoxDecoration(
-        color: const Color(0xFF6DB9F3),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      alignment: Alignment.center,
-      child: Text(
-        text,
-        style: _textStyle(
-          size: 10,
-          weight: FontWeight.w700,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: const Color(0xFF6DB9F3),
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Center(
+          child: Text(
+            text,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: _textStyle(
+              size: 10,
+              weight: FontWeight.w700,
+            ),
+          ),
         ),
       ),
     );
@@ -735,7 +806,7 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
             ),
             InkWell(
               onTap: () {
-                Navigator.pushNamed(context, '/');
+                Navigator.pushNamed(context, '/map');
               },
               child: const Icon(
                 LucideIcons.mapPin,
@@ -891,5 +962,73 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
         ),
       ),
     );
+  }
+  Future<void> _openPlanMenu(BuildContext context) async {
+    final RenderBox button = context.findRenderObject() as RenderBox;
+    final RenderBox overlay =
+    Overlay.of(context).context.findRenderObject() as RenderBox;
+
+    final selected = await showMenu<int>(
+      context: context,
+      color: const Color(0xFF3A3A3A),
+      position: RelativeRect.fromRect(
+        Rect.fromPoints(
+          button.localToGlobal(Offset.zero, ancestor: overlay),
+          button.localToGlobal(
+            button.size.bottomRight(Offset.zero),
+            ancestor: overlay,
+          ),
+        ),
+        Offset.zero & overlay.size,
+      ),
+      items: List.generate(planGroups.length, (index) {
+        final plan = planGroups[index];
+        final isSelected = selectedPlanIndex == index;
+
+        return PopupMenuItem<int>(
+          value: index,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      plan.name,
+                      style: _textStyle(
+                        size: 12,
+                        weight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      plan.routeText,
+                      style: _textStyle(
+                        size: 11,
+                        weight: FontWeight.w600,
+                        color: Colors.white70,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (isSelected)
+                const Icon(
+                  Icons.check,
+                  color: blue,
+                  size: 16,
+                ),
+            ],
+          ),
+        );
+      }),
+    );
+
+    if (selected != null) {
+      setState(() {
+        selectedPlanIndex = selected;
+      });
+    }
   }
 }
