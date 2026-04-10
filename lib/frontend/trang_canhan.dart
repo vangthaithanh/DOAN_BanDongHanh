@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -48,6 +49,7 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
   static const Color divider = Color(0xFF242424);
   static const Color softGrey = Color(0xFF2D2D2D);
   static const Color textGrey = Color(0xFFA9A9A9);
+  static const double planMenuWidth = 150;
 
   int selectedTab = 0;
   int selectedPlanIndex = 0;
@@ -379,20 +381,26 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
               Icon(
                 Icons.checklist_rounded,
                 color: selectedTab == 1 ? Colors.white : Colors.white70,
-                size: 24,
+                size: 30,
               ),
               const SizedBox(width: 3),
               Icon(
                 Icons.keyboard_arrow_down_rounded,
                 color: selectedTab == 1 ? Colors.white : Colors.white70,
-                size: 18,
+                size: 30,
               ),
             ],
           ),
           const SizedBox(height: 8),
-          Container(
-            height: 2,
-            color: selectedTab == 1 ? Colors.white : Colors.transparent,
+          SizedBox(
+            width: planMenuWidth,
+            child: Container(
+              height: 2,
+              decoration: BoxDecoration(
+                color: selectedTab == 1 ? Colors.white : Colors.transparent,
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
           ),
         ],
       ),
@@ -400,81 +408,88 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
   }
 
   Widget _planPickerOverlay() {
-    return Container(
-      width: 118,
-      decoration: BoxDecoration(
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        width: planMenuWidth,
         color: const Color(0xFF3A3A3A),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: List.generate(planGroups.length, (index) {
-          final plan = planGroups[index];
-          final isSelected = selectedPlanIndex == index;
-
-          return InkWell(
-            onTap: () {
-              setState(() {
-                selectedPlanIndex = index;
-                isPlanPickerOpen = false;
-                selectedTab = 1;
-              });
-            },
-            child: Container(
-              width: double.infinity,
-              height: 52,
-              padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
-              decoration: BoxDecoration(
-                border: index == planGroups.length - 1
-                    ? null
-                    : const Border(
-                  bottom: BorderSide(
-                    color: Color(0xFF4A4A4A),
-                    width: 1,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (int index = 0; index < planGroups.length; index++) ...[
+              InkWell(
+                onTap: () {
+                  setState(() {
+                    selectedPlanIndex = index;
+                    isPlanPickerOpen = false;
+                    selectedTab = 1;
+                  });
+                },
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              planGroups[index].name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: _textStyle(
+                                size: 16,
+                                weight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 5),
+                            Container(
+                              width: 18,
+                              height: 1.5,
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.9),
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                            ),
+                            const SizedBox(height: 5),
+                            Text(
+                              planGroups[index].routeText,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: _textStyle(
+                                size: 13,
+                                weight: FontWeight.w600,
+                                color: Colors.white70,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (selectedPlanIndex == index)
+                        const Padding(
+                          padding: EdgeInsets.only(left: 8),
+                          child: Icon(
+                            Icons.check,
+                            color: blue,
+                            size: 18,
+                          ),
+                        ),
+                    ],
                   ),
                 ),
               ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          plan.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: _textStyle(
-                            size: 12,
-                            weight: FontWeight.w700,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          plan.routeText,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: _textStyle(
-                            size: 10,
-                            weight: FontWeight.w600,
-                            color: Colors.white70,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (isSelected)
-                    const Icon(
-                      Icons.check,
-                      color: blue,
-                      size: 15,
-                    ),
-                ],
-              ),
-            ),
-          );
-        }),
+
+              if (index != planGroups.length - 1)
+                Container(
+                  width: double.infinity,
+                  height: 6,
+                  color: Colors.white.withOpacity(0.08),
+                ),
+            ],
+          ],
+        ),
       ),
     );
   }
@@ -484,12 +499,32 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
     return Stack(
       children: [
         _planList(),
-        if (isPlanPickerOpen)
+
+        if (isPlanPickerOpen) ...[
+          Positioned.fill(
+            child: GestureDetector(
+              onTap: () {
+                setState(() {
+                  isPlanPickerOpen = false;
+                });
+              },
+              child: ClipRect(
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 4, sigmaY: 4),
+                  child: Container(
+                    color: Colors.black.withOpacity(0.28),
+                  ),
+                ),
+              ),
+            ),
+          ),
+
           Positioned(
             top: 0,
             right: 18,
             child: _planPickerOverlay(),
           ),
+        ],
       ],
     );
   }
@@ -671,7 +706,7 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
             child: Text(
               currentPlan.name,
               style: _textStyle(
-                size: 15,
+                size: 24,
                 weight: FontWeight.w700,
               ),
             ),
@@ -703,7 +738,7 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
                 Text(
                   item.title,
                   style: _textStyle(
-                    size: 13,
+                    size: 20,
                     weight: FontWeight.w600,
                   ),
                 ),
@@ -711,7 +746,7 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
                 Text(
                   item.timeText,
                   style: _textStyle(
-                    size: 11,
+                    size: 15,
                     weight: FontWeight.w500,
                     color: textGrey,
                   ),
@@ -728,8 +763,8 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
 
   Widget _planActionButton(String text) {
     return SizedBox(
-      width: 92,
-      height: 24,
+      width: 110,
+      height: 32,
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: const Color(0xFF6DB9F3),
@@ -742,7 +777,7 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
             overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.center,
             style: _textStyle(
-              size: 10,
+              size: 14,
               weight: FontWeight.w700,
             ),
           ),
@@ -762,7 +797,7 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
       child: Text(
         text,
         style: _textStyle(
-          size: 12,
+          size: 16,
           weight: FontWeight.w600,
           color: Colors.white70,
         ),
