@@ -816,7 +816,7 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
             ),
             InkWell(
               onTap: () {
-                Navigator.pushNamed(context, '/');
+                Navigator.pushNamed(context, '/trang-tinnhan');
               },
               child: const Icon(
                 LucideIcons.messagesSquare,
