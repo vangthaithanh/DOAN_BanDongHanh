@@ -20,6 +20,8 @@ import 'frontend/cau_hoi/cau_hoi_3.dart';
 import 'frontend/man_hinh_cho.dart';
 import 'frontend/trang_chu.dart';
 import 'frontend/map.dart';
+import 'frontend/trang_chia_se_camera.dart';
+
 void main() {
   runApp(const GoMateApp());
 }
@@ -58,6 +60,7 @@ class GoMateApp extends StatelessWidget {
         '/man-hinh-cho': (context) => const ManHinhChoPage(),
         '/trang-chu': (context) => const TrangChuPage(),
         '/map': (context) => const MapPage(),
+        '/trang_chia_se_camera': (context) => const CameraPage(),
       },
     );
   }

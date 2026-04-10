@@ -395,7 +395,7 @@ class TrangChuPage extends StatelessWidget {
             ),
             InkWell(
               onTap: () {
-                Navigator.pushNamed(context, '/');
+                Navigator.pushNamed(context, '/trang_chia_se_camera');
               },
               child: const Icon(
                 LucideIcons.aperture,
