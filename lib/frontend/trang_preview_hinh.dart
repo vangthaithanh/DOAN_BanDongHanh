@@ -192,12 +192,12 @@ class _PreviewPageState extends State<PreviewPage> {
 
   // ===== TOP BAR =====
   Widget _topBar() {
-    return const Padding(
-      padding: EdgeInsets.fromLTRB(16, 12, 16, 10),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
       child: Row(
         children: [
-          Icon(LucideIcons.search, color: Colors.white),
-          Expanded(
+          const Icon(LucideIcons.search, color: Colors.white),
+          const Expanded(
             child: Text.rich(
               TextSpan(
                 children: [
@@ -222,8 +222,16 @@ class _PreviewPageState extends State<PreviewPage> {
               textAlign: TextAlign.center,
             ),
           ),
-          Icon(LucideIcons.bell, color: Colors.white),
-        ],
+          InkWell(
+            onTap: () {
+              Navigator.pushNamed(context, '/trang_thongbao');
+            },
+            child: const Icon(
+              LucideIcons.bell,
+              color: Colors.white,
+              size: 23,
+            ),
+          ),        ],
       ),
     );
   }

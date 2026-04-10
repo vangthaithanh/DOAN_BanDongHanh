@@ -131,8 +131,16 @@ class _GalleryPageState extends State<GalleryPage> {
                   textAlign: TextAlign.center,
                 ),
               ),
-
-              const Icon(LucideIcons.bell, color: Colors.white),
+              InkWell(
+                onTap: () {
+                  Navigator.pushNamed(context, '/trang_thongbao');
+                },
+                child: const Icon(
+                  LucideIcons.bell,
+                  color: Colors.white,
+                  size: 23,
+                ),
+              ),
             ],
           ),
 

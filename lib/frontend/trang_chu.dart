@@ -145,7 +145,7 @@ class TrangChuPage extends StatelessWidget {
           ),
           InkWell(
             onTap: () {
-              Navigator.pushNamed(context, '/');
+              Navigator.pushNamed(context, '/trang_thongbao');
             },
             child: const Icon(
               LucideIcons.bell,
@@ -415,7 +415,7 @@ class TrangChuPage extends StatelessWidget {
             ),
             InkWell(
               onTap: () {
-                Navigator.pushNamed(context, '/');
+                Navigator.pushNamed(context, '/trang-tinnhan');
               },
               child: const Icon(
                 LucideIcons.messagesSquare,
