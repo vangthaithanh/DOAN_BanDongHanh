@@ -1,0 +1,145 @@
+import 'package:flutter/material.dart';
+
+import '../../core/widgets/coming_soon_page.dart';
+import 'app_routes.dart';
+
+import '../../features/auth/presentation/pages/trang_bat_dau.dart';
+import '../../features/auth/presentation/pages/dangnhap_email.dart';
+import '../../features/auth/presentation/pages/dangnhap_sdt.dart';
+import '../../features/auth/presentation/pages/matkhau_email.dart';
+import '../../features/auth/presentation/pages/matkhau_sdt.dart';
+import '../../features/auth/presentation/pages/dangki_email.dart';
+import '../../features/auth/presentation/pages/dangki_matkhau_email.dart';
+import '../../features/auth/presentation/pages/dangki_ten_email.dart';
+import '../../features/auth/presentation/pages/dangki_sdt.dart';
+import '../../features/auth/presentation/pages/dangki_matkhau_sdt.dart';
+import '../../features/auth/presentation/pages/dangki_ten_sdt.dart';
+import '../../features/auth/presentation/pages/them_anh_daidien.dart';
+import '../../features/auth/presentation/pages/man_hinh_cho.dart';
+import '../../features/auth/data/models/du_lieu_quen_matkhau.dart';
+import '../../features/auth/presentation/pages/quen_matkhau_email.dart';
+import '../../features/auth/presentation/pages/quen_matkhau_sdt.dart';
+import '../../features/auth/presentation/pages/quen_matkhau_otp.dart';
+import '../../features/auth/presentation/pages/quen_matkhau_moi.dart';
+
+import '../../features/onboarding/presentation/pages/cau_hoi.dart';
+import '../../features/onboarding/presentation/pages/cau_hoi_1.dart';
+import '../../features/onboarding/presentation/pages/cau_hoi_2.dart';
+import '../../features/onboarding/presentation/pages/cau_hoi_3.dart';
+
+import '../../features/home/presentation/pages/trang_chu.dart';
+import '../../features/profile/presentation/pages/trang_canhan.dart';
+import '../../features/map/presentation/pages/map.dart';
+import '../../features/moments/presentation/pages/trang_chia_se_camera.dart';
+import '../../features/moments/presentation/pages/trang_preview_hinh.dart';
+import '../../features/moments/presentation/pages/trang_gallery_khoanhkhac.dart';
+import '../../features/moments/presentation/pages/trang_hinh_anh_chi_tiet.dart';
+import '../../features/notifications/presentation/pages/trang_thongbao.dart';
+import '../../features/messages/presentation/pages/trang_tinnhan.dart';
+import '../../features/social/presentation/pages/trang_binhluan.dart';
+
+class AppRouter {
+  const AppRouter._();
+
+  static Map<String, WidgetBuilder> get routes {
+    return {
+      AppRoutes.start: (_) => const TrangBatDauPage(),
+
+      AppRoutes.loginEmail: (_) => const DangNhapEmailPage(),
+      AppRoutes.loginPhone: (_) => const DangNhapSdtPage(),
+      AppRoutes.passwordEmail: (_) => const MatKhauEmailPage(),
+      AppRoutes.passwordPhone: (_) => const MatKhauSdtPage(),
+
+      AppRoutes.registerEmail: (_) => const DangKiEmailPage(),
+      AppRoutes.registerPasswordEmail: (_) => const DangKiMatKhauEmailPage(),
+      AppRoutes.registerNameEmail: (_) => const DangKiTenEmailPage(),
+      AppRoutes.registerPhone: (_) => const DangKiSdtPage(),
+      AppRoutes.registerPasswordPhone: (_) => const DangKiMatKhauSdtPage(),
+      AppRoutes.registerNamePhone: (_) => const DangKiTenSdtPage(),
+      AppRoutes.addAvatar: (_) => const ThemAnhDaiDienPage(),
+      AppRoutes.loading: (_) => const ManHinhChoPage(),
+
+      AppRoutes.quenMatKhauEmail: (_) => const QuenMatKhauEmail(),
+
+      AppRoutes.quenMatKhauSdt: (_) => const QuenMatKhauSdt(),
+
+      AppRoutes.quenMatKhauOtp: (context) {
+        final duLieu = ModalRoute.of(context)!.settings.arguments as DuLieuQuenMatKhau;
+
+        return QuenMatKhauOtp(
+          duLieu: duLieu,
+        );
+      },
+
+      AppRoutes.quenMatKhauMoi: (context) {
+        final duLieu = ModalRoute.of(context)!.settings.arguments as DuLieuQuenMatKhau;
+
+        return QuenMatKhauMoi(
+          duLieu: duLieu,
+        );
+      },
+
+      AppRoutes.surveyIntro: (_) => const CauHoiPage(),
+      AppRoutes.surveyQuestion1: (_) => const CauHoi1Page(),
+      AppRoutes.surveyQuestion2: (_) => const CauHoi2Page(),
+      AppRoutes.surveyQuestion3: (_) => const CauHoi3Page(),
+
+      AppRoutes.home: (_) => const TrangChuPage(),
+      AppRoutes.map: (_) => const MapPage(),
+      AppRoutes.momentCamera: (_) => const TrangChiaSeCamera(),
+
+      AppRoutes.trangPreviewHinh: (context) {
+        final duongDanAnh = ModalRoute.of(context)?.settings.arguments as String?;
+
+        return TrangPreviewHinh(
+          duongDanAnh: duongDanAnh,
+        );
+      },
+
+      AppRoutes.trangGalleryKhoanhKhac: (_) => const TrangGalleryKhoanhKhac(),
+
+      AppRoutes.trangHinhAnhChiTiet: (context) {
+        final duongDanAnh = ModalRoute.of(context)?.settings.arguments as String?;
+
+        return TrangHinhAnhChiTiet(
+          duongDanAnh: duongDanAnh,
+        );
+      },
+      AppRoutes.notifications: (_) => const TrangThongBaoPage(),
+      AppRoutes.messages: (_) => const TrangTinNhanPage(),
+      AppRoutes.profile: (_) => const TrangCaNhanPage(),
+
+      AppRoutes.createPost: (_) => const ComingSoonPage(title: 'Tạo bài viết'),
+      AppRoutes.postDetail: (_) => const ComingSoonPage(title: 'Chi tiết bài viết'),
+      AppRoutes.search: (_) => const ComingSoonPage(title: 'Tìm kiếm'),
+      AppRoutes.placeList: (_) => const ComingSoonPage(title: 'Danh sách địa điểm'),
+      AppRoutes.placeDetail: (_) => const ComingSoonPage(title: 'Chi tiết địa điểm'),
+      AppRoutes.placeReview: (_) => const ComingSoonPage(title: 'Đánh giá địa điểm'),
+      AppRoutes.tripList: (_) => const ComingSoonPage(title: 'Lịch trình của tôi'),
+      AppRoutes.tripCreate: (_) => const ComingSoonPage(title: 'Tạo lịch trình'),
+      AppRoutes.tripDetail: (_) => const ComingSoonPage(title: 'Chi tiết lịch trình'),
+      AppRoutes.editProfile: (_) => const ComingSoonPage(title: 'Chỉnh sửa hồ sơ'),
+      AppRoutes.settings: (_) => const ComingSoonPage(title: 'Cài đặt'),
+      AppRoutes.followRequests: (_) => const ComingSoonPage(title: 'Yêu cầu theo dõi'),
+      AppRoutes.friendSuggestions: (_) => const ComingSoonPage(title: 'Gợi ý bạn bè'),
+      AppRoutes.adminDashboard: (_) => const ComingSoonPage(title: 'Quản trị viên'),
+      AppRoutes.adminReports: (_) => const ComingSoonPage(title: 'Báo cáo vi phạm'),
+      AppRoutes.trangBinhLuan: (context) {
+        final postId = ModalRoute.of(context)?.settings.arguments as int? ?? 1;
+
+        return TrangBinhLuan(
+          postId: postId,
+        );
+      },
+    };
+  }
+
+  static Route<dynamic> onUnknownRoute(RouteSettings settings) {
+    return MaterialPageRoute(
+      builder: (_) => ComingSoonPage(
+        title: 'Không tìm thấy màn hình',
+        description: 'Route "${settings.name}" chưa được khai báo.',
+      ),
+    );
+  }
+}
