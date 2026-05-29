@@ -63,4 +63,8 @@ class AppRoutes {
   // Admin
   static const String adminDashboard = '/admin';
   static const String adminReports = '/admin/bao-cao';
+
+  // Messages
+  static const String waitingMessages = '/trang-tinnhan-cho';
+  static const String chatDetail = '/trang-doan-chat';
 }
