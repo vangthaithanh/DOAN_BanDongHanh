@@ -4,28 +4,19 @@ import '../../../notifications/presentation/pages/trang_thongbao.dart';
 import 'package:do_an/app/routes/app_routes.dart';
 import '../../../../shared/navigation/app_bottom_nav.dart';
 import '../../../../shared/navigation/main_tab.dart';
+import '../../data/mock/mock_messages.dart';
+import 'trang_tinnhan_cho.dart';
 
-class ChatData {
-  final String name;
-  final String lastMessage;
-  final String time;
-  final bool isUnread;
+class TrangTinNhanPage extends StatefulWidget {
+  const TrangTinNhanPage({super.key});
 
-  const ChatData({
-    required this.name,
-    required this.lastMessage,
-    required this.time,
-    this.isUnread = false,
-  });
+  @override
+  State<TrangTinNhanPage> createState() =>
+      _TrangTinNhanPageState();
 }
 
-const List<ChatData> mockChats = [
-  ChatData(name: 'Buji', lastMessage: 'ChatChatChat', time: '3 ngày', isUnread: true),
-  ChatData(name: 'BongAnhHung', lastMessage: 'ChatChat', time: '3 ngày', isUnread: false),
-];
-
-class TrangTinNhanPage extends StatelessWidget {
-  const TrangTinNhanPage({super.key});
+class _TrangTinNhanPageState
+    extends State<TrangTinNhanPage> {
 
   static const Color blue = Color(0xFF4AA8FF);
   static const String fontFamily = 'Inter';
@@ -39,13 +30,13 @@ class TrangTinNhanPage extends StatelessWidget {
           children: [
             _topBar(context),
             _searchBar(),
-            _tabHeader(),
+            _tabHeader(context),
             Expanded(
               child: ListView.builder(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                itemCount: mockChats.length,
+                itemCount: normalMessages.length,
                 itemBuilder: (context, index) {
-                  return _chatCard(mockChats[index]);
+                  return _chatCard(context, normalMessages[index]); // Thêm context vào đây để chuyển trang
                 },
               ),
             ),
@@ -63,7 +54,6 @@ class TrangTinNhanPage extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          // ĐÃ XÓA NÚT <. Để 1 cái khoảng trống bằng cái chuông cho chữ Xuthu nằm ngay giữa
           const SizedBox(width: 24),
           const Text(
             'Xuthu',
@@ -106,48 +96,111 @@ class TrangTinNhanPage extends StatelessWidget {
     );
   }
 
-  Widget _tabHeader() {
-    return const Padding(
-      padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+  Widget _tabHeader(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text('Tin nhắn', style: TextStyle(fontFamily: fontFamily, color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
-          Text('Tin nhắn đang chờ', style: TextStyle(fontFamily: fontFamily, color: Colors.white70, fontSize: 14, fontWeight: FontWeight.w500)),
+          const Text(
+              'Tin nhắn',
+              style: TextStyle(fontFamily: fontFamily, color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)
+          ),
+          InkWell(
+            onTap: () async {
+              await Navigator.push(
+                context,
+                PageRouteBuilder(
+                  pageBuilder: (context, animation, secondaryAnimation) =>
+                  const TrangTinNhanChoPage(),
+                  transitionsBuilder:
+                      (context, animation, secondaryAnimation, child) {
+                    const begin = Offset(1.0, 0.0);
+                    const end = Offset.zero;
+                    const curve = Curves.easeInOutCubic;
+
+                    var tween = Tween(
+                      begin: begin,
+                      end: end,
+                    ).chain(
+                      CurveTween(curve: curve),
+                    );
+
+                    return SlideTransition(
+                      position: animation.drive(tween),
+                      child: child,
+                    );
+                  },
+                ),
+              );
+
+              if (mounted) {
+                setState(() {});
+              }
+            },
+            borderRadius: BorderRadius.circular(8),
+            child: const Padding(
+              padding: EdgeInsets.all(4.0),
+              child: Text(
+                  'Tin nhắn đang chờ',
+                  style: TextStyle(fontFamily: fontFamily, color: Colors.white70, fontSize: 14, fontWeight: FontWeight.w500)
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _chatCard(ChatData chat) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(color: Colors.black, border: Border.all(color: const Color(0xFF333333), width: 1.5), borderRadius: BorderRadius.circular(40)),
-      child: Row(
-        children: [
-          const CircleAvatar(radius: 20, backgroundColor: blue),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _chatCard(BuildContext context, ChatData chat) {
+    return GestureDetector(
+      onTap: () async {
+        await Navigator.pushNamed(
+          context,
+          AppRoutes.chatDetail,
+          arguments: {
+            'name': chat.name,
+            'isWaiting': false,
+          },
+        );
+
+        if (mounted) {
+          setState(() {});
+        }
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: Colors.black,
+          border: Border.all(color: const Color(0xFF333333), width: 1.5),
+          borderRadius: BorderRadius.circular(40),
+        ),
+        child: Row(
+          children: [
+            const CircleAvatar(radius: 20, backgroundColor: blue),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(nicknames[chat.name]??chat.name, style: const TextStyle(fontFamily: fontFamily, color: Colors.white, fontSize: 14, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 2),
+                  Text(chat.lastMessage, style: const TextStyle(fontFamily: fontFamily, color: Colors.white70, fontSize: 13)),
+                ],
+              ),
+            ),
+            Row(
               children: [
-                Text(chat.name, style: const TextStyle(fontFamily: fontFamily, color: Colors.white, fontSize: 14, fontWeight: FontWeight.w700)),
-                const SizedBox(height: 2),
-                Text(chat.lastMessage, style: const TextStyle(fontFamily: fontFamily, color: Colors.white70, fontSize: 13)),
+                Text(chat.time, style: const TextStyle(fontFamily: fontFamily, color: Colors.white54, fontSize: 12)),
+                if (chat.isUnread) ...[
+                  const SizedBox(width: 8),
+                  Container(width: 8, height: 8, decoration: const BoxDecoration(color: blue, shape: BoxShape.circle)),
+                ],
               ],
             ),
-          ),
-          Row(
-            children: [
-              Text(chat.time, style: const TextStyle(fontFamily: fontFamily, color: Colors.white54, fontSize: 12)),
-              if (chat.isUnread) ...[
-                const SizedBox(width: 8),
-                Container(width: 8, height: 8, decoration: const BoxDecoration(color: blue, shape: BoxShape.circle)),
-              ],
-            ],
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

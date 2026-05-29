@@ -39,8 +39,8 @@ import '../../features/messages/presentation/pages/trang_tinnhan.dart';
 import '../../features/social/presentation/pages/trang_binhluan.dart';
 import '../../features/moments/presentation/pages/trang_vi_tri.dart';
 import '../../features/social/presentation/pages/trang_tao_baiviet.dart';
-
-
+import '../../features/messages/presentation/pages/trang_tinnhan_cho.dart';
+import '../../features/messages/presentation/pages/trang_doan_chat.dart';
 
 class AppRouter {
   const AppRouter._();
@@ -140,6 +140,18 @@ class AppRouter {
 
         return TrangBinhLuan(
           postId: postId,
+        );
+      },
+      AppRoutes.waitingMessages: (_) => const TrangTinNhanChoPage(),
+
+      AppRoutes.chatDetail: (context) {
+        final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+        final name = args?['name'] as String? ?? 'Người dùng';
+        final isWaiting = args?['isWaiting'] as bool? ?? false; // mặc định là chat thường
+
+        return TrangDoanChatPage(
+          name: name,
+          isWaiting: isWaiting,
         );
       },
     };
