@@ -338,21 +338,25 @@ class _TrangTaoBaiVietState extends State<TrangTaoBaiViet> {
             ),
           ),
 
+          const SizedBox(width: 12),
+
           const Expanded(
-            child: Center(
-              child: Text(
-                'Bài viết mới',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
-                ),
+            child: Text(
+              'Bài viết mới',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
               ),
             ),
           ),
 
-          // widget rỗng để title cân giữa
-          const SizedBox(width: 40),
+          // Spacer giả để title nằm giữa thật sự
+          const SizedBox(
+            width: 40,
+            height: 40,
+          ),
         ],
       ),
     );
@@ -447,109 +451,51 @@ class _TrangTaoBaiVietState extends State<TrangTaoBaiViet> {
   Widget _khuVucNhapLieu() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const CircleAvatar(
-            radius: 20,
-            backgroundColor: _mauXanh,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Text(
-                      'Xuthu',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    GestureDetector(
-                      onTap: _chonDoiTuong,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF2B2B2B),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              _tenDoiTuong,
-                              style: const TextStyle(
-                                color: Colors.white70,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            const SizedBox(width: 4),
-                            const Icon(
-                              LucideIcons.chevronDown,
-                              color: Colors.white54,
-                              size: 13,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: _noiDungController,
-                  focusNode: _focusNoiDung,
-                  cursorColor: Colors.white,
-                  maxLines: null,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w500,
-                  ),
-                  decoration: const InputDecoration(
-                    hintText: 'Thêm chú thích...',
-                    hintStyle: TextStyle(
-                      color: Colors.white38,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w500,
-                    ),
-                    isDense: true,
-                    border: InputBorder.none,
-                    contentPadding: EdgeInsets.zero,
-                  ),
-                ),
-                if (_danhSachHashTag.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 4,
-                    children: _danhSachHashTag
-                        .map((tag) => _chipHashTag(tag))
-                        .toList(),
-                  ),
-                ],
-                if (_danhSachBanBe.isNotEmpty) ...[
-                  const SizedBox(height: 6),
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 4,
-                    children: _danhSachBanBe
-                        .map((ten) => _chipBanBe(ten))
-                        .toList(),
-                  ),
-                ],
-              ],
+          TextField(
+            controller: _noiDungController,
+            focusNode: _focusNoiDung,
+            cursorColor: Colors.white,
+            maxLines: null,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 15,
+              fontWeight: FontWeight.w500,
+            ),
+            decoration: const InputDecoration(
+              hintText: 'Thêm chú thích...',
+              hintStyle: TextStyle(
+                color: Colors.white38,
+                fontSize: 15,
+                fontWeight: FontWeight.w500,
+              ),
+              isDense: true,
+              border: InputBorder.none,
+              contentPadding: EdgeInsets.zero,
             ),
           ),
-          const SizedBox(width: 8),
-          const Icon(LucideIcons.camera, color: Colors.white54, size: 22),
+          if (_danhSachHashTag.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 6,
+              runSpacing: 4,
+              children: _danhSachHashTag
+                  .map((tag) => _chipHashTag(tag))
+                  .toList(),
+            ),
+          ],
+          if (_danhSachBanBe.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 6,
+              runSpacing: 4,
+              children: _danhSachBanBe
+                  .map((ten) => _chipBanBe(ten))
+                  .toList(),
+            ),
+          ],
         ],
       ),
     );
@@ -606,13 +552,6 @@ class _TrangTaoBaiVietState extends State<TrangTaoBaiViet> {
           coGiaTriPhu: _danhSachHashTag.isNotEmpty
               ? '${_danhSachHashTag.length} tag'
               : null,
-        ),
-        _duongNgan(),
-        _dongTuyChon(
-          icon: LucideIcons.hash,
-          tieuDe: '#HashiTag...',
-          moTa: null,
-          onTap: _themHashTag,
         ),
         _duongNgan(),
         _dongTuyChon(
@@ -889,15 +828,27 @@ class _BottomSheetHashTag extends StatefulWidget {
 
 class _BottomSheetHashTagState extends State<_BottomSheetHashTag> {
   final TextEditingController _ctrl = TextEditingController();
+  String _tuKhoa = '';
 
-  static const List<String> _goiY = [
-    'NhapHashTag',
-    'GoMate',
-    'DuLich',
-    'AmThuc',
-    'SaiGon',
-    'HaNoi',
+  static const List<Map<String, dynamic>> _tatCaGoiY = [
+    {'tag': 'NhapHashTag', 'luot': '1,2k'},
+    {'tag': 'GoMate', 'luot': '1,2k'},
+    {'tag': 'DuLich', 'luot': '980'},
+    {'tag': 'AmThuc', 'luot': '750'},
+    {'tag': 'SaiGon', 'luot': '2,1k'},
+    {'tag': 'HaNoi', 'luot': '1,8k'},
+    {'tag': 'CaPhe', 'luot': '430'},
+    {'tag': 'CheckIn', 'luot': '3,4k'},
   ];
+
+  List<Map<String, dynamic>> get _goiYLocDuoc {
+    if (_tuKhoa.isEmpty) return _tatCaGoiY;
+    return _tatCaGoiY
+        .where((e) => (e['tag'] as String)
+        .toLowerCase()
+        .contains(_tuKhoa.toLowerCase()))
+        .toList();
+  }
 
   @override
   void dispose() {
@@ -918,15 +869,17 @@ class _BottomSheetHashTagState extends State<_BottomSheetHashTag> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Thêm HashTag',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
+          Center(
+            child: Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(2),
+              ),
             ),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 16),
           Container(
             height: 44,
             padding: const EdgeInsets.symmetric(horizontal: 14),
@@ -962,44 +915,82 @@ class _BottomSheetHashTagState extends State<_BottomSheetHashTag> {
                       hintText: 'Nhập hashtag...',
                       hintStyle: TextStyle(color: Colors.white38),
                     ),
+                    onChanged: (val) => setState(() => _tuKhoa = val),
                     onSubmitted: (val) {
-                      if (val.trim().isNotEmpty) {
-                        widget.onThem(val.trim());
-                      }
+                      if (val.trim().isNotEmpty) widget.onThem(val.trim());
                     },
                   ),
                 ),
+                if (_tuKhoa.isNotEmpty)
+                  GestureDetector(
+                    onTap: () {
+                      _ctrl.clear();
+                      setState(() => _tuKhoa = '');
+                    },
+                    child: const Icon(Icons.close, color: Colors.white38, size: 18),
+                  ),
               ],
             ),
           ),
-          const SizedBox(height: 14),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: _goiY
-                .where((t) => !widget.danhSachHienTai.contains(t))
-                .map((tag) => GestureDetector(
-              onTap: () => widget.onThem(tag),
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1C1C1E),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFF2B2B2B)),
-                ),
-                child: Text(
-                  '#$tag',
-                  style: const TextStyle(
-                    color: Color(0xFF4AA8FF),
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
+          const SizedBox(height: 8),
+          if (_goiYLocDuoc.isNotEmpty)
+            Container(
+              constraints: const BoxConstraints(maxHeight: 220),
+              decoration: BoxDecoration(
+                color: const Color(0xFF2B2B2B),
+                borderRadius: BorderRadius.circular(12),
               ),
-            ))
-                .toList(),
-          ),
+              child: ListView.separated(
+                shrinkWrap: true,
+                padding: EdgeInsets.zero,
+                physics: const BouncingScrollPhysics(),
+                itemCount: _goiYLocDuoc.length,
+                separatorBuilder: (_, __) =>
+                const Divider(color: Color(0xFF3A3A3A), height: 1),
+                itemBuilder: (context, index) {
+                  final item = _goiYLocDuoc[index];
+                  final tag = item['tag'] as String;
+                  final luot = item['luot'] as String;
+                  final daDuocChon = widget.danhSachHienTai.contains(tag);
+                  return InkWell(
+                    onTap: () => widget.onThem(tag),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 12),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              '#$tag',
+                              style: TextStyle(
+                                color: daDuocChon
+                                    ? const Color(0xFF4AA8FF)
+                                    : Colors.white,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            luot,
+                            style: const TextStyle(
+                              color: Colors.white54,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          if (daDuocChon) ...[
+                            const SizedBox(width: 8),
+                            const Icon(Icons.check,
+                                color: Color(0xFF4AA8FF), size: 16),
+                          ],
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
         ],
       ),
     );
