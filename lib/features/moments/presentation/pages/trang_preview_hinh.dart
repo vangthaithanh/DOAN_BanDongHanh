@@ -9,7 +9,7 @@ import '../../../../shared/navigation/main_tab.dart';
 import '../../data/mock/mock_khoanhkhac.dart';
 import '../widgets/thanh_tren_khoanhkhac.dart';
 
-class TrangPreviewHinh extends StatelessWidget {
+class TrangPreviewHinh extends StatefulWidget {
   final String? duongDanAnh;
 
   const TrangPreviewHinh({
@@ -17,9 +17,21 @@ class TrangPreviewHinh extends StatelessWidget {
     this.duongDanAnh,
   });
 
+  @override
+  State<TrangPreviewHinh> createState() => _TrangPreviewHinhState();
+}
+
+class _TrangPreviewHinhState extends State<TrangPreviewHinh> {
+  String? viTriDaChon;
+
+  String? get duongDanAnh => widget.duongDanAnh;
+
   void _guiAnh(BuildContext context) {
     if (duongDanAnh != null && duongDanAnh!.trim().isNotEmpty) {
-      KhoLuuKhoanhKhacTam.themAnh(duongDanAnh!);
+      KhoLuuKhoanhKhacTam.themAnh(
+        duongDanAnh: duongDanAnh!,
+        viTri: viTriDaChon,
+      );
     }
 
     Navigator.pushNamedAndRemoveUntil(
@@ -33,28 +45,41 @@ class TrangPreviewHinh extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      bottomNavigationBar: const AppBottomNav(activeTab: MainTab.moments),
+      bottomNavigationBar: const AppBottomNav(
+        activeTab: MainTab.moments,
+      ),
       body: SafeArea(
         child: Column(
           children: [
             const ThanhTrenKhoanhKhac(),
+
             Expanded(
               child: LayoutBuilder(
                 builder: (context, constraints) {
-                  final chieuCaoKhung = constraints.maxHeight * 0.58;
-                  final chieuCaoHopLy = chieuCaoKhung.clamp(300.0, 405.0);
+                  final chieuCaoKhung =
+                      constraints.maxHeight * 0.58;
+
+                  final chieuCaoHopLy =
+                  chieuCaoKhung.clamp(300.0, 405.0);
 
                   return Column(
                     children: [
-                      SizedBox(height: constraints.maxHeight * 0.035),
+                      SizedBox(
+                        height: constraints.maxHeight * 0.035,
+                      ),
 
-                      _khungAnh(chieuCaoHopLy),
+                      _khungAnh(
+                        context,
+                        chieuCaoHopLy,
+                      ),
 
                       const Spacer(),
 
                       _hangNutDuoi(context),
 
-                      SizedBox(height: constraints.maxHeight * 0.04),
+                      SizedBox(
+                        height: constraints.maxHeight * 0.04,
+                      ),
                     ],
                   );
                 },
@@ -66,7 +91,10 @@ class TrangPreviewHinh extends StatelessWidget {
     );
   }
 
-  Widget _khungAnh(double chieuCao) {
+  Widget _khungAnh(
+      BuildContext context,
+      double chieuCao,
+      ) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 29),
       child: Container(
@@ -92,7 +120,7 @@ class TrangPreviewHinh extends StatelessWidget {
               right: 0,
               bottom: 14,
               child: Center(
-                child: _nutThemViTri(),
+                child: _nutThemViTri(context),
               ),
             ),
           ],
@@ -123,32 +151,49 @@ class TrangPreviewHinh extends StatelessWidget {
     );
   }
 
-  Widget _nutThemViTri() {
-    return Container(
-      height: 36,
-      padding: const EdgeInsets.symmetric(horizontal: 19),
-      decoration: BoxDecoration(
-        color: const Color(0xFF292929),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: const Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            LucideIcons.mapPin,
-            color: Colors.white,
-            size: 22,
-          ),
-          SizedBox(width: 8),
-          Text(
-            'Thêm vị trí',
-            style: TextStyle(
+  Widget _nutThemViTri(BuildContext context) {
+    return InkWell(
+      onTap: () async {
+        final ketQua = await Navigator.pushNamed(
+          context,
+          AppRoutes.trangViTri,
+        );
+
+        if (ketQua != null) {
+          setState(() {
+            viTriDaChon = ketQua.toString();
+          });
+        }
+      },
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        height: 36,
+        padding: const EdgeInsets.symmetric(horizontal: 19),
+        decoration: BoxDecoration(
+          color: const Color(0xFF292929),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              LucideIcons.mapPin,
               color: Colors.white,
-              fontSize: 14,
-              fontWeight: FontWeight.w800,
+              size: 22,
             ),
-          ),
-        ],
+
+            const SizedBox(width: 8),
+
+            Text(
+              viTriDaChon ?? 'Thêm vị trí',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -157,7 +202,8 @@ class TrangPreviewHinh extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 67),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        mainAxisAlignment:
+        MainAxisAlignment.spaceBetween,
         children: [
           InkWell(
             onTap: () {

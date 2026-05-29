@@ -37,6 +37,10 @@ import '../../features/moments/presentation/pages/trang_hinh_anh_chi_tiet.dart';
 import '../../features/notifications/presentation/pages/trang_thongbao.dart';
 import '../../features/messages/presentation/pages/trang_tinnhan.dart';
 import '../../features/social/presentation/pages/trang_binhluan.dart';
+import '../../features/moments/presentation/pages/trang_vi_tri.dart';
+import '../../features/social/presentation/pages/trang_tao_baiviet.dart';
+
+
 
 class AppRouter {
   const AppRouter._();
@@ -97,19 +101,26 @@ class AppRouter {
       },
 
       AppRoutes.trangGalleryKhoanhKhac: (_) => const TrangGalleryKhoanhKhac(),
-
+      AppRoutes.trangViTri: (context) => const TrangViTri(),
       AppRoutes.trangHinhAnhChiTiet: (context) {
-        final duongDanAnh = ModalRoute.of(context)?.settings.arguments as String?;
+        final args = ModalRoute.of(context)?.settings.arguments;
+
+        if (args is Map<String, dynamic>) {
+          return TrangHinhAnhChiTiet(
+            duongDanAnh: args['duongDanAnh'],
+            viTri: args['viTri'],
+          );
+        }
 
         return TrangHinhAnhChiTiet(
-          duongDanAnh: duongDanAnh,
+          duongDanAnh: args as String?,
         );
       },
       AppRoutes.notifications: (_) => const TrangThongBaoPage(),
       AppRoutes.messages: (_) => const TrangTinNhanPage(),
       AppRoutes.profile: (_) => const TrangCaNhanPage(),
 
-      AppRoutes.createPost: (_) => const ComingSoonPage(title: 'Tạo bài viết'),
+      AppRoutes.createPost: (_) => const TrangTaoBaiViet(),
       AppRoutes.postDetail: (_) => const ComingSoonPage(title: 'Chi tiết bài viết'),
       AppRoutes.search: (_) => const ComingSoonPage(title: 'Tìm kiếm'),
       AppRoutes.placeList: (_) => const ComingSoonPage(title: 'Danh sách địa điểm'),

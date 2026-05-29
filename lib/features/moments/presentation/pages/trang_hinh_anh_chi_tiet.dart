@@ -11,28 +11,41 @@ import '../widgets/thanh_tren_khoanhkhac.dart';
 
 class TrangHinhAnhChiTiet extends StatefulWidget {
   final String? duongDanAnh;
+  final String? viTri;
+  final String tenNguoiDang;
+  final String thoiGian;
 
   const TrangHinhAnhChiTiet({
     super.key,
     this.duongDanAnh,
+    this.viTri,
+    this.tenNguoiDang = 'BongAnhHung',
+    this.thoiGian = '3 tiếng trước',
   });
 
   @override
-  State<TrangHinhAnhChiTiet> createState() => _TrangHinhAnhChiTietState();
+  State<TrangHinhAnhChiTiet> createState() =>
+      _TrangHinhAnhChiTietState();
 }
 
-class _TrangHinhAnhChiTietState extends State<TrangHinhAnhChiTiet> {
-  final TextEditingController _tinNhanController = TextEditingController();
+class _TrangHinhAnhChiTietState
+    extends State<TrangHinhAnhChiTiet> {
+  final TextEditingController _tinNhanController =
+  TextEditingController();
 
   bool _hienMenuNguoiXem = false;
 
+  bool _daThich = false;
+
   String get _anhDangXem {
-    return widget.duongDanAnh ?? 'assets/images/anh1.jpg';
+    return widget.duongDanAnh ??
+        'assets/images/anh1.jpg';
   }
 
   void _doiTrangThaiMenu() {
     setState(() {
-      _hienMenuNguoiXem = !_hienMenuNguoiXem;
+      _hienMenuNguoiXem =
+      !_hienMenuNguoiXem;
     });
   }
 
@@ -43,18 +56,28 @@ class _TrangHinhAnhChiTietState extends State<TrangHinhAnhChiTiet> {
   }
 
   void _guiTinNhan() {
-    final noiDung = _tinNhanController.text.trim();
+    final noiDung =
+    _tinNhanController.text.trim();
 
     if (noiDung.isEmpty) return;
 
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Đã gửi tin nhắn demo'),
-        backgroundColor: Color(0xFF4AA8FF),
+      SnackBar(
+        content: Text(
+          'Đã gửi: $noiDung',
+        ),
+        backgroundColor:
+        const Color(0xFF4AA8FF),
       ),
     );
 
     _tinNhanController.clear();
+  }
+
+  void _doiTrangThaiThich() {
+    setState(() {
+      _daThich = !_daThich;
+    });
   }
 
   @override
@@ -67,7 +90,11 @@ class _TrangHinhAnhChiTietState extends State<TrangHinhAnhChiTiet> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      bottomNavigationBar: const AppBottomNav(activeTab: MainTab.moments),
+
+      bottomNavigationBar: const AppBottomNav(
+        activeTab: MainTab.moments,
+      ),
+
       body: SafeArea(
         child: Stack(
           children: [
@@ -81,25 +108,45 @@ class _TrangHinhAnhChiTietState extends State<TrangHinhAnhChiTiet> {
 
                 Expanded(
                   child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      final chieuCaoKhung = constraints.maxHeight * 0.52;
-                      final chieuCaoHopLy = chieuCaoKhung.clamp(270.0, 340.0);
+                    builder: (
+                        context,
+                        constraints,
+                        ) {
+                      final chieuCaoKhung =
+                          constraints.maxHeight *
+                              0.52;
+
+                      final chieuCaoHopLy =
+                      chieuCaoKhung.clamp(
+                        270.0,
+                        360.0,
+                      );
 
                       return Column(
                         children: [
-                          SizedBox(height: constraints.maxHeight * 0.045),
+                          SizedBox(
+                            height:
+                            constraints.maxHeight *
+                                0.04,
+                          ),
 
-                          _khungAnhLon(chieuCaoHopLy),
+                          _khungAnhLon(
+                            chieuCaoHopLy,
+                          ),
 
-                          SizedBox(height: constraints.maxHeight * 0.018),
+                          SizedBox(
+                            height:
+                            constraints.maxHeight *
+                                0.02,
+                          ),
 
                           _thongTinNguoiDang(),
 
-                          const SizedBox(height: 10),
+                          const SizedBox(height: 14),
 
                           _oGuiTinNhan(),
 
-                          const SizedBox(height: 13),
+                          const SizedBox(height: 16),
 
                           _thanhCongCuNoi(),
 
@@ -112,7 +159,8 @@ class _TrangHinhAnhChiTietState extends State<TrangHinhAnhChiTiet> {
               ],
             ),
 
-            if (_hienMenuNguoiXem) _lopMenuNguoiXem(),
+            if (_hienMenuNguoiXem)
+              _lopMenuNguoiXem(),
           ],
         ),
       ),
@@ -121,22 +169,47 @@ class _TrangHinhAnhChiTietState extends State<TrangHinhAnhChiTiet> {
 
   Widget _khungAnhLon(double chieuCao) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 31),
+      padding:
+      const EdgeInsets.symmetric(horizontal: 26),
       child: Container(
         height: chieuCao,
         width: double.infinity,
         decoration: BoxDecoration(
+          borderRadius:
+          BorderRadius.circular(30),
           color: Colors.white,
-          borderRadius: BorderRadius.circular(31),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(
+                0.25,
+              ),
+              blurRadius: 14,
+              offset: const Offset(0, 8),
+            ),
+          ],
         ),
         clipBehavior: Clip.antiAlias,
-        child: _hienThiAnh(),
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: _hienThiAnh(),
+            ),
+
+            Positioned(
+              top: 14,
+              right: 14,
+              child: _nutYeuThich(),
+            ),
+            _thongTinViTri(),
+          ],
+        ),
       ),
     );
   }
 
   Widget _hienThiAnh() {
-    if (_anhDangXem.startsWith('/') && File(_anhDangXem).existsSync()) {
+    if (_anhDangXem.startsWith('/') &&
+        File(_anhDangXem).existsSync()) {
       return Image.file(
         File(_anhDangXem),
         fit: BoxFit.cover,
@@ -146,13 +219,17 @@ class _TrangHinhAnhChiTietState extends State<TrangHinhAnhChiTiet> {
     return Image.asset(
       _anhDangXem,
       fit: BoxFit.cover,
-      errorBuilder: (context, error, stackTrace) {
+      errorBuilder: (
+          context,
+          error,
+          stackTrace,
+          ) {
         return const Center(
           child: Text(
             'Ảnh',
             style: TextStyle(
               color: Colors.black,
-              fontSize: 13,
+              fontSize: 16,
               fontWeight: FontWeight.w800,
             ),
           ),
@@ -161,33 +238,68 @@ class _TrangHinhAnhChiTietState extends State<TrangHinhAnhChiTiet> {
     );
   }
 
-  Widget _thongTinNguoiDang() {
-    return const Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        CircleAvatar(
-          radius: 13,
-          backgroundColor: Color(0xFF4AA8FF),
+  Widget _nutYeuThich() {
+    return InkWell(
+      onTap: _doiTrangThaiThich,
+      borderRadius:
+      BorderRadius.circular(20),
+      child: Container(
+        width: 42,
+        height: 42,
+        decoration: BoxDecoration(
+          color:
+          Colors.black.withOpacity(0.45),
+          shape: BoxShape.circle,
         ),
-        SizedBox(width: 9),
+        child: Icon(
+          _daThich
+              ? Icons.favorite
+              : Icons.favorite_border,
+          color: _daThich
+              ? Colors.red
+              : Colors.white,
+          size: 23,
+        ),
+      ),
+    );
+  }
+
+  Widget _thongTinNguoiDang() {
+    return Row(
+      mainAxisAlignment:
+      MainAxisAlignment.center,
+      children: [
+        const CircleAvatar(
+          radius: 14,
+          backgroundColor:
+          Color(0xFF4AA8FF),
+        ),
+
+        const SizedBox(width: 10),
+
         Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment:
+          CrossAxisAlignment.start,
           children: [
             Text(
-              'BongAnhHung',
-              style: TextStyle(
+              widget.tenNguoiDang,
+              style: const TextStyle(
                 color: Colors.white,
-                fontSize: 13,
-                fontWeight: FontWeight.w800,
+                fontSize: 14,
+                fontWeight:
+                FontWeight.w800,
               ),
             ),
-            SizedBox(height: 1),
+
+            const SizedBox(height: 2),
+
             Text(
-              '3 tiếng trước',
-              style: TextStyle(
+              widget.thoiGian,
+              style: const TextStyle(
                 color: Colors.white70,
-                fontSize: 10,
-                fontWeight: FontWeight.w500,
+                fontSize: 11,
+                fontWeight:
+                FontWeight.w500,
               ),
             ),
           ],
@@ -196,55 +308,115 @@ class _TrangHinhAnhChiTietState extends State<TrangHinhAnhChiTiet> {
     );
   }
 
+  Widget _thongTinViTri() {
+    if (widget.viTri == null ||
+        widget.viTri!.trim().isEmpty) {
+      return const SizedBox();
+    }
+
+    return Positioned(
+      bottom: 16,
+      left: 0,
+      right: 0,
+      child: Center(
+        child: Container(
+          height: 38,
+          padding:
+          const EdgeInsets.symmetric(
+            horizontal: 18,
+          ),
+          decoration: BoxDecoration(
+            color:
+            Colors.black.withOpacity(
+              0.55,
+            ),
+            borderRadius:
+            BorderRadius.circular(22),
+            border: Border.all(
+              color: Colors.white24,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                LucideIcons.mapPin,
+                color: Colors.white,
+                size: 18,
+              ),
+
+              const SizedBox(width: 7),
+
+              Text(
+                widget.viTri!,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight:
+                  FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _oGuiTinNhan() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 31),
+      padding:
+      const EdgeInsets.symmetric(horizontal: 28),
       child: Container(
-        height: 31,
-        padding: const EdgeInsets.only(left: 16, right: 5),
+        height: 46,
+        padding: const EdgeInsets.only(
+          left: 18,
+          right: 8,
+        ),
         decoration: BoxDecoration(
-          color: const Color(0xFF3A3A3A),
-          borderRadius: BorderRadius.circular(17),
+          color: const Color(0xFF2E2E2E),
+          borderRadius:
+          BorderRadius.circular(24),
         ),
         child: Row(
           children: [
             Expanded(
               child: TextField(
-                controller: _tinNhanController,
+                controller:
+                _tinNhanController,
                 cursorColor: Colors.white,
-                minLines: 1,
-                maxLines: 1,
-                textInputAction: TextInputAction.send,
-                onSubmitted: (_) => _guiTinNhan(),
+                textInputAction:
+                TextInputAction.send,
+                onSubmitted: (_) =>
+                    _guiTinNhan(),
                 style: const TextStyle(
                   color: Colors.white,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
                 ),
-                decoration: const InputDecoration(
-                  hintText: 'Gửi tin nhắn...',
+                decoration:
+                const InputDecoration(
+                  border: InputBorder.none,
+                  hintText:
+                  'Gửi tin nhắn...',
                   hintStyle: TextStyle(
                     color: Colors.white54,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
                   ),
-                  isDense: true,
-                  border: InputBorder.none,
-                  contentPadding: EdgeInsets.only(bottom: 2),
                 ),
               ),
             ),
 
             InkWell(
               onTap: _guiTinNhan,
-              borderRadius: BorderRadius.circular(14),
-              child: const SizedBox(
-                width: 28,
-                height: 28,
-                child: Icon(
-                  LucideIcons.smile,
-                  color: Colors.white54,
-                  size: 18,
+              borderRadius:
+              BorderRadius.circular(20),
+              child: Container(
+                width: 36,
+                height: 36,
+                alignment: Alignment.center,
+                child: const Icon(
+                  LucideIcons.send,
+                  color: Color(0xFF4AA8FF),
+                  size: 20,
                 ),
               ),
             ),
@@ -257,51 +429,54 @@ class _TrangHinhAnhChiTietState extends State<TrangHinhAnhChiTiet> {
   Widget _thanhCongCuNoi() {
     return Center(
       child: Container(
-        height: 34,
-        width: 126,
+        height: 46,
+        width: 165,
         decoration: BoxDecoration(
-          color: const Color(0xFF242424).withOpacity(0.95),
-          borderRadius: BorderRadius.circular(18),
+          color:
+          const Color(0xFF242424),
+          borderRadius:
+          BorderRadius.circular(24),
         ),
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          mainAxisAlignment:
+          MainAxisAlignment.spaceEvenly,
           children: [
-            _bieuTuongLuoi(
-              onTap: () {},
-            ),
-
-            InkWell(
+            _iconButton(
+              icon: LucideIcons.grid2x2,
               onTap: () {
                 Navigator.pushNamedAndRemoveUntil(
+                    context,
+                    AppRoutes.trangGalleryKhoanhKhac,
+                        (route) => false,
+                );
+              },
+            ),
+
+            _iconButton(
+              icon: LucideIcons.camera,
+              onTap: () {
+                Navigator
+                    .pushNamedAndRemoveUntil(
                   context,
                   AppRoutes.momentCamera,
                       (route) => false,
                 );
               },
-              borderRadius: BorderRadius.circular(16),
-              child: Container(
-                width: 19,
-                height: 19,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF4AA8FF),
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white, width: 2),
-                ),
-              ),
             ),
 
-            InkWell(
-              onTap: () {},
-              borderRadius: BorderRadius.circular(16),
-              child: const SizedBox(
-                width: 26,
-                height: 26,
-                child: Icon(
-                  LucideIcons.download,
-                  color: Colors.white70,
-                  size: 19,
-                ),
-              ),
+            _iconButton(
+              icon: LucideIcons.download,
+              onTap: () {
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      'Đã tải ảnh',
+                    ),
+                  ),
+                );
+              },
             ),
           ],
         ),
@@ -309,34 +484,21 @@ class _TrangHinhAnhChiTietState extends State<TrangHinhAnhChiTiet> {
     );
   }
 
-  Widget _bieuTuongLuoi({
+  Widget _iconButton({
+    required IconData icon,
     required VoidCallback onTap,
   }) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius:
+      BorderRadius.circular(20),
       child: SizedBox(
-        width: 27,
-        height: 27,
-        child: Center(
-          child: SizedBox(
-            width: 17,
-            height: 17,
-            child: Wrap(
-              spacing: 3,
-              runSpacing: 3,
-              children: List.generate(4, (index) {
-                return Container(
-                  width: 6.5,
-                  height: 6.5,
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Colors.white70, width: 1.4),
-                    borderRadius: BorderRadius.circular(1),
-                  ),
-                );
-              }),
-            ),
-          ),
+        width: 42,
+        height: 42,
+        child: Icon(
+          icon,
+          color: Colors.white,
+          size: 20,
         ),
       ),
     );
@@ -347,7 +509,8 @@ class _TrangHinhAnhChiTietState extends State<TrangHinhAnhChiTiet> {
       child: GestureDetector(
         onTap: _tatMenu,
         child: Container(
-          color: Colors.black.withOpacity(0.55),
+          color:
+          Colors.black.withOpacity(0.55),
           child: Stack(
             children: const [
               Positioned(

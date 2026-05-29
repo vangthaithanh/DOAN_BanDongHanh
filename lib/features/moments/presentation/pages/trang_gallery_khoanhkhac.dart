@@ -90,7 +90,10 @@ class _TrangGalleryKhoanhKhacState extends State<TrangGalleryKhoanhKhac> {
             Navigator.pushNamed(
               context,
               AppRoutes.trangHinhAnhChiTiet,
-              arguments: khoanhKhac.duongDanAnh,
+              arguments: {
+                'duongDanAnh': khoanhKhac.duongDanAnh,
+                'viTri': khoanhKhac.viTri,
+              },
             );
           },
           child: _anhKhoanhKhac(khoanhKhac),

@@ -36,6 +36,7 @@ class AppRoutes {
   static const String messages = '/trang-tinnhan';
   static const String profile = '/trang-canhan';
   static const String notifications = '/trang_thongbao';
+  static const String trangViTri = '/trang-vi-tri';
 
   // Posts/social
   static const String createPost = '/bai-viet/tao';
