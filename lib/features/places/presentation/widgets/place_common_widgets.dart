@@ -111,7 +111,7 @@ class BluePillButton extends StatelessWidget {
     required this.text,
     required this.onTap,
     this.height = 30,
-    this.padding = const EdgeInsets.symmetric(horizontal: 20),
+    this.padding = const EdgeInsets.symmetric(horizontal: 8),
   });
 
   @override
@@ -125,13 +125,22 @@ class BluePillButton extends StatelessWidget {
           foregroundColor: Colors.white,
           padding: padding,
           elevation: 0,
+          minimumSize: Size.zero,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          visualDensity: VisualDensity.compact,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(999),
           ),
         ),
-        child: Text(
-          text,
-          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            text,
+            maxLines: 1,
+            softWrap: false,
+            overflow: TextOverflow.visible,
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
+          ),
         ),
       ),
     );
@@ -222,6 +231,8 @@ class PlaceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    const double cardHeight = 154;
+
     return InkWell(
       onTap:
           onTap ??
@@ -243,13 +254,13 @@ class PlaceCard extends StatelessWidget {
             PlaceImage(
               path: diaDiem.hinhAnh.first,
               width: 126,
-              height: 140,
+              height: cardHeight,
               borderRadius: BorderRadius.circular(8),
             ),
             const SizedBox(width: 16),
             Expanded(
               child: SizedBox(
-                height: 140,
+                height: cardHeight,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -270,7 +281,7 @@ class PlaceCard extends StatelessWidget {
                         RatingText(rating: diaDiem.diemTrungBinh),
                       ],
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 8),
                     PlaceInfoLine(
                       icon: Icons.location_on_outlined,
                       text: diaDiem.khoangCach,
@@ -299,7 +310,7 @@ class PlaceCard extends StatelessWidget {
                             },
                           ),
                         ),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: 6),
                         Expanded(
                           child: BluePillButton(
                             text: 'Xem vị trí',
