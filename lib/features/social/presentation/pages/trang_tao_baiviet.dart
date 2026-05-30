@@ -196,21 +196,16 @@ class _TrangTaoBaiVietState extends State<TrangTaoBaiViet> {
     }
   }
 
-  void _chonDoiTuong() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: const Color(0xFF1C1C1E),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (_) => _BottomSheetDoiTuong(
-        doiTuongHienTai: _doiTuong,
-        onChon: (dt) {
-          setState(() => _doiTuong = dt);
-          Navigator.pop(context);
-        },
+  void _chonDoiTuong() async {
+    final ketQua = await Navigator.push<DoiTuongBaiViet>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => TrangDoiTuongBaiViet(doiTuongHienTai: _doiTuong),
       ),
     );
+    if (ketQua != null) {
+      setState(() => _doiTuong = ketQua);
+    }
   }
 
   void _themHashTag() {
@@ -235,26 +230,22 @@ class _TrangTaoBaiVietState extends State<TrangTaoBaiViet> {
     );
   }
 
-  void _ganTheBanBe() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: const Color(0xFF1C1C1E),
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (_) => _BottomSheetBanBe(
-        danhSachHienTai: _danhSachBanBe,
-        onThem: (ten) {
-          setState(() {
-            if (!_danhSachBanBe.contains(ten)) {
-              _danhSachBanBe.add(ten);
-            }
-          });
-          Navigator.pop(context);
-        },
+  void _ganTheBanBe() async {
+    final ketQua = await Navigator.push<List<String>>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => TrangGanTheBanBe(
+          danhSachDaChon: List.from(_danhSachBanBe),
+        ),
       ),
     );
+    if (ketQua != null) {
+      setState(() {
+        _danhSachBanBe
+          ..clear()
+          ..addAll(ketQua);
+      });
+    }
   }
 
   String get _tenDoiTuong {
@@ -337,9 +328,6 @@ class _TrangTaoBaiVietState extends State<TrangTaoBaiViet> {
               ),
             ),
           ),
-
-          const SizedBox(width: 12),
-
           const Expanded(
             child: Text(
               'Bài viết mới',
@@ -351,12 +339,8 @@ class _TrangTaoBaiVietState extends State<TrangTaoBaiViet> {
               ),
             ),
           ),
-
-          // Spacer giả để title nằm giữa thật sự
-          const SizedBox(
-            width: 40,
-            height: 40,
-          ),
+          // Placeholder giữ title căn giữa đúng
+          const SizedBox(width: 40),
         ],
       ),
     );
@@ -503,38 +487,58 @@ class _TrangTaoBaiVietState extends State<TrangTaoBaiViet> {
 
   Widget _chipHashTag(String tag) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      padding: const EdgeInsets.only(left: 10, right: 4, top: 4, bottom: 4),
       decoration: BoxDecoration(
         color: _mauXanh.withOpacity(0.15),
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: _mauXanh.withOpacity(0.4)),
       ),
-      child: Text(
-        '#$tag',
-        style: const TextStyle(
-          color: _mauXanh,
-          fontSize: 12,
-          fontWeight: FontWeight.w700,
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            '#$tag',
+            style: const TextStyle(
+              color: _mauXanh,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(width: 4),
+          GestureDetector(
+            onTap: () => setState(() => _danhSachHashTag.remove(tag)),
+            child: const Icon(Icons.close, color: _mauXanh, size: 14),
+          ),
+        ],
       ),
     );
   }
 
   Widget _chipBanBe(String ten) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      padding: const EdgeInsets.only(left: 10, right: 4, top: 4, bottom: 4),
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.08),
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: Colors.white24),
       ),
-      child: Text(
-        '@$ten',
-        style: const TextStyle(
-          color: Colors.white70,
-          fontSize: 12,
-          fontWeight: FontWeight.w700,
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            '@$ten',
+            style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(width: 4),
+          GestureDetector(
+            onTap: () => setState(() => _danhSachBanBe.remove(ten)),
+            child: const Icon(Icons.close, color: Colors.white54, size: 14),
+          ),
+        ],
       ),
     );
   }
@@ -667,104 +671,157 @@ class _TrangTaoBaiVietState extends State<TrangTaoBaiViet> {
   }
 }
 
-// ─── Bottom sheet: Đối tượng ─────────────────────────────────────────────────
+// ─── Trang Đối Tượng ─────────────────────────────────────────────────────────
 
-class _BottomSheetDoiTuong extends StatelessWidget {
+class TrangDoiTuongBaiViet extends StatefulWidget {
   final DoiTuongBaiViet doiTuongHienTai;
-  final ValueChanged<DoiTuongBaiViet> onChon;
 
-  const _BottomSheetDoiTuong({
+  const TrangDoiTuongBaiViet({
+    super.key,
     required this.doiTuongHienTai,
-    required this.onChon,
   });
 
+  @override
+  State<TrangDoiTuongBaiViet> createState() => _TrangDoiTuongBaiVietState();
+}
+
+class _TrangDoiTuongBaiVietState extends State<TrangDoiTuongBaiViet> {
   static const Color _mauXanh = Color(0xFF4AA8FF);
+  late DoiTuongBaiViet _duocChon;
+
+  @override
+  void initState() {
+    super.initState();
+    _duocChon = widget.doiTuongHienTai;
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Đối tượng',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 6),
-          const Text(
-            'Ai có thể nhìn thấy bài viết của bạn',
-            style: TextStyle(
-              color: Colors.white54,
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 20),
-          _dongLuaChon(
-            context,
-            icon: LucideIcons.globe,
-            tieuDe: 'Mọi người',
-            moTa: null,
-            gia: DoiTuongBaiViet.moiNguoi,
-          ),
-          _duongNgan(),
-          _dongLuaChon(
-            context,
-            icon: LucideIcons.users,
-            tieuDe: 'Người theo dõi',
-            moTa: '100 người',
-            gia: DoiTuongBaiViet.nguoiTheoDoi,
-          ),
-          _duongNgan(),
-          _dongLuaChon(
-            context,
-            icon: LucideIcons.lock,
-            tieuDe: 'Chỉ mình tôi',
-            moTa: null,
-            gia: DoiTuongBaiViet.chiMinhToi,
-          ),
-          const SizedBox(height: 8),
-          const Padding(
-            padding: EdgeInsets.only(top: 8),
-            child: Text(
-              'Lựa chọn này sẽ không khảo sát ảnh hưởng đến\nquyền riêng tư của tài khoản (đang ở chế\nđộ riêng tư)',
-              style: TextStyle(
-                color: Colors.white38,
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Thanh trên
+            Container(
+              height: 62,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Row(
+                children: [
+                  GestureDetector(
+                    onTap: () => Navigator.pop(context, _duocChon),
+                    child: Container(
+                      width: 40,
+                      height: 40,
+                      alignment: Alignment.center,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF2E2E31),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.arrow_back_ios_new_rounded,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                    ),
+                  ),
+                  const Expanded(
+                    child: Text(
+                      'Đối tượng',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 40),
+                ],
               ),
             ),
-          ),
-        ],
+
+            const SizedBox(height: 16),
+
+            // Mô tả
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 24),
+              child: Text(
+                'Ai có thể nhìn thấy chú thích của bạn',
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            // Danh sách lựa chọn
+            _dongLuaChon(
+              icon: LucideIcons.globe,
+              tieuDe: 'Mọi người',
+              moTa: null,
+              gia: DoiTuongBaiViet.moiNguoi,
+            ),
+            const Divider(color: Color(0xFF1E1E1E), height: 1, indent: 24),
+            _dongLuaChon(
+              icon: LucideIcons.userRound,
+              tieuDe: 'Người theo dõi',
+              moTa: '100 người',
+              gia: DoiTuongBaiViet.nguoiTheoDoi,
+            ),
+            const Divider(color: Color(0xFF1E1E1E), height: 1, indent: 24),
+            _dongLuaChon(
+              icon: LucideIcons.eye,
+              tieuDe: 'Chỉ mình tôi',
+              moTa: null,
+              gia: DoiTuongBaiViet.chiMinhToi,
+            ),
+
+            const SizedBox(height: 24),
+
+            // Ghi chú
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 24),
+              child: Text(
+                'Lựa chọn này sẽ không ảnh hưởng đến\nquyền riêng tư của tài khoản (đang ở chế\nđộ riêng tư)',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white38,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w400,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _duongNgan() =>
-      const Divider(color: Color(0xFF2B2B2B), height: 1);
-
-  Widget _dongLuaChon(
-      BuildContext context, {
-        required IconData icon,
-        required String tieuDe,
-        String? moTa,
-        required DoiTuongBaiViet gia,
-      }) {
-    final laDuocChon = doiTuongHienTai == gia;
+  Widget _dongLuaChon({
+    required IconData icon,
+    required String tieuDe,
+    String? moTa,
+    required DoiTuongBaiViet gia,
+  }) {
+    final laDuocChon = _duocChon == gia;
     return InkWell(
-      onTap: () => onChon(gia),
+      onTap: () {
+        setState(() => _duocChon = gia);
+        Future.delayed(const Duration(milliseconds: 150), () {
+          Navigator.pop(context, gia);
+        });
+      },
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 14),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
         child: Row(
           children: [
-            Icon(icon, color: Colors.white70, size: 22),
-            const SizedBox(width: 14),
+            Icon(icon, color: Colors.white, size: 24),
+            const SizedBox(width: 16),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -773,7 +830,7 @@ class _BottomSheetDoiTuong extends StatelessWidget {
                     tieuDe,
                     style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 15,
+                      fontSize: 16,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -782,16 +839,17 @@ class _BottomSheetDoiTuong extends StatelessWidget {
                       moTa,
                       style: const TextStyle(
                         color: Colors.white38,
-                        fontSize: 12,
+                        fontSize: 13,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
                 ],
               ),
             ),
+            // Radio circle
             Container(
-              width: 22,
-              height: 22,
+              width: 24,
+              height: 24,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 border: Border.all(
@@ -800,9 +858,6 @@ class _BottomSheetDoiTuong extends StatelessWidget {
                 ),
                 color: laDuocChon ? _mauXanh : Colors.transparent,
               ),
-              child: laDuocChon
-                  ? const Icon(Icons.check, color: Colors.white, size: 14)
-                  : null,
             ),
           ],
         ),
@@ -997,31 +1052,38 @@ class _BottomSheetHashTagState extends State<_BottomSheetHashTag> {
   }
 }
 
-// ─── Bottom sheet: Bạn bè ────────────────────────────────────────────────────
+// ─── Trang Gắn Thẻ Bạn Bè ────────────────────────────────────────────────────
 
-class _BottomSheetBanBe extends StatefulWidget {
-  final List<String> danhSachHienTai;
-  final ValueChanged<String> onThem;
+class TrangGanTheBanBe extends StatefulWidget {
+  final List<String> danhSachDaChon;
 
-  const _BottomSheetBanBe({
-    required this.danhSachHienTai,
-    required this.onThem,
+  const TrangGanTheBanBe({
+    super.key,
+    required this.danhSachDaChon,
   });
 
   @override
-  State<_BottomSheetBanBe> createState() => _BottomSheetBanBeState();
+  State<TrangGanTheBanBe> createState() => _TrangGanTheBanBeState();
 }
 
-class _BottomSheetBanBeState extends State<_BottomSheetBanBe> {
+class _TrangGanTheBanBeState extends State<TrangGanTheBanBe> {
   static const Color _mauXanh = Color(0xFF4AA8FF);
+
+  static const List<Map<String, String>> _tatCaBanBe = [
+    {'ten': 'thuwwww', 'hoten': 'Thư thư'},
+    {'ten': 'thuwwww2', 'hoten': 'Thư thư'},
+    {'ten': 'BietDanh', 'hoten': 'Họ Tên'},
+  ];
+
   final TextEditingController _timKiemCtrl = TextEditingController();
   String _tuKhoa = '';
+  late List<String> _danhSachDaChon;
 
-  static const List<Map<String, String>> _danhSachGoiY = [
-    {'ten': 'thuwwww', 'hoten': 'Thu Thu'},
-    {'ten': 'thuwwww', 'hoten': 'Thu Thu'},
-    {'ten': 'BotDanh', 'hoten': 'Hồ Tên'},
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _danhSachDaChon = List.from(widget.danhSachDaChon);
+  }
 
   @override
   void dispose() {
@@ -1029,194 +1091,311 @@ class _BottomSheetBanBeState extends State<_BottomSheetBanBe> {
     super.dispose();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final locDanhSach = _danhSachGoiY
+  List<Map<String, String>> get _locDanhSach {
+    if (_tuKhoa.isEmpty) return _tatCaBanBe;
+    return _tatCaBanBe
         .where((b) =>
-    _tuKhoa.isEmpty ||
-        b['ten']!.toLowerCase().contains(_tuKhoa.toLowerCase()) ||
+    b['ten']!.toLowerCase().contains(_tuKhoa.toLowerCase()) ||
         b['hoten']!.toLowerCase().contains(_tuKhoa.toLowerCase()))
         .toList();
+  }
 
-    return Padding(
-      padding: EdgeInsets.only(
-        left: 20,
-        right: 20,
-        top: 16,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Chọn những người bạn muốn gắn thẻ',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 16,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 6),
-          const Text(
-            'Những người mà bạn chọn sẽ không dùng\nnày để gắn thẻ nội dung bài viết và có\nquyền chế',
-            style: TextStyle(
-              color: Colors.white38,
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 12),
-          if (widget.danhSachHienTai.isNotEmpty) ...[
-            Wrap(
-              spacing: 8,
-              runSpacing: 6,
-              children: widget.danhSachHienTai
-                  .map((ten) => Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: _mauXanh.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: _mauXanh.withOpacity(0.4)),
-                ),
-                child: Text(
-                  '@$ten',
-                  style: const TextStyle(
-                    color: _mauXanh,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ))
-                  .toList(),
-            ),
-            const SizedBox(height: 12),
-          ],
-          Container(
-            height: 40,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            decoration: BoxDecoration(
-              color: const Color(0xFF2B2B2B),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Row(
-              children: [
-                const Icon(LucideIcons.search,
-                    color: Colors.white38, size: 16),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: TextField(
-                    controller: _timKiemCtrl,
-                    autofocus: true,
-                    cursorColor: Colors.white,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
-                    decoration: const InputDecoration(
-                      border: InputBorder.none,
-                      isDense: true,
-                      contentPadding: EdgeInsets.zero,
-                      hintText: 'Tìm Kiếm',
-                      hintStyle: TextStyle(color: Colors.white38),
-                    ),
-                    onChanged: (val) => setState(() => _tuKhoa = val),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          ...locDanhSach.map((banBe) {
-            final daDuocChon = widget.danhSachHienTai.contains(banBe['ten']);
-            return InkWell(
-              onTap: () => widget.onThem(banBe['ten']!),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                child: Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 20,
-                      backgroundColor: _mauXanh.withOpacity(0.3),
-                      child: Text(
-                        banBe['ten']![0].toUpperCase(),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            banBe['ten']!,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                          Text(
-                            banBe['hoten']!,
-                            style: const TextStyle(
-                              color: Colors.white54,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Container(
-                      width: 22,
-                      height: 22,
-                      decoration: BoxDecoration(
+  void _toggleChon(String ten) {
+    setState(() {
+      if (_danhSachDaChon.contains(ten)) {
+        _danhSachDaChon.remove(ten);
+      } else {
+        _danhSachDaChon.add(ten);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Thanh trên
+            Container(
+              height: 62,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Row(
+                children: [
+                  GestureDetector(
+                    onTap: () => Navigator.pop(context, _danhSachDaChon),
+                    child: Container(
+                      width: 40,
+                      height: 40,
+                      alignment: Alignment.center,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF2E2E31),
                         shape: BoxShape.circle,
-                        border: Border.all(
-                          color: daDuocChon ? _mauXanh : Colors.white38,
-                          width: 2,
-                        ),
-                        color:
-                        daDuocChon ? _mauXanh : Colors.transparent,
                       ),
-                      child: daDuocChon
-                          ? const Icon(Icons.check,
-                          color: Colors.white, size: 14)
-                          : null,
+                      child: const Icon(
+                        Icons.arrow_back_ios_new_rounded,
+                        color: Colors.white,
+                        size: 20,
+                      ),
                     ),
-                  ],
-                ),
+                  ),
+                  const Expanded(
+                    child: Text(
+                      'Bạn bè',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 40),
+                ],
               ),
-            );
-          }),
-          const SizedBox(height: 8),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: () => Navigator.pop(context),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _mauXanh,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(24),
-                ),
-                padding: const EdgeInsets.symmetric(vertical: 14),
-              ),
-              child: const Text(
-                'Thêm bạn bè',
+            ),
+
+            // Tiêu đề + mô tả
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 8, 20, 4),
+              child: Text(
+                'Chọn những người bạn muốn gắn thẻ',
                 style: TextStyle(
                   color: Colors.white,
-                  fontSize: 15,
+                  fontSize: 16,
                   fontWeight: FontWeight.w800,
                 ),
               ),
             ),
-          ),
-        ],
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 0, 20, 12),
+              child: Text(
+                'Những người mà bạn chia sẻ nội dung này\ncó thể nhìn thấy nội dung bài viết và có\nquyền gỡ thẻ',
+                style: TextStyle(
+                  color: Colors.white38,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w400,
+                ),
+              ),
+            ),
+
+            // Avatar đã chọn
+            if (_danhSachDaChon.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+                child: Wrap(
+                  spacing: 16,
+                  runSpacing: 8,
+                  children: _danhSachDaChon.map((ten) {
+                    return Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            CircleAvatar(
+                              radius: 28,
+                              backgroundColor: _mauXanh,
+                              child: Text(
+                                ten[0].toUpperCase(),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ),
+                            Positioned(
+                              top: -4,
+                              right: -4,
+                              child: GestureDetector(
+                                onTap: () => _toggleChon(ten),
+                                child: Container(
+                                  width: 20,
+                                  height: 20,
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF3A3A3A),
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                        color: Colors.black, width: 1.5),
+                                  ),
+                                  child: const Icon(
+                                    Icons.close,
+                                    color: Colors.white,
+                                    size: 12,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          ten,
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    );
+                  }).toList(),
+                ),
+              ),
+
+            // Ô tìm kiếm
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Container(
+                height: 42,
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2B2B2B),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(LucideIcons.search,
+                        color: Colors.white38, size: 16),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextField(
+                        controller: _timKiemCtrl,
+                        cursorColor: Colors.white,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        decoration: const InputDecoration(
+                          border: InputBorder.none,
+                          isDense: true,
+                          contentPadding: EdgeInsets.zero,
+                          hintText: 'Tìm Kiếm',
+                          hintStyle: TextStyle(color: Colors.white38),
+                        ),
+                        onChanged: (val) => setState(() => _tuKhoa = val),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            // Danh sách bạn bè
+            Expanded(
+              child: ListView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                physics: const BouncingScrollPhysics(),
+                itemCount: _locDanhSach.length,
+                itemBuilder: (context, index) {
+                  final banBe = _locDanhSach[index];
+                  final ten = banBe['ten']!;
+                  final hoten = banBe['hoten']!;
+                  final daDuocChon = _danhSachDaChon.contains(ten);
+
+                  return InkWell(
+                    onTap: () => _toggleChon(ten),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      child: Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 22,
+                            backgroundColor: _mauXanh,
+                            child: Text(
+                              ten[0].toUpperCase(),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  ten,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                                Text(
+                                  hoten,
+                                  style: const TextStyle(
+                                    color: Colors.white54,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          // Checkbox circle
+                          Container(
+                            width: 24,
+                            height: 24,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: daDuocChon
+                                  ? _mauXanh
+                                  : Colors.transparent,
+                              border: Border.all(
+                                color: daDuocChon
+                                    ? _mauXanh
+                                    : Colors.white38,
+                                width: 2,
+                              ),
+                            ),
+                            child: daDuocChon
+                                ? const Icon(Icons.check,
+                                color: Colors.white, size: 14)
+                                : null,
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+
+            // Divider + nút Thêm bạn bè
+            const Divider(color: Color(0xFF2B2B2B), height: 1),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+              child: GestureDetector(
+                onTap: () => Navigator.pop(context, _danhSachDaChon),
+                child: Container(
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: _mauXanh,
+                    borderRadius: BorderRadius.circular(28),
+                  ),
+                  alignment: Alignment.center,
+                  child: const Text(
+                    'Thêm bạn bè',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
