@@ -5,7 +5,8 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:do_an/app/routes/app_routes.dart';
 import '../../../../shared/navigation/app_bottom_nav.dart';
 import '../../../../shared/navigation/main_tab.dart';
-
+import '../../../users/presentation/pages/trang_danhsach_banbe.dart';
+import '../../../users/presentation/pages/trang_danhsach_nguoitheodoi.dart';
 
 const double contentIndent = 52;
 ColorFilter _iconColor(bool isActive) {
@@ -40,7 +41,15 @@ class ProfilePlanGroup {
     required this.items,
   });
 }
+class FollowerData {
+  final String userName;
+  final String action;
 
+  const FollowerData({
+    required this.userName,
+    required this.action,
+  });
+}
 class TrangCaNhanPage extends StatefulWidget {
   const TrangCaNhanPage({super.key});
 
@@ -264,20 +273,42 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
                     const SizedBox(height: 8),
                     Row(
                       children: [
-                        Text(
-                          '4 Người theo dõi',
+                        GestureDetector(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                const TrangDanhSachNguoiTheoDoiPage(),
+                              ),
+                            );
+                          },
+                          child: Text(
+                              '4 Người theo dõi',
+                            style: _textStyle(
+                              size: 12,
+                              weight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 18),
+                        GestureDetector(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                const TrangDanhSachBanBePage(),
+                              ),
+                            );
+                          },
+                          child: Text(
+                            '4 Bạn bè',
                           style: _textStyle(
                             size: 12,
                             weight: FontWeight.w600,
                           ),
                         ),
-                        const SizedBox(width: 18),
-                        Text(
-                          '4 Bạn bè',
-                          style: _textStyle(
-                            size: 12,
-                            weight: FontWeight.w600,
-                          ),
                         ),
                       ],
                     ),
