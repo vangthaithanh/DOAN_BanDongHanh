@@ -30,91 +30,115 @@ class _DangKiEmailPageState extends State<DangKiEmailPage> {
 
     return Scaffold(
       backgroundColor: Colors.black,
+      resizeToAvoidBottomInset: true,
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _backButton(context),
-              const SizedBox(height: 56),
-              const Text(
-                'Nhập Email của bạn',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 28,
-                  fontWeight: FontWeight.w800,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  minHeight: constraints.maxHeight - 24,
                 ),
-              ),
-              const SizedBox(height: 18),
-              TextField(
-                controller: emailController,
-                onChanged: (_) => setState(() {}),
-                keyboardType: TextInputType.emailAddress,
-                style: const TextStyle(color: Colors.white),
-                decoration: InputDecoration(
-                  hintText: 'Địa chỉ Email',
-                  hintStyle: const TextStyle(color: Colors.white54),
-                  filled: true,
-                  fillColor: field,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 18,
-                    vertical: 16,
-                  ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(28),
-                    borderSide: BorderSide.none,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              GestureDetector(
-                onTap: () {
-                  Navigator.pushReplacementNamed(
-                    context,
-                    AppRoutes.registerPhone,
-                  );
-                },
-                child: const Text(
-                  'Sử dụng số điện thoại >',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-              const Spacer(),
-              const Text(
-                'Bằng cách nhấn vào nút Tiếp tục,\n'
-                'bạn đồng ý với chúng tôi Điều khoản\n'
-                'dịch vụ và Chính sách quyền riêng tư',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontSize: 12,
-                  height: 1.5,
-                ),
-              ),
-              const SizedBox(height: 18),
-              _primaryButton(
-                label: 'Tiếp tục',
-                color: isValidEmail ? blue : Colors.grey,
-                onTap: isValidEmail
-                    ? () {
-                        Navigator.pushNamed(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _backButton(context),
+
+                    const SizedBox(height: 56),
+
+                    const Text(
+                      'Nhập Email của bạn',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 28,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+
+                    const SizedBox(height: 18),
+
+                    TextField(
+                      controller: emailController,
+                      onChanged: (_) => setState(() {}),
+                      keyboardType: TextInputType.emailAddress,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: InputDecoration(
+                        hintText: 'Địa chỉ Email',
+                        hintStyle: const TextStyle(color: Colors.white54),
+                        filled: true,
+                        fillColor: field,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 18,
+                          vertical: 16,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(28),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.pushReplacementNamed(
                           context,
-                          AppRoutes.registerPasswordEmail,
-                          arguments: {'email': emailController.text.trim()},
+                          AppRoutes.registerPhone,
                         );
-                      }
-                    : null,
+                      },
+                      child: const Text(
+                        'Sử dụng số điện thoại >',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 18),
+
+                    const Text(
+                      'Bằng cách nhấn vào nút Tiếp tục,\n'
+                      'bạn đồng ý với chúng tôi Điều khoản\n'
+                      'dịch vụ và Chính sách quyền riêng tư',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 12,
+                        height: 1.5,
+                      ),
+                    ),
+
+                    const SizedBox(height: 18),
+
+                    _primaryButton(
+                      label: 'Tiếp tục',
+                      color: isValidEmail ? blue : Colors.grey,
+                      onTap: isValidEmail
+                          ? () {
+                              Navigator.pushNamed(
+                                context,
+                                AppRoutes.registerPasswordEmail,
+                                arguments: {
+                                  'email': emailController.text.trim(),
+                                },
+                              );
+                            }
+                          : null,
+                    ),
+
+                    const SizedBox(height: 24),
+                  ],
+                ),
               ),
-              const SizedBox(height: 12),
-            ],
-          ),
+            );
+          },
         ),
       ),
     );
