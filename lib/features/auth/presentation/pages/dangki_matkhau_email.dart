@@ -1,11 +1,31 @@
-import 'package:flutter/material.dart';
 import 'package:do_an/app/routes/app_routes.dart';
+import 'package:flutter/material.dart';
 
-class DangKiMatKhauEmailPage extends StatelessWidget {
+class DangKiMatKhauEmailPage extends StatefulWidget {
   const DangKiMatKhauEmailPage({super.key});
 
   @override
+  State<DangKiMatKhauEmailPage> createState() => _DangKiMatKhauEmailPageState();
+}
+
+class _DangKiMatKhauEmailPageState extends State<DangKiMatKhauEmailPage> {
+  final TextEditingController passwordController = TextEditingController();
+
+  bool get isValidPassword => passwordController.text.length >= 8;
+
+  @override
+  void dispose() {
+    passwordController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final args =
+        ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+
+    final email = args?['email'] as String? ?? '';
+
     const blue = Color(0xFF4AA8FF);
     const field = Color(0xFF2E2E31);
 
@@ -30,6 +50,8 @@ class DangKiMatKhauEmailPage extends StatelessWidget {
               ),
               const SizedBox(height: 18),
               TextField(
+                controller: passwordController,
+                onChanged: (_) => setState(() {}),
                 obscureText: true,
                 style: const TextStyle(color: Colors.white),
                 decoration: InputDecoration(
@@ -37,8 +59,10 @@ class DangKiMatKhauEmailPage extends StatelessWidget {
                   hintStyle: const TextStyle(color: Colors.white54),
                   filled: true,
                   fillColor: field,
-                  contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 16,
+                  ),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(28),
                     borderSide: BorderSide.none,
@@ -51,10 +75,7 @@ class DangKiMatKhauEmailPage extends StatelessWidget {
                   children: [
                     TextSpan(
                       text: 'Mật khẩu có ít nhất ',
-                      style: TextStyle(
-                        color: Colors.white70,
-                        fontSize: 14,
-                      ),
+                      style: TextStyle(color: Colors.white70, fontSize: 14),
                     ),
                     TextSpan(
                       text: '8 kí tự',
@@ -71,10 +92,19 @@ class DangKiMatKhauEmailPage extends StatelessWidget {
               const Spacer(),
               _primaryButton(
                 label: 'Tiếp tục',
-                color: blue,
-                onTap: () {
-                  Navigator.pushNamed(context, AppRoutes.registerNameEmail);
-                },
+                color: isValidPassword ? blue : Colors.grey,
+                onTap: isValidPassword
+                    ? () {
+                        Navigator.pushNamed(
+                          context,
+                          AppRoutes.registerNameEmail,
+                          arguments: {
+                            'email': email,
+                            'password': passwordController.text,
+                          },
+                        );
+                      }
+                    : null,
               ),
               const SizedBox(height: 12),
             ],
@@ -110,7 +140,7 @@ class DangKiMatKhauEmailPage extends StatelessWidget {
   Widget _primaryButton({
     required String label,
     required Color color,
-    required VoidCallback onTap,
+    required VoidCallback? onTap,
   }) {
     return SizedBox(
       height: 54,

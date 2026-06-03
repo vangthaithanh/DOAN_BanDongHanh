@@ -1,6 +1,8 @@
-import 'package:flutter/material.dart';
-import 'cau_hoi_1.dart';
 import 'package:do_an/app/routes/app_routes.dart';
+import 'package:do_an/features/onboarding/data/onboarding_state.dart';
+import 'package:flutter/material.dart';
+
+import 'cau_hoi_1.dart';
 
 class CauHoi2Page extends StatefulWidget {
   const CauHoi2Page({super.key});
@@ -10,7 +12,7 @@ class CauHoi2Page extends StatefulWidget {
 }
 
 class _CauHoi2PageState extends State<CauHoi2Page> {
-  final Set<int> selectedIndexes = {2};
+  final Set<int> selectedIndexes = {};
 
   final List<String> options = [
     'Biển đảo / Núi rừng',
@@ -19,6 +21,15 @@ class _CauHoi2PageState extends State<CauHoi2Page> {
     'Làng nghề văn hoá / di tích lịch sử',
     'Ngoại ô / Đồng quê',
     'Khác',
+  ];
+
+  final List<String?> optionCodes = [
+    'BIEN_NUI',
+    'TRUNG_TAM',
+    'DIA_DANH_NOI_TIENG',
+    'LANG_NGHE_DI_TICH',
+    'NGOAI_O_DONG_QUE',
+    null,
   ];
 
   @override
@@ -34,6 +45,8 @@ class _CauHoi2PageState extends State<CauHoi2Page> {
           } else {
             selectedIndexes.add(index);
           }
+
+          OnboardingState.toggle(optionCodes[index]);
         });
       },
       onNext: () {

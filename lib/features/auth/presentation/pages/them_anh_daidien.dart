@@ -1,8 +1,9 @@
 import 'dart:io';
 
+import 'package:do_an/app/routes/app_routes.dart';
+import 'package:do_an/core/services/auth_service.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:do_an/app/routes/app_routes.dart';
 
 class ThemAnhDaiDienPage extends StatefulWidget {
   const ThemAnhDaiDienPage({super.key});
@@ -14,8 +15,11 @@ class ThemAnhDaiDienPage extends StatefulWidget {
 class _ThemAnhDaiDienPageState extends State<ThemAnhDaiDienPage> {
   static const Color blue = Color(0xFF4AA8FF);
 
-  File? selectedImage;
   final ImagePicker picker = ImagePicker();
+  final AuthService authService = AuthService();
+
+  File? selectedImage;
+  bool isLoading = false;
 
   Future<void> pickAvatar() async {
     final XFile? image = await picker.pickImage(
@@ -30,8 +34,47 @@ class _ThemAnhDaiDienPageState extends State<ThemAnhDaiDienPage> {
     }
   }
 
+  Future<void> handleContinue() async {
+    if (isLoading) return;
+
+    setState(() {
+      isLoading = true;
+    });
+
+    try {
+      if (selectedImage != null) {
+        await authService.uploadAvatar(selectedImage!);
+      }
+
+      if (!mounted) return;
+
+      Navigator.pushNamed(context, AppRoutes.surveyIntro);
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+        });
+      }
+    }
+  }
+
+  void handleSkip() {
+    Navigator.pushNamed(context, AppRoutes.surveyIntro);
+  }
+
   @override
   Widget build(BuildContext context) {
+    final args =
+        ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+
+    final nickname = args?['nickname'] as String? ?? 'bạn';
+
     return Scaffold(
       backgroundColor: Colors.black,
       body: SafeArea(
@@ -42,9 +85,7 @@ class _ThemAnhDaiDienPageState extends State<ThemAnhDaiDienPage> {
               Align(
                 alignment: Alignment.centerRight,
                 child: GestureDetector(
-                  onTap: () {
-                    Navigator.pushNamed(context, AppRoutes.surveyIntro);
-                  },
+                  onTap: isLoading ? null : handleSkip,
                   child: const Text(
                     'Bỏ qua >',
                     style: TextStyle(
@@ -55,9 +96,7 @@ class _ThemAnhDaiDienPageState extends State<ThemAnhDaiDienPage> {
                   ),
                 ),
               ),
-
               const Spacer(),
-
               Transform.translate(
                 offset: const Offset(0, -22),
                 child: SizedBox(
@@ -69,55 +108,44 @@ class _ThemAnhDaiDienPageState extends State<ThemAnhDaiDienPage> {
                   ),
                 ),
               ),
-
               const SizedBox(height: 10),
-
-              const Text(
-                'Xin chào, “Biệt Danh”',
+              Text(
+                'Xin chào, “$nickname”',
                 textAlign: TextAlign.center,
-                style: TextStyle(
+                style: const TextStyle(
                   color: Colors.white,
                   fontSize: 30,
                   fontWeight: FontWeight.w800,
                 ),
               ),
-
               const SizedBox(height: 28),
-
               GestureDetector(
-                onTap: pickAvatar,
+                onTap: isLoading ? null : pickAvatar,
                 child: selectedImage == null
                     ? Container(
-                  width: 100,
-                  height: 100,
-                  decoration: const BoxDecoration(
-                    color: blue,
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.add,
-                    color: Colors.white,
-                    size: 46,
-                  ),
-                )
+                        width: 100,
+                        height: 100,
+                        decoration: const BoxDecoration(
+                          color: blue,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.add,
+                          color: Colors.white,
+                          size: 46,
+                        ),
+                      )
                     : Container(
-                  width: 100,
-                  height: 100,
-                  clipBehavior: Clip.antiAlias,
-                  decoration: const BoxDecoration(
-                    shape: BoxShape.circle,
-                  ),
-                  child: Image.file(
-                    selectedImage!,
-                    fit: BoxFit.cover,
-                  ),
-                ),
+                        width: 100,
+                        height: 100,
+                        clipBehavior: Clip.antiAlias,
+                        decoration: const BoxDecoration(shape: BoxShape.circle),
+                        child: Image.file(selectedImage!, fit: BoxFit.cover),
+                      ),
               ),
-
               const SizedBox(height: 14),
-
               GestureDetector(
-                onTap: pickAvatar,
+                onTap: isLoading ? null : pickAvatar,
                 child: const Text(
                   'Thêm ảnh đại diện',
                   style: TextStyle(
@@ -127,33 +155,29 @@ class _ThemAnhDaiDienPageState extends State<ThemAnhDaiDienPage> {
                   ),
                 ),
               ),
-
               const Spacer(),
-
               SizedBox(
                 width: double.infinity,
                 height: 54,
                 child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.pushNamed(context, AppRoutes.surveyIntro);
-                  },
+                  onPressed: isLoading ? null : handleContinue,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: blue,
+                    disabledBackgroundColor: Colors.grey,
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(28),
                     ),
                   ),
-                  child: const Text(
-                    'Tiếp tục →',
-                    style: TextStyle(
+                  child: Text(
+                    isLoading ? 'Đang lưu...' : 'Tiếp tục →',
+                    style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
                 ),
               ),
-
               const SizedBox(height: 8),
             ],
           ),

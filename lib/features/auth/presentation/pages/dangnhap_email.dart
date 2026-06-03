@@ -1,8 +1,27 @@
-import 'package:flutter/material.dart';
 import 'package:do_an/app/routes/app_routes.dart';
+import 'package:flutter/material.dart';
 
-class DangNhapEmailPage extends StatelessWidget {
+class DangNhapEmailPage extends StatefulWidget {
   const DangNhapEmailPage({super.key});
+
+  @override
+  State<DangNhapEmailPage> createState() => _DangNhapEmailPageState();
+}
+
+class _DangNhapEmailPageState extends State<DangNhapEmailPage> {
+  final TextEditingController emailController = TextEditingController();
+
+  bool get isValidEmail {
+    final email = emailController.text.trim();
+    final regex = RegExp(r'^[\w\.-]+@[\w\.-]+\.\w+$');
+    return regex.hasMatch(email);
+  }
+
+  @override
+  void dispose() {
+    emailController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -30,6 +49,8 @@ class DangNhapEmailPage extends StatelessWidget {
               ),
               const SizedBox(height: 18),
               TextField(
+                controller: emailController,
+                onChanged: (_) => setState(() {}),
                 keyboardType: TextInputType.emailAddress,
                 style: const TextStyle(color: Colors.white),
                 decoration: InputDecoration(
@@ -37,8 +58,10 @@ class DangNhapEmailPage extends StatelessWidget {
                   hintStyle: const TextStyle(color: Colors.white54),
                   filled: true,
                   fillColor: field,
-                  contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 16,
+                  ),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(28),
                     borderSide: BorderSide.none,
@@ -63,8 +86,8 @@ class DangNhapEmailPage extends StatelessWidget {
               const Spacer(),
               const Text(
                 'Bằng cách nhấn vào nút Tiếp tục,\n'
-                    'bạn đồng ý với chúng tôi Điều khoản\n'
-                    'dịch vụ và Chính sách quyền riêng tư',
+                'bạn đồng ý với chúng tôi Điều khoản\n'
+                'dịch vụ và Chính sách quyền riêng tư',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: Colors.white70,
@@ -75,10 +98,16 @@ class DangNhapEmailPage extends StatelessWidget {
               const SizedBox(height: 18),
               _primaryButton(
                 label: 'Tiếp tục',
-                color: blue,
-                onTap: () {
-                  Navigator.pushNamed(context, AppRoutes.passwordEmail);
-                },
+                color: isValidEmail ? blue : Colors.grey,
+                onTap: isValidEmail
+                    ? () {
+                        Navigator.pushNamed(
+                          context,
+                          AppRoutes.passwordEmail,
+                          arguments: {'email': emailController.text.trim()},
+                        );
+                      }
+                    : null,
               ),
               const SizedBox(height: 12),
             ],
@@ -114,7 +143,7 @@ class DangNhapEmailPage extends StatelessWidget {
   Widget _primaryButton({
     required String label,
     required Color color,
-    required VoidCallback onTap,
+    required VoidCallback? onTap,
   }) {
     return SizedBox(
       height: 54,

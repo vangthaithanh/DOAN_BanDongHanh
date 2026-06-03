@@ -1,7 +1,27 @@
-import 'package:flutter/material.dart';
 import 'package:do_an/app/routes/app_routes.dart';
-class DangKiEmailPage extends StatelessWidget {
+import 'package:flutter/material.dart';
+
+class DangKiEmailPage extends StatefulWidget {
   const DangKiEmailPage({super.key});
+
+  @override
+  State<DangKiEmailPage> createState() => _DangKiEmailPageState();
+}
+
+class _DangKiEmailPageState extends State<DangKiEmailPage> {
+  final TextEditingController emailController = TextEditingController();
+
+  bool get isValidEmail {
+    final email = emailController.text.trim();
+    final regex = RegExp(r'^[\w\.-]+@[\w\.-]+\.\w+$');
+    return regex.hasMatch(email);
+  }
+
+  @override
+  void dispose() {
+    emailController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -29,6 +49,8 @@ class DangKiEmailPage extends StatelessWidget {
               ),
               const SizedBox(height: 18),
               TextField(
+                controller: emailController,
+                onChanged: (_) => setState(() {}),
                 keyboardType: TextInputType.emailAddress,
                 style: const TextStyle(color: Colors.white),
                 decoration: InputDecoration(
@@ -36,8 +58,10 @@ class DangKiEmailPage extends StatelessWidget {
                   hintStyle: const TextStyle(color: Colors.white54),
                   filled: true,
                   fillColor: field,
-                  contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 16,
+                  ),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(28),
                     borderSide: BorderSide.none,
@@ -47,7 +71,10 @@ class DangKiEmailPage extends StatelessWidget {
               const SizedBox(height: 12),
               GestureDetector(
                 onTap: () {
-                  Navigator.pushReplacementNamed(context, AppRoutes.registerPhone);
+                  Navigator.pushReplacementNamed(
+                    context,
+                    AppRoutes.registerPhone,
+                  );
                 },
                 child: const Text(
                   'Sử dụng số điện thoại >',
@@ -62,8 +89,8 @@ class DangKiEmailPage extends StatelessWidget {
               const Spacer(),
               const Text(
                 'Bằng cách nhấn vào nút Tiếp tục,\n'
-                    'bạn đồng ý với chúng tôi Điều khoản\n'
-                    'dịch vụ và Chính sách quyền riêng tư',
+                'bạn đồng ý với chúng tôi Điều khoản\n'
+                'dịch vụ và Chính sách quyền riêng tư',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: Colors.white70,
@@ -74,10 +101,16 @@ class DangKiEmailPage extends StatelessWidget {
               const SizedBox(height: 18),
               _primaryButton(
                 label: 'Tiếp tục',
-                color: blue,
-                onTap: () {
-                  Navigator.pushNamed(context, '/dangki-matkhau-email');
-                },
+                color: isValidEmail ? blue : Colors.grey,
+                onTap: isValidEmail
+                    ? () {
+                        Navigator.pushNamed(
+                          context,
+                          AppRoutes.registerPasswordEmail,
+                          arguments: {'email': emailController.text.trim()},
+                        );
+                      }
+                    : null,
               ),
               const SizedBox(height: 12),
             ],
@@ -113,7 +146,7 @@ class DangKiEmailPage extends StatelessWidget {
   Widget _primaryButton({
     required String label,
     required Color color,
-    required VoidCallback onTap,
+    required VoidCallback? onTap,
   }) {
     return SizedBox(
       height: 54,

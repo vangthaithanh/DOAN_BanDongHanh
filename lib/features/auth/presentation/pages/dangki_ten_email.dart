@@ -1,11 +1,72 @@
-import 'package:flutter/material.dart';
 import 'package:do_an/app/routes/app_routes.dart';
+import 'package:do_an/core/services/auth_service.dart';
+import 'package:flutter/material.dart';
 
-class DangKiTenEmailPage extends StatelessWidget {
+class DangKiTenEmailPage extends StatefulWidget {
   const DangKiTenEmailPage({super.key});
 
   @override
+  State<DangKiTenEmailPage> createState() => _DangKiTenEmailPageState();
+}
+
+class _DangKiTenEmailPageState extends State<DangKiTenEmailPage> {
+  final TextEditingController nicknameController = TextEditingController();
+  final AuthService authService = AuthService();
+
+  bool isLoading = false;
+
+  bool get isValidNickname => nicknameController.text.trim().length >= 3;
+
+  @override
+  void dispose() {
+    nicknameController.dispose();
+    super.dispose();
+  }
+
+  Future<void> handleSignUp(String email, String password) async {
+    final nickname = nicknameController.text.trim();
+
+    setState(() {
+      isLoading = true;
+    });
+
+    try {
+      await authService.signUpWithEmail(
+        email: email,
+        password: password,
+        nickname: nickname,
+      );
+
+      if (!mounted) return;
+
+      Navigator.pushNamed(
+        context,
+        AppRoutes.addAvatar,
+        arguments: {'nickname': nickname},
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+        });
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final args =
+        ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+
+    final email = args?['email'] as String? ?? '';
+    final password = args?['password'] as String? ?? '';
+
     const blue = Color(0xFF4AA8FF);
     const field = Color(0xFF2E2E31);
 
@@ -30,27 +91,37 @@ class DangKiTenEmailPage extends StatelessWidget {
               ),
               const SizedBox(height: 18),
               TextField(
+                controller: nicknameController,
+                onChanged: (_) => setState(() {}),
                 style: const TextStyle(color: Colors.white),
                 decoration: InputDecoration(
                   hintText: 'Biệt danh',
                   hintStyle: const TextStyle(color: Colors.white54),
                   filled: true,
                   fillColor: field,
-                  contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 16,
+                  ),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(28),
                     borderSide: BorderSide.none,
                   ),
                 ),
               ),
+              const SizedBox(height: 10),
+              const Text(
+                'Biệt danh tối thiểu 3 ký tự và không được trùng.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.white54, fontSize: 13),
+              ),
               const Spacer(),
               _primaryButton(
-                label: 'Tiếp tục',
-                color: blue,
-                onTap: () {
-                  Navigator.pushNamed(context, AppRoutes.addAvatar);
-                },
+                label: isLoading ? 'Đang tạo tài khoản...' : 'Tiếp tục',
+                color: isValidNickname && !isLoading ? blue : Colors.grey,
+                onTap: isValidNickname && !isLoading
+                    ? () => handleSignUp(email, password)
+                    : null,
               ),
               const SizedBox(height: 12),
             ],
@@ -86,7 +157,7 @@ class DangKiTenEmailPage extends StatelessWidget {
   Widget _primaryButton({
     required String label,
     required Color color,
-    required VoidCallback onTap,
+    required VoidCallback? onTap,
   }) {
     return SizedBox(
       height: 54,

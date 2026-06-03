@@ -1,11 +1,68 @@
-import 'package:flutter/material.dart';
 import 'package:do_an/app/routes/app_routes.dart';
+import 'package:do_an/core/services/auth_service.dart';
+import 'package:flutter/material.dart';
 
-class MatKhauEmailPage extends StatelessWidget {
+class MatKhauEmailPage extends StatefulWidget {
   const MatKhauEmailPage({super.key});
 
   @override
+  State<MatKhauEmailPage> createState() => _MatKhauEmailPageState();
+}
+
+class _MatKhauEmailPageState extends State<MatKhauEmailPage> {
+  final TextEditingController passwordController = TextEditingController();
+  final AuthService authService = AuthService();
+
+  bool isLoading = false;
+
+  bool get isValidPassword => passwordController.text.isNotEmpty;
+
+  @override
+  void dispose() {
+    passwordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> handleLogin(String email) async {
+    setState(() {
+      isLoading = true;
+    });
+
+    try {
+      await authService.signInWithEmail(
+        email: email,
+        password: passwordController.text,
+      );
+
+      if (!mounted) return;
+
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        AppRoutes.loading,
+        (route) => false,
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Email hoặc mật khẩu không đúng')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+        });
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final args =
+        ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+
+    final email = args?['email'] as String? ?? '';
+
     const blue = Color(0xFF4AA8FF);
     const field = Color(0xFF2E2E31);
 
@@ -30,6 +87,8 @@ class MatKhauEmailPage extends StatelessWidget {
               ),
               const SizedBox(height: 18),
               TextField(
+                controller: passwordController,
+                onChanged: (_) => setState(() {}),
                 obscureText: true,
                 style: const TextStyle(color: Colors.white),
                 decoration: InputDecoration(
@@ -37,8 +96,10 @@ class MatKhauEmailPage extends StatelessWidget {
                   hintStyle: const TextStyle(color: Colors.white54),
                   filled: true,
                   fillColor: field,
-                  contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 16,
+                  ),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(28),
                     borderSide: BorderSide.none,
@@ -46,13 +107,9 @@ class MatKhauEmailPage extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 12),
-
               InkWell(
                 onTap: () {
-                  Navigator.pushNamed(
-                    context,
-                    AppRoutes.quenMatKhauEmail,
-                  );
+                  Navigator.pushNamed(context, AppRoutes.quenMatKhauEmail);
                 },
                 borderRadius: BorderRadius.circular(8),
                 child: const Text(
@@ -67,15 +124,11 @@ class MatKhauEmailPage extends StatelessWidget {
               ),
               const Spacer(),
               _primaryButton(
-                label: 'Tiếp tục',
-                color: blue,
-                onTap: () {
-                  Navigator.pushNamedAndRemoveUntil(
-                    context,
-                    AppRoutes.loading,
-                        (route) => false,
-                  );
-                },
+                label: isLoading ? 'Đang đăng nhập...' : 'Tiếp tục',
+                color: isValidPassword && !isLoading ? blue : Colors.grey,
+                onTap: isValidPassword && !isLoading
+                    ? () => handleLogin(email)
+                    : null,
               ),
               const SizedBox(height: 12),
             ],
@@ -111,7 +164,7 @@ class MatKhauEmailPage extends StatelessWidget {
   Widget _primaryButton({
     required String label,
     required Color color,
-    required VoidCallback onTap,
+    required VoidCallback? onTap,
   }) {
     return SizedBox(
       height: 54,
