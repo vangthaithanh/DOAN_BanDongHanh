@@ -4,12 +4,16 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../data/mock/mock_messages.dart';
+import '../../../users/presentation/pages/trang_hoso_nguoidung.dart';
 
 class TrangTinNhanCaiDatPage extends StatefulWidget {
+
   final String name;
+  final bool isWaiting;
   const TrangTinNhanCaiDatPage({
     super.key,
     required this.name,
+    required this.isWaiting,
   });
 
   @override
@@ -213,7 +217,36 @@ class _TrangTinNhanCaiDatPageState
                 _topAction(
                   icon: LucideIcons.user,
                   label: 'Trang cá nhân',
-                  onTap: () {},
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      PageRouteBuilder(
+                        transitionDuration:
+                        const Duration(milliseconds: 350),
+                        pageBuilder:
+                            (_, animation, secondaryAnimation) =>
+                            TrangHoSoNguoiDungPage(
+                              userName: widget.name,
+                              isFollowing: !widget.isWaiting,
+                            ),
+                        transitionsBuilder:
+                            (_, animation, secondaryAnimation, child) {
+                          return SlideTransition(
+                            position: Tween<Offset>(
+                              begin: const Offset(1, 0),
+                              end: Offset.zero,
+                            ).animate(
+                              CurvedAnimation(
+                                parent: animation,
+                                curve: Curves.easeInOutCubic,
+                              ),
+                            ),
+                            child: child,
+                          );
+                        },
+                      ),
+                    );
+                  },
                 ),
                 _topAction(
                   icon: LucideIcons.search,

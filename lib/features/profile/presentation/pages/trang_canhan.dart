@@ -9,6 +9,9 @@ import '../../../social/data/mock/kho_luu_bai_viet.dart';
 import '../../../social/data/mock/mock_posts.dart';
 import '../../../social/data/models/post_model.dart';
 import '../../../social/presentation/widgets/post_card.dart';
+import '../../../users/presentation/pages/trang_danhsach_banbe.dart';
+import '../../../users/presentation/pages/trang_danhsach_nguoitheodoi.dart';
+
 
 const double contentIndent = 52;
 
@@ -44,7 +47,15 @@ class ProfilePlanGroup {
     required this.items,
   });
 }
+class FollowerData {
+  final String userName;
+  final String action;
 
+  const FollowerData({
+    required this.userName,
+    required this.action,
+  });
+}
 class TrangCaNhanPage extends StatefulWidget {
   const TrangCaNhanPage({super.key});
 
@@ -282,6 +293,43 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
                         Text('4 Bạn bè',
                             style: _textStyle(
                                 size: 12, weight: FontWeight.w600)),
+                        GestureDetector(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                const TrangDanhSachNguoiTheoDoiPage(),
+                              ),
+                            );
+                          },
+                          child: Text(
+                              '4 Người theo dõi',
+                            style: _textStyle(
+                              size: 12,
+                              weight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 18),
+                        GestureDetector(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                const TrangDanhSachBanBePage(),
+                              ),
+                            );
+                          },
+                          child: Text(
+                            '4 Bạn bè',
+                          style: _textStyle(
+                            size: 12,
+                            weight: FontWeight.w600,
+                          ),
+                        ),
+                        ),
                       ],
                     ),
                   ],
