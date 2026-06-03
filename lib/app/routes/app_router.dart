@@ -1,46 +1,46 @@
 import 'package:flutter/material.dart';
 
 import '../../core/widgets/coming_soon_page.dart';
-import 'app_routes.dart';
-
-import '../../features/auth/presentation/pages/trang_bat_dau.dart';
-import '../../features/auth/presentation/pages/dangnhap_email.dart';
-import '../../features/auth/presentation/pages/dangnhap_sdt.dart';
-import '../../features/auth/presentation/pages/matkhau_email.dart';
-import '../../features/auth/presentation/pages/matkhau_sdt.dart';
+import '../../features/auth/data/models/du_lieu_quen_matkhau.dart';
 import '../../features/auth/presentation/pages/dangki_email.dart';
 import '../../features/auth/presentation/pages/dangki_matkhau_email.dart';
-import '../../features/auth/presentation/pages/dangki_ten_email.dart';
-import '../../features/auth/presentation/pages/dangki_sdt.dart';
 import '../../features/auth/presentation/pages/dangki_matkhau_sdt.dart';
+import '../../features/auth/presentation/pages/dangki_sdt.dart';
+import '../../features/auth/presentation/pages/dangki_ten_email.dart';
 import '../../features/auth/presentation/pages/dangki_ten_sdt.dart';
-import '../../features/auth/presentation/pages/them_anh_daidien.dart';
+import '../../features/auth/presentation/pages/dangnhap_email.dart';
+import '../../features/auth/presentation/pages/dangnhap_sdt.dart';
 import '../../features/auth/presentation/pages/man_hinh_cho.dart';
-import '../../features/auth/data/models/du_lieu_quen_matkhau.dart';
+import '../../features/auth/presentation/pages/matkhau_email.dart';
+import '../../features/auth/presentation/pages/matkhau_sdt.dart';
 import '../../features/auth/presentation/pages/quen_matkhau_email.dart';
-import '../../features/auth/presentation/pages/quen_matkhau_sdt.dart';
-import '../../features/auth/presentation/pages/quen_matkhau_otp.dart';
 import '../../features/auth/presentation/pages/quen_matkhau_moi.dart';
-
+import '../../features/auth/presentation/pages/quen_matkhau_otp.dart';
+import '../../features/auth/presentation/pages/quen_matkhau_sdt.dart';
+import '../../features/auth/presentation/pages/them_anh_daidien.dart';
+import '../../features/auth/presentation/pages/trang_bat_dau.dart';
+import '../../features/home/presentation/pages/trang_chu.dart';
+import '../../features/map/presentation/pages/map.dart';
+import '../../features/messages/presentation/pages/trang_doan_chat.dart';
+import '../../features/messages/presentation/pages/trang_tinnhan.dart';
+import '../../features/messages/presentation/pages/trang_tinnhan_cho.dart';
+import '../../features/moments/presentation/pages/trang_chia_se_camera.dart';
+import '../../features/moments/presentation/pages/trang_gallery_khoanhkhac.dart';
+import '../../features/moments/presentation/pages/trang_hinh_anh_chi_tiet.dart';
+import '../../features/moments/presentation/pages/trang_preview_hinh.dart';
+import '../../features/moments/presentation/pages/trang_vi_tri.dart';
+import '../../features/notifications/presentation/pages/trang_thongbao.dart';
 import '../../features/onboarding/presentation/pages/cau_hoi.dart';
 import '../../features/onboarding/presentation/pages/cau_hoi_1.dart';
 import '../../features/onboarding/presentation/pages/cau_hoi_2.dart';
 import '../../features/onboarding/presentation/pages/cau_hoi_3.dart';
-
-import '../../features/home/presentation/pages/trang_chu.dart';
+import '../../features/places/presentation/pages/trang_chi_tiet_dia_diem.dart';
+import '../../features/places/presentation/pages/trang_danh_gia_dia_diem.dart';
+import '../../features/places/presentation/pages/trang_dia_diem.dart';
 import '../../features/profile/presentation/pages/trang_canhan.dart';
-import '../../features/map/presentation/pages/map.dart';
-import '../../features/moments/presentation/pages/trang_chia_se_camera.dart';
-import '../../features/moments/presentation/pages/trang_preview_hinh.dart';
-import '../../features/moments/presentation/pages/trang_gallery_khoanhkhac.dart';
-import '../../features/moments/presentation/pages/trang_hinh_anh_chi_tiet.dart';
-import '../../features/notifications/presentation/pages/trang_thongbao.dart';
-import '../../features/messages/presentation/pages/trang_tinnhan.dart';
 import '../../features/social/presentation/pages/trang_binhluan.dart';
-import '../../features/moments/presentation/pages/trang_vi_tri.dart';
 import '../../features/social/presentation/pages/trang_tao_baiviet.dart';
-import '../../features/messages/presentation/pages/trang_tinnhan_cho.dart';
-import '../../features/messages/presentation/pages/trang_doan_chat.dart';
+import 'app_routes.dart';
 
 class AppRouter {
   const AppRouter._();
@@ -68,19 +68,17 @@ class AppRouter {
       AppRoutes.quenMatKhauSdt: (_) => const QuenMatKhauSdt(),
 
       AppRoutes.quenMatKhauOtp: (context) {
-        final duLieu = ModalRoute.of(context)!.settings.arguments as DuLieuQuenMatKhau;
+        final duLieu =
+            ModalRoute.of(context)!.settings.arguments as DuLieuQuenMatKhau;
 
-        return QuenMatKhauOtp(
-          duLieu: duLieu,
-        );
+        return QuenMatKhauOtp(duLieu: duLieu);
       },
 
       AppRoutes.quenMatKhauMoi: (context) {
-        final duLieu = ModalRoute.of(context)!.settings.arguments as DuLieuQuenMatKhau;
+        final duLieu =
+            ModalRoute.of(context)!.settings.arguments as DuLieuQuenMatKhau;
 
-        return QuenMatKhauMoi(
-          duLieu: duLieu,
-        );
+        return QuenMatKhauMoi(duLieu: duLieu);
       },
 
       AppRoutes.surveyIntro: (_) => const CauHoiPage(),
@@ -93,11 +91,10 @@ class AppRouter {
       AppRoutes.momentCamera: (_) => const TrangChiaSeCamera(),
 
       AppRoutes.trangPreviewHinh: (context) {
-        final duongDanAnh = ModalRoute.of(context)?.settings.arguments as String?;
+        final duongDanAnh =
+            ModalRoute.of(context)?.settings.arguments as String?;
 
-        return TrangPreviewHinh(
-          duongDanAnh: duongDanAnh,
-        );
+        return TrangPreviewHinh(duongDanAnh: duongDanAnh);
       },
 
       AppRoutes.trangGalleryKhoanhKhac: (_) => const TrangGalleryKhoanhKhac(),
@@ -112,47 +109,52 @@ class AppRouter {
           );
         }
 
-        return TrangHinhAnhChiTiet(
-          duongDanAnh: args as String?,
-        );
+        return TrangHinhAnhChiTiet(duongDanAnh: args as String?);
       },
       AppRoutes.notifications: (_) => const TrangThongBaoPage(),
       AppRoutes.messages: (_) => const TrangTinNhanPage(),
       AppRoutes.profile: (_) => const TrangCaNhanPage(),
 
       AppRoutes.createPost: (_) => const TrangTaoBaiViet(),
-      AppRoutes.postDetail: (_) => const ComingSoonPage(title: 'Chi tiết bài viết'),
+      AppRoutes.postDetail: (_) =>
+          const ComingSoonPage(title: 'Chi tiết bài viết'),
+
       AppRoutes.search: (_) => const ComingSoonPage(title: 'Tìm kiếm'),
-      AppRoutes.placeList: (_) => const ComingSoonPage(title: 'Danh sách địa điểm'),
-      AppRoutes.placeDetail: (_) => const ComingSoonPage(title: 'Chi tiết địa điểm'),
-      AppRoutes.placeReview: (_) => const ComingSoonPage(title: 'Đánh giá địa điểm'),
-      AppRoutes.tripList: (_) => const ComingSoonPage(title: 'Lịch trình của tôi'),
-      AppRoutes.tripCreate: (_) => const ComingSoonPage(title: 'Tạo lịch trình'),
-      AppRoutes.tripDetail: (_) => const ComingSoonPage(title: 'Chi tiết lịch trình'),
-      AppRoutes.editProfile: (_) => const ComingSoonPage(title: 'Chỉnh sửa hồ sơ'),
+      AppRoutes.placeList: (_) => const TrangDiaDiemPage(),
+      AppRoutes.placeDetail: (_) => const TrangChiTietDiaDiemPage(),
+      AppRoutes.placeReview: (_) => const TrangDanhGiaDiaDiemPage(),
+      AppRoutes.tripList: (_) =>
+          const ComingSoonPage(title: 'Lịch trình của tôi'),
+      AppRoutes.tripCreate: (_) =>
+          const ComingSoonPage(title: 'Tạo lịch trình'),
+      AppRoutes.tripDetail: (_) =>
+          const ComingSoonPage(title: 'Chi tiết lịch trình'),
+      AppRoutes.editProfile: (_) =>
+          const ComingSoonPage(title: 'Chỉnh sửa hồ sơ'),
       AppRoutes.settings: (_) => const ComingSoonPage(title: 'Cài đặt'),
-      AppRoutes.followRequests: (_) => const ComingSoonPage(title: 'Yêu cầu theo dõi'),
-      AppRoutes.friendSuggestions: (_) => const ComingSoonPage(title: 'Gợi ý bạn bè'),
-      AppRoutes.adminDashboard: (_) => const ComingSoonPage(title: 'Quản trị viên'),
-      AppRoutes.adminReports: (_) => const ComingSoonPage(title: 'Báo cáo vi phạm'),
+      AppRoutes.followRequests: (_) =>
+          const ComingSoonPage(title: 'Yêu cầu theo dõi'),
+      AppRoutes.friendSuggestions: (_) =>
+          const ComingSoonPage(title: 'Gợi ý bạn bè'),
+      AppRoutes.adminDashboard: (_) =>
+          const ComingSoonPage(title: 'Quản trị viên'),
+      AppRoutes.adminReports: (_) =>
+          const ComingSoonPage(title: 'Báo cáo vi phạm'),
       AppRoutes.trangBinhLuan: (context) {
         final postId = ModalRoute.of(context)?.settings.arguments as int? ?? 1;
 
-        return TrangBinhLuan(
-          postId: postId,
-        );
+        return TrangBinhLuan(postId: postId);
       },
       AppRoutes.waitingMessages: (_) => const TrangTinNhanChoPage(),
 
       AppRoutes.chatDetail: (context) {
-        final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+        final args =
+            ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
         final name = args?['name'] as String? ?? 'Người dùng';
-        final isWaiting = args?['isWaiting'] as bool? ?? false; // mặc định là chat thường
+        final isWaiting =
+            args?['isWaiting'] as bool? ?? false; // mặc định là chat thường
 
-        return TrangDoanChatPage(
-          name: name,
-          isWaiting: isWaiting,
-        );
+        return TrangDoanChatPage(name: name, isWaiting: isWaiting);
       },
     };
   }
