@@ -6,17 +6,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../app/routes/app_routes.dart';
 import '../../../../core/services/auth_service.dart';
 
-/// NOTE SỬA:
-/// Màn nhập email + đăng nhập Google.
-///
-/// SỬA CHÍNH:
-/// 1. Google login xong KHÔNG tự vào thẳng trang chủ/profile.
-/// 2. Khi Supabase báo signedIn, chuyển sang AppRoutes.loading.
-/// 3. ManHinhChoPage sẽ tự kiểm tra:
-///    - chưa avatar -> thêm avatar
-///    - chưa khảo sát -> câu hỏi
-///    - đủ rồi -> trang chủ
-/// 4. Form responsive, khi bàn phím mở vẫn cuộn được.
 class DangNhapEmailPage extends StatefulWidget {
   const DangNhapEmailPage({super.key});
 
@@ -43,13 +32,10 @@ class _DangNhapEmailPageState extends State<DangNhapEmailPage> {
   void initState() {
     super.initState();
 
-    /// NOTE SỬA:
-    /// Khi Google login thành công và quay lại app,
-    /// Supabase phát event signedIn.
-    /// Ta chỉ chuyển sang màn loading, KHÔNG chuyển thẳng vào home.
-    authSub = Supabase.instance.client.auth.onAuthStateChange.listen((
-      data,
-    ) async {
+    // Google login thành công thì đi qua màn hình chờ.
+    // Không gọi getNextRouteAfterAuth() ở đây nữa.
+    // Màn hình chờ sẽ xử lý sau khi chạy loading 100%.
+    authSub = Supabase.instance.client.auth.onAuthStateChange.listen((data) {
       if (data.event == AuthChangeEvent.signedIn && !isNavigating) {
         isNavigating = true;
 
@@ -79,10 +65,6 @@ class _DangNhapEmailPageState extends State<DangNhapEmailPage> {
     });
 
     try {
-      /// NOTE SỬA:
-      /// Chỉ mở Google login.
-      /// Không Navigator thẳng vào home/profile ở đây.
-      /// Đăng nhập xong listener ở initState sẽ bắt signedIn.
       await authService.signInWithGoogle();
     } catch (e) {
       if (!mounted) return;
@@ -152,7 +134,9 @@ class _DangNhapEmailPageState extends State<DangNhapEmailPage> {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         _backButton(context),
+
                         SizedBox(height: topGap),
+
                         Text(
                           'Nhập Email của bạn',
                           textAlign: TextAlign.center,
@@ -162,7 +146,9 @@ class _DangNhapEmailPageState extends State<DangNhapEmailPage> {
                             fontWeight: FontWeight.w800,
                           ),
                         ),
+
                         const SizedBox(height: 18),
+
                         TextField(
                           controller: emailController,
                           onChanged: (_) => setState(() {}),
@@ -184,7 +170,9 @@ class _DangNhapEmailPageState extends State<DangNhapEmailPage> {
                             ),
                           ),
                         ),
+
                         const SizedBox(height: 12),
+
                         GestureDetector(
                           onTap: () {
                             Navigator.pushReplacementNamed(
@@ -202,11 +190,9 @@ class _DangNhapEmailPageState extends State<DangNhapEmailPage> {
                             ),
                           ),
                         ),
+
                         const SizedBox(height: 18),
 
-                        /// NOTE SỬA:
-                        /// Nút Google chỉ mở OAuth.
-                        /// Sau khi OAuth thành công, listener sẽ đưa qua AppRoutes.loading.
                         SizedBox(
                           width: double.infinity,
                           height: buttonHeight,
@@ -233,7 +219,9 @@ class _DangNhapEmailPageState extends State<DangNhapEmailPage> {
                             ),
                           ),
                         ),
+
                         const SizedBox(height: 24),
+
                         const Text(
                           'Bằng cách nhấn vào nút Tiếp tục,\n'
                           'bạn đồng ý với chúng tôi Điều khoản\n'
@@ -245,13 +233,16 @@ class _DangNhapEmailPageState extends State<DangNhapEmailPage> {
                             height: 1.5,
                           ),
                         ),
+
                         const SizedBox(height: 18),
+
                         _primaryButton(
                           label: 'Tiếp tục',
                           color: isValidEmail ? blue : Colors.grey,
                           height: buttonHeight,
                           onTap: isValidEmail ? goToPasswordEmail : null,
                         ),
+
                         const SizedBox(height: 24),
                       ],
                     ),

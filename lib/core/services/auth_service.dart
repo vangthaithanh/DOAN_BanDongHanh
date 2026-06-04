@@ -154,11 +154,14 @@ class AuthService {
     );
   }
 
-  Future<void> ensureProfileAfterOAuth() async {
+  // SỬA: hàm này trả về bool
+  // true  = Google user mới, vừa tạo profile
+  // false = user cũ, đã có profile từ trước
+  Future<bool> ensureProfileAfterOAuth() async {
     final user = currentUser;
 
     if (user == null) {
-      return;
+      return false;
     }
 
     final existedProfile = await _client
@@ -168,7 +171,7 @@ class AuthService {
         .maybeSingle();
 
     if (existedProfile != null) {
-      return;
+      return false;
     }
 
     final email = user.email ?? '';
@@ -215,6 +218,8 @@ class AuthService {
       'allow_place_suggestion': true,
       'allow_notification': true,
     });
+
+    return true;
   }
 
   Future<String> _makeUniqueNickname(String baseNickname) async {
@@ -427,33 +432,21 @@ class AuthService {
     }
   }
 
-  Future<String> getNextRouteAfterAuth() async {
+  Future<String> getNextRouteAfterAuth({
+    bool forceAvatarForNewOAuthUser = false,
+  }) async {
     final user = currentUser;
 
     if (user == null) {
       return AppRoutes.start;
     }
 
+    // Nếu là Google login thì đảm bảo có profile.
+    // Nhưng KHÔNG kiểm tra avatar, KHÔNG kiểm tra khảo sát nữa.
     await ensureProfileAfterOAuth();
 
-    final profile = await getCurrentProfile();
-
-    if (profile == null) {
-      return AppRoutes.start;
-    }
-
-    final avatarUrl = profile['avatar_url']?.toString() ?? '';
-
-    if (avatarUrl.trim().isEmpty) {
-      return AppRoutes.addAvatar;
-    }
-
-    final hasSurvey = await hasAnsweredSurvey();
-
-    if (!hasSurvey) {
-      return AppRoutes.surveyIntro;
-    }
-
+    // Đăng nhập xong vào thẳng home.
+    // Avatar và khảo sát đều là tùy chọn.
     return AppRoutes.home;
   }
 

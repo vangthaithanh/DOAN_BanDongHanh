@@ -45,12 +45,17 @@ class _CauHoi3PageState extends State<CauHoi3Page> {
     });
 
     try {
+      // Không chọn gì vẫn được.
+      // Nếu rỗng thì saveInterests([]) chỉ xóa lựa chọn cũ rồi không thêm mới.
       await authService.saveInterests(OnboardingState.values);
 
       OnboardingState.clear();
 
       if (!mounted) return;
 
+      // SỬA Ở ĐÂY:
+      // Trước đó đang là AppRoutes.home nên đăng ký xong nhảy thẳng trang chủ.
+      // Đổi thành AppRoutes.loading để hiện màn hình chờ trước.
       Navigator.pushNamedAndRemoveUntil(
         context,
         AppRoutes.loading,
@@ -69,6 +74,18 @@ class _CauHoi3PageState extends State<CauHoi3Page> {
         });
       }
     }
+  }
+
+  void skipSurvey() {
+    OnboardingState.clear();
+
+    // SỬA Ở ĐÂY:
+    // Bỏ qua khảo sát cũng phải qua màn hình chờ.
+    Navigator.pushNamedAndRemoveUntil(
+      context,
+      AppRoutes.loading,
+      (route) => false,
+    );
   }
 
   @override
@@ -90,7 +107,7 @@ class _CauHoi3PageState extends State<CauHoi3Page> {
         });
       },
       onNext: finishSurvey,
-      onSkip: finishSurvey,
+      onSkip: skipSurvey,
       onBack: () {
         Navigator.pop(context);
       },
