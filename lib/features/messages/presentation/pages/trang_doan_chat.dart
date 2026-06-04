@@ -457,6 +457,7 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
               MaterialPageRoute(
                 builder: (_) => TrangTinNhanCaiDatPage(
                   name: widget.name,
+                  isWaiting: widget.isWaiting,
                 ),
               ),
             );

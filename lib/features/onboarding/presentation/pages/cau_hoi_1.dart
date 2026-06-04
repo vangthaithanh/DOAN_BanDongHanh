@@ -1,5 +1,6 @@
-import 'package:flutter/material.dart';
 import 'package:do_an/app/routes/app_routes.dart';
+import 'package:do_an/features/onboarding/data/onboarding_state.dart';
+import 'package:flutter/material.dart';
 
 class CauHoi1Page extends StatefulWidget {
   const CauHoi1Page({super.key});
@@ -9,7 +10,7 @@ class CauHoi1Page extends StatefulWidget {
 }
 
 class _CauHoi1PageState extends State<CauHoi1Page> {
-  final Set<int> selectedIndexes = {2};
+  final Set<int> selectedIndexes = {};
 
   final List<String> options = [
     'Kết thêm bạn bè ở nhiều nơi',
@@ -19,6 +20,16 @@ class _CauHoi1PageState extends State<CauHoi1Page> {
     'Khám phá văn hoá lịch sử',
     'Khám phá ẩm thực vùng miền',
     'Khác',
+  ];
+
+  final List<String?> optionCodes = [
+    'KET_BAN',
+    'NGHI_DUONG',
+    'CHECKIN_HOT',
+    'THIEN_NHIEN',
+    'VAN_HOA',
+    'AM_THUC',
+    null,
   ];
 
   @override
@@ -34,6 +45,8 @@ class _CauHoi1PageState extends State<CauHoi1Page> {
           } else {
             selectedIndexes.add(index);
           }
+
+          OnboardingState.toggle(optionCodes[index]);
         });
       },
       onNext: () {
@@ -57,6 +70,7 @@ class QuestionLayout extends StatelessWidget {
   final VoidCallback onNext;
   final VoidCallback onSkip;
   final VoidCallback onBack;
+  final bool isLoading;
 
   const QuestionLayout({
     super.key,
@@ -67,6 +81,7 @@ class QuestionLayout extends StatelessWidget {
     required this.onNext,
     required this.onSkip,
     required this.onBack,
+    this.isLoading = false,
   });
 
   @override
@@ -83,7 +98,7 @@ class QuestionLayout extends StatelessWidget {
               Row(
                 children: [
                   InkWell(
-                    onTap: onBack,
+                    onTap: isLoading ? null : onBack,
                     borderRadius: BorderRadius.circular(20),
                     child: Container(
                       width: 34,
@@ -101,7 +116,7 @@ class QuestionLayout extends StatelessWidget {
                   ),
                   const Spacer(),
                   GestureDetector(
-                    onTap: onSkip,
+                    onTap: isLoading ? null : onSkip,
                     child: const Text(
                       'Bỏ qua >',
                       style: TextStyle(
@@ -144,7 +159,7 @@ class QuestionLayout extends StatelessWidget {
                     final isSelected = selectedIndexes.contains(index);
 
                     return GestureDetector(
-                      onTap: () => onToggle(index),
+                      onTap: isLoading ? null : () => onToggle(index),
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -189,17 +204,18 @@ class QuestionLayout extends StatelessWidget {
                 width: double.infinity,
                 height: 56,
                 child: ElevatedButton(
-                  onPressed: onNext,
+                  onPressed: isLoading ? null : onNext,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: blue,
+                    disabledBackgroundColor: Colors.grey,
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(28),
                     ),
                   ),
-                  child: const Text(
-                    'Tiếp tục →',
-                    style: TextStyle(
+                  child: Text(
+                    isLoading ? 'Đang lưu...' : 'Tiếp tục →',
+                    style: const TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w700,
                     ),

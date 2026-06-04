@@ -8,10 +8,7 @@ import 'main_tab.dart';
 class AppBottomNav extends StatelessWidget {
   final MainTab activeTab;
 
-  const AppBottomNav({
-    super.key,
-    required this.activeTab,
-  });
+  const AppBottomNav({super.key, required this.activeTab});
 
   @override
   Widget build(BuildContext context) {
@@ -39,7 +36,7 @@ class AppBottomNav extends StatelessWidget {
             _NavIcon(
               icon: LucideIcons.mapPin,
               active: activeTab == MainTab.map,
-              onTap: () => _go(context, AppRoutes.map),
+              onTap: () => _go(context, AppRoutes.placeList),
             ),
             _NavIcon(
               icon: LucideIcons.messagesSquare,
@@ -60,11 +57,7 @@ class AppBottomNav extends StatelessWidget {
   void _go(BuildContext context, String routeName) {
     if (ModalRoute.of(context)?.settings.name == routeName) return;
 
-    Navigator.pushNamedAndRemoveUntil(
-      context,
-      routeName,
-      (route) => false,
-    );
+    Navigator.pushNamedAndRemoveUntil(context, routeName, (route) => false);
   }
 }
 
