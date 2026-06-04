@@ -57,7 +57,30 @@ class DiaDiemService {
   }) async {
     final data = await _client
         .from('place_reviews')
-        .select('*, review_media(*), profiles(nickname, full_name, avatar_url)')
+        .select('''
+          id,
+          profile_id,
+          place_id,
+          rating,
+          content,
+          status,
+          created_at,
+          updated_at,
+          review_media (
+            id,
+            review_id,
+            media_type,
+            url,
+            caption,
+            created_at
+          ),
+          profiles:profiles!place_reviews_profile_id_fkey (
+            id,
+            nickname,
+            full_name,
+            avatar_url
+          )
+        ''')
         .eq('place_id', maDiaDiem)
         .eq('status', 'active')
         .order('created_at', ascending: false)
@@ -66,6 +89,54 @@ class DiaDiemService {
     return List<Map<String, dynamic>>.from(
       data,
     ).map((row) => DanhGiaDiaDiemModel.fromJson(_mapReviewRow(row))).toList();
+  }
+
+  // NOTE SỬA:
+  // Lấy riêng đánh giá của user hiện tại.
+  // Dùng để trang chi tiết biết user đã đánh giá chưa.
+  Future<DanhGiaDiaDiemModel?> layDanhGiaCuaToi(int maDiaDiem) async {
+    final user = _client.auth.currentUser;
+
+    if (user == null) {
+      return null;
+    }
+
+    final data = await _client
+        .from('place_reviews')
+        .select('''
+          id,
+          profile_id,
+          place_id,
+          rating,
+          content,
+          status,
+          created_at,
+          updated_at,
+          review_media (
+            id,
+            review_id,
+            media_type,
+            url,
+            caption,
+            created_at
+          ),
+          profiles:profiles!place_reviews_profile_id_fkey (
+            id,
+            nickname,
+            full_name,
+            avatar_url
+          )
+        ''')
+        .eq('place_id', maDiaDiem)
+        .eq('profile_id', user.id)
+        .eq('status', 'active')
+        .maybeSingle();
+
+    if (data == null) return null;
+
+    return DanhGiaDiaDiemModel.fromJson(
+      _mapReviewRow(Map<String, dynamic>.from(data)),
+    );
   }
 
   Future<void> taoHoacCapNhatDanhGia({
@@ -95,13 +166,13 @@ class DiaDiemService {
 
     final reviewId = reviewRow['id'] as int;
 
-    // QUAN TRỌNG:
-    // Khi user đã từng đánh giá rồi đánh giá lại, phải xóa media cũ trước.
-    // Nếu không xóa, review_media cũ vẫn còn nên ảnh cũ vẫn hiện lại.
+    // NOTE SỬA:
+    // Khi user đánh giá lại/chỉnh sửa đánh giá, phải xóa ảnh cũ trước.
+    // Nếu không xóa, review_media cũ vẫn còn nên ảnh cũ sẽ hiện lại.
     await _xoaMediaCuCuaDanhGia(reviewId);
 
-    // Nếu lần đánh giá mới không chọn ảnh thì dừng tại đây.
-    // Kết quả: nội dung/số sao được cập nhật, ảnh cũ bị xóa hết.
+    // Nếu lần lưu mới không chọn ảnh thì dừng ở đây.
+    // Kết quả: sao/nội dung được cập nhật, ảnh cũ bị xóa hết.
     if (hinhAnh.isEmpty) return;
 
     final mediaRows = <Map<String, dynamic>>[];
@@ -137,6 +208,36 @@ class DiaDiemService {
     }
   }
 
+  // NOTE SỬA:
+  // Xóa đánh giá của chính user hiện tại.
+  // Dùng cho nút 3 chấm ở "Đánh giá của bạn" trong trang chi tiết.
+  Future<void> xoaDanhGiaCuaToi(int maDiaDiem) async {
+    final user = _client.auth.currentUser;
+
+    if (user == null) {
+      throw Exception('Bạn cần đăng nhập để xóa đánh giá.');
+    }
+
+    final reviewRow = await _client
+        .from('place_reviews')
+        .select('id')
+        .eq('place_id', maDiaDiem)
+        .eq('profile_id', user.id)
+        .maybeSingle();
+
+    if (reviewRow == null) return;
+
+    final reviewId = reviewRow['id'] as int;
+
+    await _xoaMediaCuCuaDanhGia(reviewId);
+
+    await _client
+        .from('place_reviews')
+        .delete()
+        .eq('id', reviewId)
+        .eq('profile_id', user.id);
+  }
+
   Future<void> _xoaMediaCuCuaDanhGia(int reviewId) async {
     final oldMedia = await _client
         .from('review_media')
@@ -153,7 +254,7 @@ class DiaDiemService {
         .where((path) => path.trim().isNotEmpty)
         .toList();
 
-    // Xóa dòng trong DB trước để app không còn hiển thị ảnh cũ.
+    // Xóa dòng trong DB trước để UI không còn hiện ảnh cũ.
     await _client.from('review_media').delete().eq('review_id', reviewId);
 
     // Xóa file trong Storage để không bị rác bộ nhớ.
@@ -163,7 +264,7 @@ class DiaDiemService {
       try {
         await _client.storage.from('review-media').remove(storagePaths);
       } catch (_) {
-        // Bỏ qua lỗi xóa storage để không làm fail thao tác lưu đánh giá.
+        // Bỏ qua lỗi xóa storage để không làm fail thao tác lưu/xóa đánh giá.
       }
     }
   }

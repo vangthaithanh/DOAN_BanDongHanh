@@ -4,8 +4,8 @@ import '../../../../app/routes/app_routes.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../shared/navigation/app_bottom_nav.dart';
 import '../../../../shared/navigation/main_tab.dart';
-import '../../data/services/dia_diem_service.dart';
 import '../../data/models/dia_diem_model.dart';
+import '../../data/services/dia_diem_service.dart';
 import '../widgets/place_common_widgets.dart';
 
 class TrangDiaDiemPage extends StatefulWidget {
@@ -138,8 +138,9 @@ class _TrangDiaDiemPageState extends State<TrangDiaDiemPage> {
       final compareScore = b.diemKhop.compareTo(a.diemKhop);
       if (compareScore != 0) return compareScore;
 
-      final compareRating =
-          b.diaDiem.diemTrungBinh.compareTo(a.diaDiem.diemTrungBinh);
+      final compareRating = b.diaDiem.diemTrungBinh.compareTo(
+        a.diaDiem.diemTrungBinh,
+      );
       if (compareRating != 0) return compareRating;
 
       return b.diaDiem.tongLuotLuu.compareTo(a.diaDiem.tongLuotLuu);
@@ -195,6 +196,11 @@ class _TrangDiaDiemPageState extends State<TrangDiaDiemPage> {
                             arguments: item.diaDiem.maDiaDiem,
                           );
                         },
+
+                        // NOTE SỬA:
+                        // Bấm Đánh giá ở trang địa điểm sẽ kiểm tra user đã đánh giá chưa.
+                        // Nếu đã đánh giá thì hỏi có muốn đánh giá lại không.
+                        onReviewTap: () => _xuLyBamDanhGia(item.diaDiem),
                       ),
                     ),
                 ],
@@ -261,7 +267,11 @@ class _TrangDiaDiemPageState extends State<TrangDiaDiemPage> {
             decoration: BoxDecoration(
               border: Border.all(color: AppColors.primary, width: 2),
             ),
-            child: const Icon(Icons.tune_rounded, color: Colors.white, size: 24),
+            child: const Icon(
+              Icons.tune_rounded,
+              color: Colors.white,
+              size: 24,
+            ),
           ),
         ),
         const SizedBox(width: 8),
@@ -386,7 +396,9 @@ class _TrangDiaDiemPageState extends State<TrangDiaDiemPage> {
     required VoidCallback onClear,
   }) {
     final isActive = selectedValues.isNotEmpty;
-    final label = isActive ? '$title: ${_shortSelectedLabel(selectedValues)}' : title;
+    final label = isActive
+        ? '$title: ${_shortSelectedLabel(selectedValues)}'
+        : title;
 
     return InkWell(
       borderRadius: BorderRadius.circular(999),
@@ -499,7 +511,11 @@ class _TrangDiaDiemPageState extends State<TrangDiaDiemPage> {
       ),
       child: Column(
         children: [
-          const Icon(Icons.error_outline_rounded, color: Colors.white70, size: 40),
+          const Icon(
+            Icons.error_outline_rounded,
+            color: Colors.white70,
+            size: 40,
+          ),
           const SizedBox(height: 10),
           const Text(
             'Không tải được dữ liệu địa điểm',
@@ -538,7 +554,11 @@ class _TrangDiaDiemPageState extends State<TrangDiaDiemPage> {
       ),
       child: Column(
         children: [
-          const Icon(Icons.travel_explore_rounded, color: Colors.white70, size: 40),
+          const Icon(
+            Icons.travel_explore_rounded,
+            color: Colors.white70,
+            size: 40,
+          ),
           const SizedBox(height: 10),
           const Text(
             'Không tìm thấy địa điểm phù hợp',
@@ -576,6 +596,82 @@ class _TrangDiaDiemPageState extends State<TrangDiaDiemPage> {
       _danhGiaDaChon.clear();
       _soTienDaChon.clear();
     });
+  }
+
+  // NOTE SỬA:
+  // Xử lý nút Đánh giá ngoài trang địa điểm.
+  // Nếu đã đánh giá địa điểm này rồi thì hỏi user có muốn đánh giá lại không.
+  Future<void> _xuLyBamDanhGia(DiaDiemModel diaDiem) async {
+    try {
+      final danhGiaCuaToi = await _diaDiemService.layDanhGiaCuaToi(
+        diaDiem.maDiaDiem,
+      );
+
+      if (!mounted) return;
+
+      if (danhGiaCuaToi == null) {
+        await _moTrangDanhGia(diaDiem.maDiaDiem);
+        return;
+      }
+
+      final dongY = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) {
+          return AlertDialog(
+            backgroundColor: const Color(0xFF202020),
+            title: const Text(
+              'Đánh giá lại?',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            content: Text(
+              'Bạn đã đánh giá "${diaDiem.tenDiaDiem}" rồi. Bạn có muốn đánh giá lại địa điểm này không?',
+              style: const TextStyle(color: Colors.white70, height: 1.3),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('Không'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: const Text('OK'),
+              ),
+            ],
+          );
+        },
+      );
+
+      if (dongY == true) {
+        await _moTrangDanhGia(diaDiem.maDiaDiem);
+      }
+    } catch (e) {
+      _showMessage(e.toString().replaceFirst('Exception: ', ''));
+    }
+  }
+
+  Future<void> _moTrangDanhGia(int maDiaDiem) async {
+    final result = await Navigator.pushNamed(
+      context,
+      AppRoutes.placeReview,
+      arguments: maDiaDiem,
+    );
+
+    if (!mounted) return;
+
+    if (result == true) {
+      _taiDiaDiem();
+    }
+  }
+
+  void _showMessage(String message) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
+    );
   }
 
   Future<void> _moBangChonMotNhom({
@@ -766,7 +862,9 @@ class _TrangDiaDiemPageState extends State<TrangDiaDiemPage> {
                                 },
                                 style: OutlinedButton.styleFrom(
                                   foregroundColor: Colors.white,
-                                  side: const BorderSide(color: AppColors.border),
+                                  side: const BorderSide(
+                                    color: AppColors.border,
+                                  ),
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(999),
                                   ),

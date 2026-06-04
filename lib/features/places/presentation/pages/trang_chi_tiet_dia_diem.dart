@@ -10,7 +10,8 @@ class TrangChiTietDiaDiemPage extends StatefulWidget {
   const TrangChiTietDiaDiemPage({super.key});
 
   @override
-  State<TrangChiTietDiaDiemPage> createState() => _TrangChiTietDiaDiemPageState();
+  State<TrangChiTietDiaDiemPage> createState() =>
+      _TrangChiTietDiaDiemPageState();
 }
 
 class _TrangChiTietDiaDiemPageState extends State<TrangChiTietDiaDiemPage> {
@@ -19,7 +20,15 @@ class _TrangChiTietDiaDiemPageState extends State<TrangChiTietDiaDiemPage> {
   DiaDiemModel? _diaDiem;
   List<DiaDiemModel> _diaDiemLienQuan = [];
   List<DanhGiaDiaDiemModel> _danhGiaGanDay = [];
+
+  // NOTE SỬA:
+  // Lưu đánh giá của user hiện tại.
+  // Nếu khác null thì trang chi tiết không hiện nút Đánh giá nữa,
+  // mà hiện card "Đánh giá của bạn" kèm nút 3 chấm.
+  DanhGiaDiaDiemModel? _danhGiaCuaToi;
+
   bool _dangTai = true;
+  bool _dangXuLyDanhGia = false;
   String? _loi;
 
   @override
@@ -58,13 +67,21 @@ class _TrangChiTietDiaDiemPageState extends State<TrangChiTietDiaDiemPage> {
       }
 
       final related = await _service.layDiaDiemLienQuan(diaDiem);
-      final reviews = await _service.layDanhGiaTheoDiaDiem(id, limit: 3);
+      final reviews = await _service.layDanhGiaTheoDiaDiem(id, limit: 10);
+      final myReview = await _service.layDanhGiaCuaToi(id);
+
+      final reviewsWithoutMine = myReview == null
+          ? reviews
+          : reviews
+                .where((item) => item.maDanhGia != myReview.maDanhGia)
+                .toList();
 
       if (!mounted) return;
       setState(() {
         _diaDiem = diaDiem;
         _diaDiemLienQuan = related;
-        _danhGiaGanDay = reviews;
+        _danhGiaGanDay = reviewsWithoutMine.take(3).toList();
+        _danhGiaCuaToi = myReview;
         _dangTai = false;
       });
     } catch (e) {
@@ -87,45 +104,55 @@ class _TrangChiTietDiaDiemPageState extends State<TrangChiTietDiaDiemPage> {
         child: _dangTai
             ? const Center(child: CircularProgressIndicator())
             : _loi != null
-                ? _errorView()
-                : RefreshIndicator(
-                    onRefresh: () => _taiDuLieu(_diaDiem!.maDiaDiem),
-                    child: ListView(
-                      padding: EdgeInsets.fromLTRB(
-                        horizontalPadding,
-                        20,
-                        horizontalPadding,
-                        22,
-                      ),
-                      children: [
-                        _header(_diaDiem!),
-                        const SizedBox(height: 16),
-                        _locationBox(_diaDiem!),
-                        const SizedBox(height: 18),
-                        _imageList(_diaDiem!.hinhAnh),
-                        const SizedBox(height: 18),
-                        _descriptionBox(_diaDiem!),
-                        const SizedBox(height: 18),
-                        _ratingBox(_diaDiem!),
-                        const SizedBox(height: 12),
-                        _reviews(_diaDiem!),
-                        const SizedBox(height: 22),
-                        _suggestionTitle(),
-                        const SizedBox(height: 8),
-                        if (_diaDiemLienQuan.isEmpty)
-                          const Text(
-                            'Chưa có địa điểm liên quan.',
-                            style: TextStyle(
-                              color: Colors.white70,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          )
-                        else
-                          ..._diaDiemLienQuan.map((item) => PlaceCard(diaDiem: item)),
-                      ],
-                    ),
+            ? _errorView()
+            : RefreshIndicator(
+                onRefresh: () => _taiDuLieu(_diaDiem!.maDiaDiem),
+                child: ListView(
+                  padding: EdgeInsets.fromLTRB(
+                    horizontalPadding,
+                    20,
+                    horizontalPadding,
+                    22,
                   ),
+                  children: [
+                    _header(_diaDiem!),
+                    const SizedBox(height: 16),
+                    _locationBox(_diaDiem!),
+                    const SizedBox(height: 18),
+                    _imageList(_diaDiem!.hinhAnh),
+                    const SizedBox(height: 18),
+                    _descriptionBox(_diaDiem!),
+                    const SizedBox(height: 18),
+                    _ratingBox(_diaDiem!),
+                    const SizedBox(height: 12),
+
+                    // NOTE SỬA:
+                    // Nếu đã đánh giá rồi thì hiện đánh giá của mình lên trước.
+                    if (_danhGiaCuaToi != null) ...[
+                      _myReviewBox(_diaDiem!, _danhGiaCuaToi!),
+                      const SizedBox(height: 12),
+                    ],
+
+                    _reviews(_diaDiem!),
+                    const SizedBox(height: 22),
+                    _suggestionTitle(),
+                    const SizedBox(height: 8),
+                    if (_diaDiemLienQuan.isEmpty)
+                      const Text(
+                        'Chưa có địa điểm liên quan.',
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      )
+                    else
+                      ..._diaDiemLienQuan.map(
+                        (item) => PlaceCard(diaDiem: item),
+                      ),
+                  ],
+                ),
+              ),
       ),
     );
   }
@@ -137,7 +164,11 @@ class _TrangChiTietDiaDiemPageState extends State<TrangChiTietDiaDiemPage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.error_outline_rounded, color: Colors.white70, size: 42),
+            const Icon(
+              Icons.error_outline_rounded,
+              color: Colors.white70,
+              size: 42,
+            ),
             const SizedBox(height: 12),
             Text(
               _loi ?? 'Lỗi không xác định',
@@ -149,7 +180,10 @@ class _TrangChiTietDiaDiemPageState extends State<TrangChiTietDiaDiemPage> {
               ),
             ),
             const SizedBox(height: 14),
-            BluePillButton(text: 'Quay lại', onTap: () => Navigator.pop(context)),
+            BluePillButton(
+              text: 'Quay lại',
+              onTap: () => Navigator.pop(context),
+            ),
           ],
         ),
       ),
@@ -186,7 +220,11 @@ class _TrangChiTietDiaDiemPageState extends State<TrangChiTietDiaDiemPage> {
               color: Color(0xFF3A3A3A),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.map_outlined, color: Colors.white, size: 22),
+            child: const Icon(
+              Icons.map_outlined,
+              color: Colors.white,
+              size: 22,
+            ),
           ),
         ),
       ],
@@ -203,7 +241,11 @@ class _TrangChiTietDiaDiemPageState extends State<TrangChiTietDiaDiemPage> {
           children: [
             const Padding(
               padding: EdgeInsets.only(top: 2),
-              child: Icon(Icons.location_on_outlined, color: Colors.white, size: 20),
+              child: Icon(
+                Icons.location_on_outlined,
+                color: Colors.white,
+                size: 20,
+              ),
             ),
             const SizedBox(width: 8),
             Expanded(
@@ -337,7 +379,10 @@ class _TrangChiTietDiaDiemPageState extends State<TrangChiTietDiaDiemPage> {
           runSpacing: 8,
           children: [
             _smallInfoChip(Icons.paid_outlined, diaDiem.giaTrungBinh),
-            _smallInfoChip(Icons.bookmark_border_rounded, '${diaDiem.soLuotThich} lượt lưu'),
+            _smallInfoChip(
+              Icons.bookmark_border_rounded,
+              '${diaDiem.soLuotThich} lượt lưu',
+            ),
             _smallInfoChip(Icons.place_outlined, diaDiem.tinhThanh),
           ],
         ),
@@ -383,7 +428,11 @@ class _TrangChiTietDiaDiemPageState extends State<TrangChiTietDiaDiemPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                RatingText(rating: diaDiem.diemTrungBinh, iconSize: 21, fontSize: 15),
+                RatingText(
+                  rating: diaDiem.diemTrungBinh,
+                  iconSize: 21,
+                  fontSize: 15,
+                ),
                 const SizedBox(height: 6),
                 Text(
                   '${diaDiem.tongDanhGia} lượt đánh giá',
@@ -405,17 +454,92 @@ class _TrangChiTietDiaDiemPageState extends State<TrangChiTietDiaDiemPage> {
               ],
             ),
           ),
-          BluePillButton(
-            text: 'Đánh giá',
-            onTap: () async {
-              await Navigator.pushNamed(
-                context,
-                AppRoutes.placeReview,
-                arguments: diaDiem.maDiaDiem,
-              );
-              _taiDuLieu(diaDiem.maDiaDiem);
-            },
+
+          // NOTE SỬA:
+          // Nếu user đã đánh giá thì không hiện nút Đánh giá nữa.
+          if (_danhGiaCuaToi == null)
+            BluePillButton(
+              text: 'Đánh giá',
+              onTap: () => _moTrangDanhGia(diaDiem.maDiaDiem),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _myReviewBox(DiaDiemModel diaDiem, DanhGiaDiaDiemModel review) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 12, 10, 14),
+      decoration: BoxDecoration(
+        color: const Color(0xFF202020),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.primaryDark),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Đánh giá của bạn',
+                  style: TextStyle(
+                    color: AppColors.primary,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              PopupMenuButton<String>(
+                color: const Color(0xFF2B2B2B),
+                icon: const Icon(Icons.more_vert_rounded, color: Colors.white),
+                onSelected: (value) {
+                  if (value == 'edit') {
+                    _moTrangDanhGia(diaDiem.maDiaDiem);
+                  } else if (value == 'delete') {
+                    _xacNhanXoaDanhGia(diaDiem);
+                  }
+                },
+                itemBuilder: (context) => const [
+                  PopupMenuItem(
+                    value: 'edit',
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.edit_outlined,
+                          color: Colors.white70,
+                          size: 18,
+                        ),
+                        SizedBox(width: 8),
+                        Text(
+                          'Chỉnh sửa',
+                          style: TextStyle(color: Colors.white),
+                        ),
+                      ],
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: 'delete',
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.delete_outline_rounded,
+                          color: Colors.redAccent,
+                          size: 18,
+                        ),
+                        SizedBox(width: 8),
+                        Text(
+                          'Xóa đánh giá',
+                          style: TextStyle(color: Colors.redAccent),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
+          ReviewTile(review: review, showImages: true),
         ],
       ),
     );
@@ -436,41 +560,28 @@ class _TrangChiTietDiaDiemPageState extends State<TrangChiTietDiaDiemPage> {
                     fontSize: 16,
                     fontWeight: FontWeight.w800,
                   ),
-                  children: [
-                    TextSpan(
-                      text: '(lấy từ Supabase)',
-                      style: TextStyle(
-                        color: Colors.white70,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
                 ),
               ),
             ),
-            InkWell(
-              borderRadius: BorderRadius.circular(999),
-              onTap: () async {
-                await Navigator.pushNamed(
-                  context,
-                  AppRoutes.placeReview,
-                  arguments: diaDiem.maDiaDiem,
-                );
-                _taiDuLieu(diaDiem.maDiaDiem);
-              },
-              child: const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                child: Text(
-                  'Viết mới',
-                  style: TextStyle(
-                    color: AppColors.primary,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
+
+            // NOTE SỬA:
+            // Nếu user đã đánh giá rồi thì không hiện "Viết mới".
+            if (_danhGiaCuaToi == null)
+              InkWell(
+                borderRadius: BorderRadius.circular(999),
+                onTap: () => _moTrangDanhGia(diaDiem.maDiaDiem),
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                  child: Text(
+                    'Viết mới',
+                    style: TextStyle(
+                      color: AppColors.primary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                 ),
               ),
-            ),
           ],
         ),
         if (_danhGiaGanDay.isEmpty)
@@ -482,9 +593,11 @@ class _TrangChiTietDiaDiemPageState extends State<TrangChiTietDiaDiemPage> {
               borderRadius: BorderRadius.circular(14),
               border: Border.all(color: AppColors.border),
             ),
-            child: const Text(
-              'Chưa có đánh giá nào. Bạn có thể là người đầu tiên đánh giá địa điểm này.',
-              style: TextStyle(
+            child: Text(
+              _danhGiaCuaToi == null
+                  ? 'Chưa có đánh giá nào. Bạn có thể là người đầu tiên đánh giá địa điểm này.'
+                  : 'Chưa có đánh giá khác cho địa điểm này.',
+              style: const TextStyle(
                 color: Colors.white70,
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
@@ -507,17 +620,90 @@ class _TrangChiTietDiaDiemPageState extends State<TrangChiTietDiaDiemPage> {
           fontSize: 15,
           fontWeight: FontWeight.w800,
         ),
-        children: [
-          TextSpan(
-            text: '(địa điểm liên quan từ Supabase)',
-            style: TextStyle(
-              color: Colors.white70,
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
       ),
+    );
+  }
+
+  Future<void> _moTrangDanhGia(int maDiaDiem) async {
+    final result = await Navigator.pushNamed(
+      context,
+      AppRoutes.placeReview,
+      arguments: maDiaDiem,
+    );
+
+    if (!mounted) return;
+
+    if (result == true) {
+      _taiDuLieu(maDiaDiem);
+    }
+  }
+
+  Future<void> _xacNhanXoaDanhGia(DiaDiemModel diaDiem) async {
+    final dongY = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF202020),
+          title: const Text(
+            'Xóa đánh giá?',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+          ),
+          content: const Text(
+            'Bạn có chắc muốn xóa đánh giá này không?',
+            style: TextStyle(color: Colors.white70, height: 1.3),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Không'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text(
+                'Xóa',
+                style: TextStyle(color: Colors.redAccent),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (dongY == true) {
+      await _xoaDanhGia(diaDiem);
+    }
+  }
+
+  Future<void> _xoaDanhGia(DiaDiemModel diaDiem) async {
+    if (_dangXuLyDanhGia) return;
+
+    setState(() {
+      _dangXuLyDanhGia = true;
+    });
+
+    try {
+      await _service.xoaDanhGiaCuaToi(diaDiem.maDiaDiem);
+
+      if (!mounted) return;
+
+      _showMessage('Đã xóa đánh giá.');
+      await _taiDuLieu(diaDiem.maDiaDiem);
+    } catch (e) {
+      _showMessage(e.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _dangXuLyDanhGia = false;
+        });
+      }
+    }
+  }
+
+  void _showMessage(String message) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
     );
   }
 

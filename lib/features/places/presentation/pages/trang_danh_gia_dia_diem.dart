@@ -10,7 +10,8 @@ class TrangDanhGiaDiaDiemPage extends StatefulWidget {
   const TrangDanhGiaDiaDiemPage({super.key});
 
   @override
-  State<TrangDanhGiaDiaDiemPage> createState() => _TrangDanhGiaDiaDiemPageState();
+  State<TrangDanhGiaDiaDiemPage> createState() =>
+      _TrangDanhGiaDiaDiemPageState();
 }
 
 class _TrangDanhGiaDiaDiemPageState extends State<TrangDanhGiaDiaDiemPage> {
@@ -20,6 +21,12 @@ class _TrangDanhGiaDiaDiemPageState extends State<TrangDanhGiaDiaDiemPage> {
 
   DiaDiemModel? _diaDiem;
   List<DanhGiaDiaDiemModel> _danhGiaGanDay = [];
+
+  // NOTE SỬA:
+  // Nếu user đã đánh giá rồi thì màn này tự đổ sao + nội dung cũ vào form.
+  // Khi lưu lại sẽ cập nhật đánh giá cũ chứ không tạo thêm đánh giá mới.
+  DanhGiaDiaDiemModel? _danhGiaCuaToi;
+
   int _soSao = 0;
   bool _dangTai = true;
   bool _dangLuu = false;
@@ -52,7 +59,8 @@ class _TrangDanhGiaDiaDiemPageState extends State<TrangDanhGiaDiaDiemPage> {
 
     try {
       final diaDiem = await _service.layDiaDiemTheoId(id);
-      final reviews = await _service.layDanhGiaTheoDiaDiem(id, limit: 5);
+      final reviews = await _service.layDanhGiaTheoDiaDiem(id, limit: 10);
+      final myReview = await _service.layDanhGiaCuaToi(id);
 
       if (!mounted) return;
 
@@ -64,9 +72,21 @@ class _TrangDanhGiaDiaDiemPageState extends State<TrangDanhGiaDiaDiemPage> {
         return;
       }
 
+      final reviewsWithoutMine = myReview == null
+          ? reviews
+          : reviews
+                .where((item) => item.maDanhGia != myReview.maDanhGia)
+                .toList();
+
+      if (myReview != null) {
+        _soSao = myReview.soSao;
+        _noiDungController.text = myReview.noiDungHienThi;
+      }
+
       setState(() {
         _diaDiem = diaDiem;
-        _danhGiaGanDay = reviews;
+        _danhGiaGanDay = reviewsWithoutMine.take(5).toList();
+        _danhGiaCuaToi = myReview;
         _dangTai = false;
       });
     } catch (e) {
@@ -151,10 +171,7 @@ class _TrangDanhGiaDiaDiemPageState extends State<TrangDanhGiaDiaDiemPage> {
   void _showMessage(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        behavior: SnackBarBehavior.floating,
-      ),
+      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
     );
   }
 
@@ -169,38 +186,41 @@ class _TrangDanhGiaDiaDiemPageState extends State<TrangDanhGiaDiaDiemPage> {
         child: _dangTai
             ? const Center(child: CircularProgressIndicator())
             : _loi != null
-                ? _errorView()
-                : Column(
-                    children: [
-                      Expanded(
-                        child: ListView(
-                          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-                          padding: EdgeInsets.fromLTRB(
-                            horizontalPadding,
-                            22,
-                            horizontalPadding,
-                            24,
-                          ),
-                          children: [
-                            _header(),
-                            const SizedBox(height: 22),
-                            _placeSummary(_diaDiem!),
-                            const SizedBox(height: 18),
-                            _starPicker(),
-                            const SizedBox(height: 14),
-                            _reviewInput(),
-                            const SizedBox(height: 16),
-                            _mediaButtons(),
-                            const SizedBox(height: 14),
-                            _pickedImagesPreview(),
-                            const SizedBox(height: 18),
-                            _recentReviews(),
-                          ],
-                        ),
+            ? _errorView()
+            : Column(
+                children: [
+                  Expanded(
+                    child: ListView(
+                      keyboardDismissBehavior:
+                          ScrollViewKeyboardDismissBehavior.onDrag,
+                      padding: EdgeInsets.fromLTRB(
+                        horizontalPadding,
+                        22,
+                        horizontalPadding,
+                        24,
                       ),
-                      _bottomSaveButton(_diaDiem!),
-                    ],
+                      children: [
+                        _header(),
+                        const SizedBox(height: 22),
+                        _placeSummary(_diaDiem!),
+                        const SizedBox(height: 18),
+                        _starPicker(),
+                        const SizedBox(height: 14),
+                        _reviewInput(),
+                        const SizedBox(height: 16),
+                        _mediaButtons(),
+                        const SizedBox(height: 10),
+                        _oldImagesInfo(),
+                        const SizedBox(height: 10),
+                        _pickedImagesPreview(),
+                        const SizedBox(height: 18),
+                        _recentReviews(),
+                      ],
+                    ),
                   ),
+                  _bottomSaveButton(_diaDiem!),
+                ],
+              ),
       ),
     );
   }
@@ -212,7 +232,11 @@ class _TrangDanhGiaDiaDiemPageState extends State<TrangDanhGiaDiaDiemPage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.error_outline_rounded, color: Colors.white70, size: 42),
+            const Icon(
+              Icons.error_outline_rounded,
+              color: Colors.white70,
+              size: 42,
+            ),
             const SizedBox(height: 12),
             Text(
               _loi ?? 'Lỗi không xác định',
@@ -224,7 +248,10 @@ class _TrangDanhGiaDiaDiemPageState extends State<TrangDanhGiaDiaDiemPage> {
               ),
             ),
             const SizedBox(height: 14),
-            BluePillButton(text: 'Quay lại', onTap: () => Navigator.pop(context)),
+            BluePillButton(
+              text: 'Quay lại',
+              onTap: () => Navigator.pop(context),
+            ),
           ],
         ),
       ),
@@ -232,27 +259,31 @@ class _TrangDanhGiaDiaDiemPageState extends State<TrangDanhGiaDiaDiemPage> {
   }
 
   Widget _header() {
+    final isEdit = _danhGiaCuaToi != null;
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: const [
-        BackCircleButton(),
-        SizedBox(width: 16),
+      children: [
+        const BackCircleButton(),
+        const SizedBox(width: 16),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Đánh giá',
-                style: TextStyle(
+                isEdit ? 'Chỉnh sửa đánh giá' : 'Đánh giá',
+                style: const TextStyle(
                   color: Colors.white,
                   fontSize: 24,
                   fontWeight: FontWeight.w800,
                 ),
               ),
-              SizedBox(height: 4),
+              const SizedBox(height: 4),
               Text(
-                'Mọi người có thể nhìn thấy đánh giá của bạn',
-                style: TextStyle(
+                isEdit
+                    ? 'Bạn đang cập nhật đánh giá đã gửi trước đó'
+                    : 'Mọi người có thể nhìn thấy đánh giá của bạn',
+                style: const TextStyle(
                   color: Colors.white70,
                   fontSize: 11,
                   fontWeight: FontWeight.w700,
@@ -398,7 +429,11 @@ class _TrangDanhGiaDiaDiemPageState extends State<TrangDanhGiaDiaDiemPage> {
           onTap: _chupAnh,
           child: const Padding(
             padding: EdgeInsets.all(6),
-            child: Icon(Icons.photo_camera_outlined, color: Colors.white, size: 28),
+            child: Icon(
+              Icons.photo_camera_outlined,
+              color: Colors.white,
+              size: 28,
+            ),
           ),
         ),
         const SizedBox(width: 10),
@@ -408,6 +443,57 @@ class _TrangDanhGiaDiaDiemPageState extends State<TrangDanhGiaDiaDiemPage> {
           child: const Padding(
             padding: EdgeInsets.all(6),
             child: Icon(Icons.image_outlined, color: Colors.white, size: 28),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _oldImagesInfo() {
+    final oldImages = _danhGiaCuaToi?.hinhAnh ?? [];
+
+    if (oldImages.isEmpty) return const SizedBox.shrink();
+
+    final width = MediaQuery.sizeOf(context).width;
+    final itemWidth = (width * 0.28).clamp(96.0, 116.0).toDouble();
+    final itemHeight = (itemWidth * 0.92).clamp(88.0, 108.0).toDouble();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Ảnh hiện tại của đánh giá',
+          style: TextStyle(
+            color: Colors.white70,
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 6),
+        SizedBox(
+          height: itemHeight,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: oldImages.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 8),
+            itemBuilder: (context, index) {
+              return PlaceImage(
+                path: oldImages[index],
+                width: itemWidth,
+                height: itemHeight,
+                borderRadius: BorderRadius.circular(10),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          'Lưu ý: khi bấm cập nhật, ảnh hiện tại sẽ được thay bằng ảnh mới bạn chọn. Nếu không chọn ảnh mới thì đánh giá sẽ không còn ảnh.',
+          style: TextStyle(
+            color: Colors.white54,
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            height: 1.25,
           ),
         ),
       ],
@@ -425,7 +511,7 @@ class _TrangDanhGiaDiaDiemPageState extends State<TrangDanhGiaDiaDiemPage> {
           border: Border.all(color: AppColors.border),
         ),
         child: const Text(
-          'Chưa chọn ảnh. Bạn có thể lưu đánh giá không cần ảnh.',
+          'Chưa chọn ảnh mới. Bạn có thể lưu đánh giá không cần ảnh.',
           textAlign: TextAlign.center,
           style: TextStyle(
             color: Colors.white70,
@@ -472,7 +558,11 @@ class _TrangDanhGiaDiaDiemPageState extends State<TrangDanhGiaDiaDiemPage> {
                       color: Colors.black.withOpacity(0.75),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(Icons.close, color: Colors.white, size: 16),
+                    child: const Icon(
+                      Icons.close,
+                      color: Colors.white,
+                      size: 16,
+                    ),
                   ),
                 ),
               ),
@@ -498,12 +588,16 @@ class _TrangDanhGiaDiaDiemPageState extends State<TrangDanhGiaDiaDiemPage> {
           ),
         ),
         const SizedBox(height: 4),
-        ..._danhGiaGanDay.map((item) => ReviewTile(review: item, showImages: true)),
+        ..._danhGiaGanDay.map(
+          (item) => ReviewTile(review: item, showImages: true),
+        ),
       ],
     );
   }
 
   Widget _bottomSaveButton(DiaDiemModel diaDiem) {
+    final isEdit = _danhGiaCuaToi != null;
+
     return SafeArea(
       top: false,
       child: Container(
@@ -532,9 +626,12 @@ class _TrangDanhGiaDiaDiemPageState extends State<TrangDanhGiaDiaDiemPage> {
                     height: 18,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : const Text(
-                    'Lưu đánh giá',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                : Text(
+                    isEdit ? 'Cập nhật đánh giá' : 'Lưu đánh giá',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
           ),
         ),

@@ -235,7 +235,18 @@ class PlaceCard extends StatelessWidget {
   final DiaDiemModel diaDiem;
   final VoidCallback? onTap;
 
-  const PlaceCard({super.key, required this.diaDiem, this.onTap});
+  // NOTE SỬA:
+  // Cho phép trang_dia_diem tự xử lý nút Đánh giá.
+  // Nếu user đã đánh giá rồi thì trang_dia_diem sẽ hỏi "có muốn đánh giá lại không".
+  // Nếu không truyền callback thì vẫn giữ hành vi cũ: mở thẳng trang đánh giá.
+  final VoidCallback? onReviewTap;
+
+  const PlaceCard({
+    super.key,
+    required this.diaDiem,
+    this.onTap,
+    this.onReviewTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -258,7 +269,8 @@ class PlaceCard extends StatelessWidget {
 
         return InkWell(
           borderRadius: BorderRadius.circular(10),
-          onTap: onTap ??
+          onTap:
+              onTap ??
               () {
                 Navigator.pushNamed(
                   context,
@@ -320,7 +332,7 @@ class PlaceCard extends StatelessWidget {
                       PlaceInfoLine(
                         icon: Icons.location_on_outlined,
                         text: diaDiem.diaChiHienThi,
-                        maxLines: isSmall ? 2 : 2,
+                        maxLines: 2,
                         fontSize: infoSize,
                       ),
                       PlaceInfoLine(
@@ -335,14 +347,18 @@ class PlaceCard extends StatelessWidget {
                             child: BluePillButton(
                               text: 'Đánh giá',
                               height: buttonHeight,
-                              padding: const EdgeInsets.symmetric(horizontal: 8),
-                              onTap: () {
-                                Navigator.pushNamed(
-                                  context,
-                                  AppRoutes.placeReview,
-                                  arguments: diaDiem.maDiaDiem,
-                                );
-                              },
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                              ),
+                              onTap:
+                                  onReviewTap ??
+                                  () {
+                                    Navigator.pushNamed(
+                                      context,
+                                      AppRoutes.placeReview,
+                                      arguments: diaDiem.maDiaDiem,
+                                    );
+                                  },
                             ),
                           ),
                           const SizedBox(width: 6),
@@ -350,7 +366,9 @@ class PlaceCard extends StatelessWidget {
                             child: BluePillButton(
                               text: 'Xem vị trí',
                               height: buttonHeight,
-                              padding: const EdgeInsets.symmetric(horizontal: 8),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                              ),
                               onTap: () {
                                 Navigator.pushNamed(
                                   context,
