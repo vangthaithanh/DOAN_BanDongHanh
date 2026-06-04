@@ -5,15 +5,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../app/routes/app_routes.dart';
 
-/// NOTE SỬA:
-/// AuthService dùng cho:
-/// - Đăng ký email thật
-/// - Đăng nhập email thật
-/// - Đăng nhập Google thật
-/// - Đăng ký SĐT demo bằng email ảo
-/// - Đăng nhập SĐT demo bằng email ảo
-/// - OTP demo 123456 cho quên mật khẩu email/SĐT
-/// - Upload avatar đúng Storage RLS
 class AuthService {
   AuthService();
 
@@ -23,12 +14,19 @@ class AuthService {
 
   User? get currentUser => _client.auth.currentUser;
 
+  // =========================
+  // PROFILE / USER SETTINGS
+  // =========================
+
   Future<Map<String, dynamic>?> getCurrentProfile() async {
     final user = currentUser;
 
     if (user == null) {
       return null;
     }
+
+    // Nếu là Google login mà chưa có profile thì tạo trước.
+    await ensureProfileAfterOAuth();
 
     final data = await _client
         .from('profiles')
@@ -41,6 +39,43 @@ class AuthService {
     return data;
   }
 
+  Future<void> _updateLastLogin(String userId) async {
+    try {
+      await _client
+          .from('profiles')
+          .update({'last_login_at': DateTime.now().toIso8601String()})
+          .eq('id', userId);
+    } catch (_) {
+      // Nếu DB chưa có cột last_login_at thì bỏ qua để app không bị lỗi.
+    }
+  }
+
+  Future<void> _ensureUserSettings(String profileId) async {
+    try {
+      final existed = await _client
+          .from('user_settings')
+          .select('profile_id')
+          .eq('profile_id', profileId)
+          .maybeSingle();
+
+      if (existed != null) {
+        return;
+      }
+
+      await _client.from('user_settings').insert({
+        'profile_id': profileId,
+        'account_mode': 'public',
+        'allow_location_tracking': false,
+        'location_mode': 'none',
+        'allow_friend_suggestion': true,
+        'allow_place_suggestion': true,
+        'allow_notification': true,
+      });
+    } catch (_) {
+      // Nếu bị trùng do chạy song song hoặc RLS khác thì không cho app crash.
+    }
+  }
+
   Future<bool> isNicknameTaken(String nickname) async {
     final cleanNickname = nickname.trim();
 
@@ -48,6 +83,7 @@ class AuthService {
       return false;
     }
 
+    // Ưu tiên RPC nếu bạn đã tạo function is_nickname_taken trên Supabase.
     try {
       final result = await _client.rpc(
         'is_nickname_taken',
@@ -56,107 +92,48 @@ class AuthService {
 
       return result == true;
     } catch (_) {
-      return false;
-    }
-  }
-
-  Future<void> signUpWithEmail({
-    required String email,
-    required String password,
-    required String nickname,
-  }) async {
-    final cleanEmail = email.trim();
-    final cleanNickname = nickname.trim();
-
-    if (cleanEmail.isEmpty) {
-      throw Exception('Email không được để trống');
-    }
-
-    if (password.length < 8) {
-      throw Exception('Mật khẩu tối thiểu 8 ký tự');
-    }
-
-    if (cleanNickname.length < 3) {
-      throw Exception('Biệt danh tối thiểu 3 ký tự');
-    }
-
-    final isTaken = await isNicknameTaken(cleanNickname);
-
-    if (isTaken) {
-      throw Exception('Biệt danh đã tồn tại');
-    }
-
-    final AuthResponse response = await _client.auth.signUp(
-      email: cleanEmail,
-      password: password,
-    );
-
-    final user = response.user;
-
-    if (user == null) {
-      throw Exception('Không tạo được tài khoản');
-    }
-
-    await _client.from('profiles').insert({
-      'id': user.id,
-      'email': cleanEmail,
-      'phone': null,
-      'nickname': cleanNickname,
-      'full_name': null,
-      'bio': '',
-      'facebook_url': '',
-      'role': 'user',
-      'status': 'active',
-      'updated_at': DateTime.now().toIso8601String(),
-    });
-
-    await _client.from('user_settings').insert({
-      'profile_id': user.id,
-      'account_mode': 'public',
-      'allow_location_tracking': false,
-      'location_mode': 'none',
-      'allow_friend_suggestion': true,
-      'allow_place_suggestion': true,
-      'allow_notification': true,
-    });
-  }
-
-  Future<void> signInWithEmail({
-    required String email,
-    required String password,
-  }) async {
-    await _client.auth.signInWithPassword(
-      email: email.trim(),
-      password: password,
-    );
-
-    final user = currentUser;
-
-    if (user != null) {
+      // Nếu chưa có RPC thì fallback sang query trực tiếp.
       try {
-        await _client
+        final data = await _client
             .from('profiles')
-            .update({'last_login_at': DateTime.now().toIso8601String()})
-            .eq('id', user.id);
+            .select('id')
+            .eq('nickname', cleanNickname)
+            .maybeSingle();
+
+        return data != null;
       } catch (_) {
-        // Nếu chưa có cột last_login_at thì bỏ qua.
+        return false;
       }
     }
   }
 
-  Future<void> signInWithGoogle() async {
-    await _client.auth.signInWithOAuth(
-      OAuthProvider.google,
-      redirectTo: kIsWeb ? null : 'gomate://login-callback',
-      authScreenLaunchMode: kIsWeb
-          ? LaunchMode.platformDefault
-          : LaunchMode.externalApplication,
-    );
+  Future<String> _makeUniqueNickname(String baseNickname) async {
+    String cleaned = baseNickname
+        .trim()
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9_]+'), '_')
+        .replaceAll(RegExp(r'_+'), '_')
+        .replaceAll(RegExp(r'^_+|_+$'), '');
+
+    if (cleaned.length < 3) {
+      cleaned = 'user_${DateTime.now().millisecondsSinceEpoch}';
+    }
+
+    String nickname = cleaned;
+    int count = 1;
+
+    while (await isNicknameTaken(nickname)) {
+      nickname = '${cleaned}_$count';
+      count++;
+    }
+
+    return nickname;
   }
 
-  // SỬA: hàm này trả về bool
-  // true  = Google user mới, vừa tạo profile
-  // false = user cũ, đã có profile từ trước
+  /// Dùng chủ yếu cho Google OAuth.
+  ///
+  /// true  = vừa tạo profile mới
+  /// false = profile đã tồn tại hoặc chưa có user
   Future<bool> ensureProfileAfterOAuth() async {
     final user = currentUser;
 
@@ -171,6 +148,8 @@ class AuthService {
         .maybeSingle();
 
     if (existedProfile != null) {
+      await _ensureUserSettings(user.id);
+      await _updateLastLogin(user.id);
       return false;
     }
 
@@ -195,54 +174,197 @@ class AuthService {
 
     nickname = await _makeUniqueNickname(nickname);
 
-    await _client.from('profiles').insert({
-      'id': user.id,
-      'email': email,
-      'phone': null,
-      'nickname': nickname,
-      'full_name': fullName.trim().isEmpty ? null : fullName.trim(),
-      'avatar_url': avatarUrl,
-      'bio': '',
-      'facebook_url': '',
-      'role': 'user',
-      'status': 'active',
-      'updated_at': DateTime.now().toIso8601String(),
-    });
+    final now = DateTime.now().toIso8601String();
 
-    await _client.from('user_settings').insert({
-      'profile_id': user.id,
-      'account_mode': 'public',
-      'allow_location_tracking': false,
-      'location_mode': 'none',
-      'allow_friend_suggestion': true,
-      'allow_place_suggestion': true,
-      'allow_notification': true,
-    });
+    try {
+      await _client.from('profiles').insert({
+        'id': user.id,
+        'email': email,
+        'phone': null,
+        'nickname': nickname,
+        'full_name': fullName.trim().isEmpty ? null : fullName.trim(),
+        'avatar_url': avatarUrl,
+        'bio': '',
+        'facebook_url': '',
+        'role': 'user',
+        'status': 'active',
+        'updated_at': now,
+        'last_login_at': now,
+      });
+    } catch (_) {
+      // Nếu DB chưa có cột last_login_at thì thử insert lại không có cột đó.
+      await _client.from('profiles').insert({
+        'id': user.id,
+        'email': email,
+        'phone': null,
+        'nickname': nickname,
+        'full_name': fullName.trim().isEmpty ? null : fullName.trim(),
+        'avatar_url': avatarUrl,
+        'bio': '',
+        'facebook_url': '',
+        'role': 'user',
+        'status': 'active',
+        'updated_at': now,
+      });
+    }
+
+    await _ensureUserSettings(user.id);
 
     return true;
   }
 
-  Future<String> _makeUniqueNickname(String baseNickname) async {
-    String cleaned = baseNickname
-        .toLowerCase()
-        .replaceAll(RegExp(r'[^a-z0-9_]+'), '_')
-        .replaceAll(RegExp(r'_+'), '_')
-        .replaceAll(RegExp(r'^_|_$'), '');
+  Future<String> getNextRouteAfterAuth({
+    bool forceAvatarForNewOAuthUser = false,
+  }) async {
+    final user = currentUser;
 
-    if (cleaned.length < 3) {
-      cleaned = 'user_${DateTime.now().millisecondsSinceEpoch}';
+    if (user == null) {
+      return AppRoutes.start;
     }
 
-    String nickname = cleaned;
-    int count = 1;
+    // Quan trọng:
+    // Google login không đi qua màn đăng ký thường,
+    // nên phải đảm bảo có profiles + user_settings.
+    await ensureProfileAfterOAuth();
 
-    while (await isNicknameTaken(nickname)) {
-      nickname = '${cleaned}_$count';
-      count++;
-    }
-
-    return nickname;
+    // Không bắt avatar, không bắt khảo sát nữa.
+    // Loading xong thì vào trang chủ.
+    return AppRoutes.home;
   }
+
+  // =========================
+  // EMAIL AUTH
+  // =========================
+
+  Future<void> signUpWithEmail({
+    required String email,
+    required String password,
+    required String nickname,
+  }) async {
+    final cleanEmail = email.trim();
+    final cleanPassword = password.trim();
+    final cleanNickname = nickname.trim();
+
+    if (cleanEmail.isEmpty) {
+      throw Exception('Email không được để trống');
+    }
+
+    if (!cleanEmail.contains('@')) {
+      throw Exception('Email không hợp lệ');
+    }
+
+    if (cleanPassword.length < 8) {
+      throw Exception('Mật khẩu tối thiểu 8 ký tự');
+    }
+
+    if (cleanNickname.length < 3) {
+      throw Exception('Biệt danh tối thiểu 3 ký tự');
+    }
+
+    final isTaken = await isNicknameTaken(cleanNickname);
+
+    if (isTaken) {
+      throw Exception('Biệt danh đã tồn tại');
+    }
+
+    try {
+      final AuthResponse response = await _client.auth.signUp(
+        email: cleanEmail,
+        password: cleanPassword,
+      );
+
+      final user = response.user;
+
+      if (user == null) {
+        throw Exception('Không tạo được tài khoản');
+      }
+
+      final now = DateTime.now().toIso8601String();
+
+      try {
+        await _client.from('profiles').insert({
+          'id': user.id,
+          'email': cleanEmail,
+          'phone': null,
+          'nickname': cleanNickname,
+          'full_name': null,
+          'avatar_url': null,
+          'bio': '',
+          'facebook_url': '',
+          'role': 'user',
+          'status': 'active',
+          'updated_at': now,
+          'last_login_at': now,
+        });
+      } catch (_) {
+        await _client.from('profiles').insert({
+          'id': user.id,
+          'email': cleanEmail,
+          'phone': null,
+          'nickname': cleanNickname,
+          'full_name': null,
+          'avatar_url': null,
+          'bio': '',
+          'facebook_url': '',
+          'role': 'user',
+          'status': 'active',
+          'updated_at': now,
+        });
+      }
+
+      await _ensureUserSettings(user.id);
+    } on AuthException catch (e) {
+      throw Exception(e.message);
+    }
+  }
+
+  Future<void> signInWithEmail({
+    required String email,
+    required String password,
+  }) async {
+    final cleanEmail = email.trim();
+    final cleanPassword = password.trim();
+
+    if (cleanEmail.isEmpty) {
+      throw Exception('Email không được để trống');
+    }
+
+    if (cleanPassword.isEmpty) {
+      throw Exception('Mật khẩu không được để trống');
+    }
+
+    try {
+      await _client.auth.signInWithPassword(
+        email: cleanEmail,
+        password: cleanPassword,
+      );
+
+      final user = currentUser;
+
+      if (user != null) {
+        await _ensureUserSettings(user.id);
+        await _updateLastLogin(user.id);
+      }
+    } on AuthException catch (e) {
+      throw Exception(e.message);
+    }
+  }
+
+  // =========================
+  // GOOGLE AUTH
+  // =========================
+
+  Future<void> signInWithGoogle() async {
+    await _client.auth.signInWithOAuth(
+      OAuthProvider.google,
+      redirectTo: kIsWeb ? null : 'gomate://login-callback',
+      authScreenLaunchMode: LaunchMode.platformDefault,
+    );
+  }
+
+  // =========================
+  // PHONE DEMO AUTH
+  // =========================
 
   String normalizePhone(String phone) {
     var text = phone.trim().replaceAll(RegExp(r'[^0-9+]'), '');
@@ -298,52 +420,78 @@ class AuthService {
 
     final virtualEmail = phoneToVirtualEmail(cleanPhone);
 
-    final AuthResponse response = await _client.auth.signUp(
-      email: virtualEmail,
-      password: cleanPassword,
-    );
+    try {
+      final AuthResponse response = await _client.auth.signUp(
+        email: virtualEmail,
+        password: cleanPassword,
+      );
 
-    final user = response.user;
+      final user = response.user;
 
-    if (user == null) {
-      throw Exception('Không tạo được tài khoản bằng SĐT');
+      if (user == null) {
+        throw Exception('Không tạo được tài khoản bằng SĐT');
+      }
+
+      final now = DateTime.now().toIso8601String();
+
+      try {
+        await _client.from('profiles').insert({
+          'id': user.id,
+          'email': virtualEmail,
+          'phone': normalizedPhone,
+          'nickname': cleanNickname,
+          'full_name': null,
+          'avatar_url': null,
+          'bio': '',
+          'facebook_url': '',
+          'role': 'user',
+          'status': 'active',
+          'updated_at': now,
+          'last_login_at': now,
+        });
+      } catch (_) {
+        await _client.from('profiles').insert({
+          'id': user.id,
+          'email': virtualEmail,
+          'phone': normalizedPhone,
+          'nickname': cleanNickname,
+          'full_name': null,
+          'avatar_url': null,
+          'bio': '',
+          'facebook_url': '',
+          'role': 'user',
+          'status': 'active',
+          'updated_at': now,
+        });
+      }
+
+      await _ensureUserSettings(user.id);
+    } on AuthException catch (e) {
+      throw Exception(e.message);
     }
-
-    await _client.from('profiles').insert({
-      'id': user.id,
-      'email': virtualEmail,
-      'phone': normalizedPhone,
-      'nickname': cleanNickname,
-      'full_name': null,
-      'bio': '',
-      'facebook_url': '',
-      'role': 'user',
-      'status': 'active',
-      'updated_at': DateTime.now().toIso8601String(),
-    });
-
-    await _client.from('user_settings').insert({
-      'profile_id': user.id,
-      'account_mode': 'public',
-      'allow_location_tracking': false,
-      'location_mode': 'none',
-      'allow_friend_suggestion': true,
-      'allow_place_suggestion': true,
-      'allow_notification': true,
-    });
   }
 
   Future<void> signInWithPhoneDemo({
     required String phone,
     required String password,
   }) async {
+    if (!isValidVietnamPhone(phone)) {
+      throw Exception('Số điện thoại không hợp lệ');
+    }
+
     final virtualEmail = phoneToVirtualEmail(phone);
 
     await signInWithEmail(email: virtualEmail, password: password);
   }
 
+  // =========================
+  // FORGOT PASSWORD DEMO OTP
+  // =========================
+
   String requestEmailOtpDemo(String email) {
-    if (email.trim().isEmpty || !email.contains('@')) {
+    final cleanEmail = email.trim();
+
+    if (cleanEmail.isEmpty || !cleanEmail.contains('@')) {
       throw Exception('Gmail không hợp lệ');
     }
 
@@ -370,10 +518,14 @@ class AuthService {
   }
 
   Future<void> resetPasswordDemo({required String newPassword}) async {
-    if (newPassword.trim().length < 8) {
+    final cleanNewPassword = newPassword.trim();
+
+    if (cleanNewPassword.length < 8) {
       throw Exception('Mật khẩu tối thiểu 8 ký tự');
     }
 
+    // Đây vẫn là demo.
+    // Muốn đổi mật khẩu thật khi user chưa đăng nhập thì phải dùng Edge Function service_role.
     await Future.delayed(const Duration(milliseconds: 500));
   }
 
@@ -383,17 +535,19 @@ class AuthService {
     required String confirmPassword,
   }) async {
     final session = _client.auth.currentSession;
+    final user = session?.user;
 
-    if (session == null || session.user.email == null) {
+    if (session == null || user == null || user.email == null) {
       throw Exception('Chưa đăng nhập hoặc phiên đăng nhập đã hết hạn');
     }
 
-    if (oldPassword.trim().isEmpty) {
-      throw Exception('Vui lòng nhập mật khẩu cũ');
-    }
-
+    final cleanOldPassword = oldPassword.trim();
     final cleanNewPassword = newPassword.trim();
     final cleanConfirmPassword = confirmPassword.trim();
+
+    if (cleanOldPassword.isEmpty) {
+      throw Exception('Vui lòng nhập mật khẩu cũ');
+    }
 
     if (cleanNewPassword.length < 8) {
       throw Exception('Mật khẩu mới tối thiểu 8 ký tự');
@@ -404,13 +558,21 @@ class AuthService {
     }
 
     try {
-      await _client.auth.updateUser(
-        UserAttributes(password: cleanNewPassword),
+      // Kiểm tra mật khẩu cũ có đúng không.
+      await _client.auth.signInWithPassword(
+        email: user.email!,
+        password: cleanOldPassword,
       );
+
+      await _client.auth.updateUser(UserAttributes(password: cleanNewPassword));
     } on AuthException catch (e) {
       throw Exception(e.message);
     }
   }
+
+  // =========================
+  // SURVEY / INTERESTS
+  // =========================
 
   Future<bool> hasAnsweredSurvey() async {
     final user = currentUser;
@@ -432,23 +594,29 @@ class AuthService {
     }
   }
 
-  Future<String> getNextRouteAfterAuth({
-    bool forceAvatarForNewOAuthUser = false,
-  }) async {
+  Future<void> saveInterests(List<String> optionCodes) async {
     final user = currentUser;
 
     if (user == null) {
-      return AppRoutes.start;
+      throw Exception('Chưa đăng nhập');
     }
 
-    // Nếu là Google login thì đảm bảo có profile.
-    // Nhưng KHÔNG kiểm tra avatar, KHÔNG kiểm tra khảo sát nữa.
-    await ensureProfileAfterOAuth();
+    await _client.from('profile_interests').delete().eq('profile_id', user.id);
 
-    // Đăng nhập xong vào thẳng home.
-    // Avatar và khảo sát đều là tùy chọn.
-    return AppRoutes.home;
+    if (optionCodes.isEmpty) {
+      return;
+    }
+
+    final rows = optionCodes.map((code) {
+      return {'profile_id': user.id, 'option_code': code};
+    }).toList();
+
+    await _client.from('profile_interests').insert(rows);
   }
+
+  // =========================
+  // AVATAR
+  // =========================
 
   Future<String> uploadAvatar(File file) async {
     final user = currentUser;
@@ -483,25 +651,9 @@ class AuthService {
     return publicUrl;
   }
 
-  Future<void> saveInterests(List<String> optionCodes) async {
-    final user = currentUser;
-
-    if (user == null) {
-      throw Exception('Chưa đăng nhập');
-    }
-
-    await _client.from('profile_interests').delete().eq('profile_id', user.id);
-
-    if (optionCodes.isEmpty) {
-      return;
-    }
-
-    final rows = optionCodes.map((code) {
-      return {'profile_id': user.id, 'option_code': code};
-    }).toList();
-
-    await _client.from('profile_interests').insert(rows);
-  }
+  // =========================
+  // SIGN OUT
+  // =========================
 
   Future<void> signOut() async {
     await _client.auth.signOut();

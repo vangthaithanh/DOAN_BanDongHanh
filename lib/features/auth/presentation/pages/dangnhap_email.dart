@@ -32,14 +32,13 @@ class _DangNhapEmailPageState extends State<DangNhapEmailPage> {
   void initState() {
     super.initState();
 
-    // Google login thành công thì đi qua màn hình chờ.
-    // Không gọi getNextRouteAfterAuth() ở đây nữa.
-    // Màn hình chờ sẽ xử lý sau khi chạy loading 100%.
     authSub = Supabase.instance.client.auth.onAuthStateChange.listen((data) {
       if (data.event == AuthChangeEvent.signedIn && !isNavigating) {
         isNavigating = true;
 
         if (!mounted) return;
+
+        ScaffoldMessenger.of(context).clearSnackBars();
 
         Navigator.pushNamedAndRemoveUntil(
           context,
@@ -57,6 +56,23 @@ class _DangNhapEmailPageState extends State<DangNhapEmailPage> {
     super.dispose();
   }
 
+  bool _isGoogleOAuthTabError(Object e) {
+    final message = e.toString().toLowerCase();
+
+    return message.contains('tab') ||
+        message.contains('custom tabs') ||
+        message.contains('browser') ||
+        message.contains('cancel') ||
+        message.contains('cancelled') ||
+        message.contains('canceled') ||
+        message.contains('closed') ||
+        message.contains('not found') ||
+        message.contains('không tìm thấy') ||
+        message.contains('khong tim thay') ||
+        message.contains('màn hình') ||
+        message.contains('man hinh');
+  }
+
   Future<void> handleGoogleLogin() async {
     if (isGoogleLoading) return;
 
@@ -69,6 +85,11 @@ class _DangNhapEmailPageState extends State<DangNhapEmailPage> {
     } catch (e) {
       if (!mounted) return;
 
+      if (_isGoogleOAuthTabError(e)) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).clearSnackBars();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(e.toString().replaceFirst('Exception: ', '')),

@@ -67,4 +67,5 @@ class AppRoutes {
   // Messages
   static const String waitingMessages = '/trang-tinnhan-cho';
   static const String chatDetail = '/trang-doan-chat';
+  static const String loginCallback = '/login-callback';
 }
