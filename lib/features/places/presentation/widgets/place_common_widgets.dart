@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../app/routes/app_routes.dart';
@@ -22,32 +23,38 @@ class PlaceImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cleanPath = path.trim();
     Widget image;
 
-    if (path.startsWith('http://') || path.startsWith('https://')) {
+    if (cleanPath.isEmpty) {
+      image = _errorBox();
+    } else if (cleanPath.startsWith('http://') ||
+        cleanPath.startsWith('https://')) {
       image = Image.network(
-        path,
+        cleanPath,
         width: width,
         height: height,
         fit: BoxFit.cover,
         errorBuilder: (_, __, ___) => _errorBox(),
       );
-    } else if (path.startsWith('assets/')) {
+    } else if (cleanPath.startsWith('assets/')) {
       image = Image.asset(
-        path,
+        cleanPath,
+        width: width,
+        height: height,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => _errorBox(),
+      );
+    } else if (!kIsWeb) {
+      image = Image.file(
+        File(cleanPath),
         width: width,
         height: height,
         fit: BoxFit.cover,
         errorBuilder: (_, __, ___) => _errorBox(),
       );
     } else {
-      image = Image.file(
-        File(path),
-        width: width,
-        height: height,
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => _errorBox(),
-      );
+      image = _errorBox();
     }
 
     return ClipRRect(
@@ -55,7 +62,7 @@ class PlaceImage extends StatelessWidget {
       child: Container(
         width: width,
         height: height,
-        color: Colors.white,
+        color: const Color(0xFF2B2B2B),
         child: image,
       ),
     );
@@ -84,8 +91,8 @@ class BackCircleButton extends StatelessWidget {
       borderRadius: BorderRadius.circular(999),
       onTap: () => Navigator.pop(context),
       child: Container(
-        width: 34,
-        height: 34,
+        width: 36,
+        height: 36,
         decoration: const BoxDecoration(
           color: Color(0xFF3A3A3A),
           shape: BoxShape.circle,
@@ -110,8 +117,8 @@ class BluePillButton extends StatelessWidget {
     super.key,
     required this.text,
     required this.onTap,
-    this.height = 30,
-    this.padding = const EdgeInsets.symmetric(horizontal: 8),
+    this.height = 32,
+    this.padding = const EdgeInsets.symmetric(horizontal: 10),
   });
 
   @override
@@ -138,7 +145,6 @@ class BluePillButton extends StatelessWidget {
             text,
             maxLines: 1,
             softWrap: false,
-            overflow: TextOverflow.visible,
             style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
           ),
         ),
@@ -169,7 +175,7 @@ class RatingText extends StatelessWidget {
           color: AppColors.primary,
           size: iconSize,
         ),
-        const SizedBox(width: 4),
+        const SizedBox(width: 3),
         Text(
           rating.toStringAsFixed(1).replaceAll('.', ','),
           style: TextStyle(
@@ -187,31 +193,33 @@ class PlaceInfoLine extends StatelessWidget {
   final IconData icon;
   final String text;
   final int maxLines;
+  final double fontSize;
 
   const PlaceInfoLine({
     super.key,
     required this.icon,
     required this.text,
     this.maxLines = 1,
+    this.fontSize = 11.5,
   });
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 7),
+      padding: const EdgeInsets.only(bottom: 5),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: Colors.white70, size: 16),
-          const SizedBox(width: 6),
+          Icon(icon, color: Colors.white70, size: 15),
+          const SizedBox(width: 5),
           Expanded(
             child: Text(
               text,
               maxLines: maxLines,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
+              style: TextStyle(
                 color: Colors.white70,
-                fontSize: 12,
+                fontSize: fontSize,
                 fontWeight: FontWeight.w700,
                 height: 1.2,
               ),
@@ -231,111 +239,143 @@ class PlaceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const double cardHeight = 154;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final screenWidth = MediaQuery.sizeOf(context).width;
+        final cardWidth = constraints.maxWidth.isFinite
+            ? constraints.maxWidth
+            : screenWidth;
+        final isSmall = cardWidth < 360;
 
-    return InkWell(
-      onTap:
-          onTap ??
-          () {
-            Navigator.pushNamed(
-              context,
-              AppRoutes.placeDetail,
-              arguments: diaDiem.maDiaDiem,
-            );
-          },
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(0, 14, 0, 14),
-        decoration: const BoxDecoration(
-          border: Border(bottom: BorderSide(color: AppColors.border)),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            PlaceImage(
-              path: diaDiem.hinhAnh.first,
-              width: 126,
-              height: cardHeight,
-              borderRadius: BorderRadius.circular(8),
+        final imageWidth = (cardWidth * (isSmall ? 0.34 : 0.32))
+            .clamp(102.0, 138.0)
+            .toDouble();
+        final imageHeight = (imageWidth * 1.18).clamp(124.0, 164.0).toDouble();
+        final gap = isSmall ? 10.0 : 14.0;
+        final titleSize = isSmall ? 14.2 : 15.2;
+        final infoSize = isSmall ? 11.0 : 11.5;
+        final buttonHeight = isSmall ? 30.0 : 32.0;
+
+        return InkWell(
+          borderRadius: BorderRadius.circular(10),
+          onTap: onTap ??
+              () {
+                Navigator.pushNamed(
+                  context,
+                  AppRoutes.placeDetail,
+                  arguments: diaDiem.maDiaDiem,
+                );
+              },
+          child: Container(
+            width: double.infinity,
+            padding: EdgeInsets.symmetric(vertical: isSmall ? 12 : 14),
+            decoration: const BoxDecoration(
+              border: Border(bottom: BorderSide(color: AppColors.border)),
             ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: SizedBox(
-                height: cardHeight,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            diaDiem.tenDiaDiem,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 15,
-                              fontWeight: FontWeight.w800,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                PlaceImage(
+                  path: diaDiem.hinhAnh.first,
+                  width: imageWidth,
+                  height: imageHeight,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                SizedBox(width: gap),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              diaDiem.tenDiaDiem,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: titleSize,
+                                fontWeight: FontWeight.w800,
+                                height: 1.14,
+                              ),
                             ),
                           ),
-                        ),
-                        RatingText(rating: diaDiem.diemTrungBinh),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    PlaceInfoLine(
-                      icon: Icons.location_on_outlined,
-                      text: diaDiem.khoangCach,
-                    ),
-                    PlaceInfoLine(
-                      icon: Icons.location_on_outlined,
-                      text: diaDiem.diaChiHienThi,
-                      maxLines: 2,
-                    ),
-                    PlaceInfoLine(
-                      icon: Icons.paid_outlined,
-                      text: 'Số tiền trung bình (${diaDiem.giaTrungBinh})',
-                    ),
-                    const Spacer(),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: BluePillButton(
-                            text: 'Đánh giá',
-                            onTap: () {
-                              Navigator.pushNamed(
-                                context,
-                                AppRoutes.placeReview,
-                                arguments: diaDiem.maDiaDiem,
-                              );
-                            },
+                          const SizedBox(width: 5),
+                          RatingText(
+                            rating: diaDiem.diemTrungBinh,
+                            iconSize: isSmall ? 16 : 18,
+                            fontSize: isSmall ? 12.5 : 13,
                           ),
-                        ),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          child: BluePillButton(
-                            text: 'Xem vị trí',
-                            onTap: () {
-                              Navigator.pushNamed(
-                                context,
-                                AppRoutes.map,
-                                arguments: {
-                                  'lat': diaDiem.viDo,
-                                  'lng': diaDiem.kinhDo,
-                                  'ten': diaDiem.tenDiaDiem,
-                                },
-                              );
-                            },
+                        ],
+                      ),
+                      SizedBox(height: isSmall ? 6 : 7),
+                      PlaceInfoLine(
+                        icon: Icons.location_on_outlined,
+                        text: diaDiem.khoangCach,
+                        fontSize: infoSize,
+                      ),
+                      PlaceInfoLine(
+                        icon: Icons.location_on_outlined,
+                        text: diaDiem.diaChiHienThi,
+                        maxLines: isSmall ? 2 : 2,
+                        fontSize: infoSize,
+                      ),
+                      PlaceInfoLine(
+                        icon: Icons.paid_outlined,
+                        text: 'Số tiền trung bình (${diaDiem.giaTrungBinh})',
+                        fontSize: infoSize,
+                      ),
+                      SizedBox(height: isSmall ? 6 : 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: BluePillButton(
+                              text: 'Đánh giá',
+                              height: buttonHeight,
+                              padding: const EdgeInsets.symmetric(horizontal: 8),
+                              onTap: () {
+                                Navigator.pushNamed(
+                                  context,
+                                  AppRoutes.placeReview,
+                                  arguments: diaDiem.maDiaDiem,
+                                );
+                              },
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
-                  ],
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: BluePillButton(
+                              text: 'Xem vị trí',
+                              height: buttonHeight,
+                              padding: const EdgeInsets.symmetric(horizontal: 8),
+                              onTap: () {
+                                Navigator.pushNamed(
+                                  context,
+                                  AppRoutes.map,
+                                  arguments: {
+                                    'lat': diaDiem.viDo,
+                                    'lng': diaDiem.kinhDo,
+                                    'ten': diaDiem.tenDiaDiem,
+                                    'originLat': 10.776889,
+                                    'originLng': 106.700806,
+                                  },
+                                );
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
-              ),
+              ],
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }
@@ -348,6 +388,10 @@ class ReviewTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final imageWidth = (screenWidth * 0.32).clamp(108.0, 132.0).toDouble();
+    final imageHeight = (imageWidth * 0.96).clamp(104.0, 126.0).toDouble();
+
     return Container(
       padding: const EdgeInsets.fromLTRB(0, 16, 0, 16),
       decoration: const BoxDecoration(
@@ -361,6 +405,7 @@ class ReviewTile extends StatelessWidget {
               const CircleAvatar(
                 radius: 16,
                 backgroundColor: AppColors.primary,
+                child: Icon(Icons.person, color: Colors.white, size: 18),
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -389,33 +434,41 @@ class ReviewTile extends StatelessWidget {
               RatingText(rating: review.diem),
             ],
           ),
-          const SizedBox(height: 12),
-          Padding(
-            padding: const EdgeInsets.only(left: 42),
-            child: Text(
-              review.noiDungHienThi,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
+          if (review.noiDungHienThi.trim().isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.only(left: 42),
+              child: Text(
+                review.noiDungHienThi,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  height: 1.3,
+                ),
               ),
             ),
-          ),
+          ],
           if (showImages && review.hinhAnh.isNotEmpty) ...[
             const SizedBox(height: 10),
             SizedBox(
-              height: 130,
+              height: imageHeight,
               child: ListView.separated(
                 padding: const EdgeInsets.only(left: 42),
                 scrollDirection: Axis.horizontal,
                 itemCount: review.hinhAnh.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 4),
+                separatorBuilder: (_, __) => const SizedBox(width: 6),
                 itemBuilder: (context, index) {
-                  return PlaceImage(
-                    path: review.hinhAnh[index],
-                    width: 126,
-                    height: 130,
+                  final imagePath = review.hinhAnh[index];
+                  return InkWell(
                     borderRadius: BorderRadius.circular(8),
+                    onTap: () => _showImageViewer(context, imagePath),
+                    child: PlaceImage(
+                      path: imagePath,
+                      width: imageWidth,
+                      height: imageHeight,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                   );
                 },
               ),
@@ -423,6 +476,52 @@ class ReviewTile extends StatelessWidget {
           ],
         ],
       ),
+    );
+  }
+
+  void _showImageViewer(BuildContext context, String imagePath) {
+    showDialog<void>(
+      context: context,
+      barrierColor: Colors.black.withOpacity(0.88),
+      builder: (_) {
+        return Dialog(
+          insetPadding: const EdgeInsets.all(14),
+          backgroundColor: Colors.transparent,
+          child: Stack(
+            children: [
+              Center(
+                child: InteractiveViewer(
+                  minScale: 0.8,
+                  maxScale: 4,
+                  child: PlaceImage(
+                    path: imagePath,
+                    width: double.infinity,
+                    height: MediaQuery.sizeOf(context).height * 0.72,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+              ),
+              Positioned(
+                top: 8,
+                right: 8,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(999),
+                  onTap: () => Navigator.pop(context),
+                  child: Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.7),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.close, color: Colors.white),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
