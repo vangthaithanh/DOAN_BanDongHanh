@@ -1,6 +1,7 @@
 class PostModel {
   final int id;
   final String tenNguoiDang;
+  final String? anhDaiDienNguoiDang;
   final String thoiGian;
   final String? caption;
   final List<String> danhSachAnh;
@@ -9,11 +10,15 @@ class PostModel {
   final List<String> danhSachBanBeDuocTag;
   final int soLuotThich;
   final int soLuotBinhLuan;
+  final bool daThich;
   final bool laBaiVietCuaToi;
+  final DateTime? createdAt;
+  final String? visibility;
 
   const PostModel({
     required this.id,
     required this.tenNguoiDang,
+    this.anhDaiDienNguoiDang,
     required this.thoiGian,
     this.caption,
     this.danhSachAnh = const [],
@@ -22,12 +27,16 @@ class PostModel {
     this.danhSachBanBeDuocTag = const [],
     this.soLuotThich = 0,
     this.soLuotBinhLuan = 0,
+    this.daThich = false,
     this.laBaiVietCuaToi = false,
+    this.createdAt,
+    this.visibility,
   });
 
   PostModel copyWith({
     int? id,
     String? tenNguoiDang,
+    String? anhDaiDienNguoiDang,
     String? thoiGian,
     String? caption,
     List<String>? danhSachAnh,
@@ -36,21 +45,27 @@ class PostModel {
     List<String>? danhSachBanBeDuocTag,
     int? soLuotThich,
     int? soLuotBinhLuan,
+    bool? daThich,
     bool? laBaiVietCuaToi,
+    DateTime? createdAt,
+    String? visibility,
   }) {
     return PostModel(
       id: id ?? this.id,
       tenNguoiDang: tenNguoiDang ?? this.tenNguoiDang,
+      anhDaiDienNguoiDang: anhDaiDienNguoiDang ?? this.anhDaiDienNguoiDang,
       thoiGian: thoiGian ?? this.thoiGian,
       caption: caption ?? this.caption,
       danhSachAnh: danhSachAnh ?? this.danhSachAnh,
       viTri: viTri ?? this.viTri,
       danhSachHashTag: danhSachHashTag ?? this.danhSachHashTag,
-      danhSachBanBeDuocTag:
-      danhSachBanBeDuocTag ?? this.danhSachBanBeDuocTag,
+      danhSachBanBeDuocTag: danhSachBanBeDuocTag ?? this.danhSachBanBeDuocTag,
       soLuotThich: soLuotThich ?? this.soLuotThich,
       soLuotBinhLuan: soLuotBinhLuan ?? this.soLuotBinhLuan,
+      daThich: daThich ?? this.daThich,
       laBaiVietCuaToi: laBaiVietCuaToi ?? this.laBaiVietCuaToi,
+      createdAt: createdAt ?? this.createdAt,
+      visibility: visibility ?? this.visibility,
     );
   }
 }

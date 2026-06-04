@@ -2,18 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../../app/routes/app_routes.dart';
-import '../../../home/data/mock/mock_posts.dart';
-import '../../../home/presentation/widgets/post_card.dart';
-import '../../data/mock/mock_binh_luan.dart';
 import '../../data/models/binh_luan_model.dart';
+import '../../data/models/post_model.dart';
+import '../../data/services/post_service.dart';
+import '../widgets/post_card.dart';
 
 class TrangBinhLuan extends StatefulWidget {
   final int postId;
 
-  const TrangBinhLuan({
-    super.key,
-    required this.postId,
-  });
+  const TrangBinhLuan({super.key, required this.postId});
 
   @override
   State<TrangBinhLuan> createState() => _TrangBinhLuanState();
@@ -27,15 +24,19 @@ class _TrangBinhLuanState extends State<TrangBinhLuan> {
 
   final TextEditingController _binhLuanController = TextEditingController();
   final FocusNode _focusBinhLuan = FocusNode();
+  final PostService _postService = PostService();
 
-  late List<BinhLuanModel> _danhSachBinhLuan;
+  PostModel? _post;
+  List<BinhLuanModel> _danhSachBinhLuan = [];
+  bool _loading = true;
+  bool _sending = false;
+  String? _error;
+  bool _changed = false;
 
   @override
   void initState() {
     super.initState();
-    _danhSachBinhLuan = List<BinhLuanModel>.from(
-      layBinhLuanTheoBaiViet(widget.postId),
-    );
+    _loadData();
   }
 
   @override
@@ -45,34 +46,105 @@ class _TrangBinhLuanState extends State<TrangBinhLuan> {
     super.dispose();
   }
 
-  void _themBinhLuan() {
+  Future<void> _loadData() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+
+    try {
+      final post = await _postService.loadPostById(widget.postId);
+      final comments = await _postService.loadComments(widget.postId);
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _post = post;
+        _danhSachBinhLuan = comments;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _error = e.toString().replaceFirst('Exception: ', '');
+        _loading = false;
+      });
+    }
+  }
+
+  Future<void> _themBinhLuan() async {
+    if (_sending) {
+      return;
+    }
+
     final noiDung = _binhLuanController.text.trim();
 
     if (noiDung.isEmpty) {
       return;
     }
 
-    final binhLuanMoi = BinhLuanModel(
-      id: DateTime.now().millisecondsSinceEpoch,
-      postId: widget.postId,
-      tenNguoiBinhLuan: 'Xuthu',
-      thoiGian: 'Vừa xong',
-      noiDung: noiDung,
-      danhSachTraLoi: const [],
-    );
-
     setState(() {
-      _danhSachBinhLuan.insert(0, binhLuanMoi);
-      _binhLuanController.clear();
+      _sending = true;
     });
 
-    _focusBinhLuan.unfocus();
+    try {
+      final comment = await _postService.addComment(
+        postId: widget.postId,
+        content: noiDung,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _danhSachBinhLuan.insert(0, comment);
+        _binhLuanController.clear();
+        _post = _post?.copyWith(
+          soLuotBinhLuan: (_post?.soLuotBinhLuan ?? 0) + 1,
+        );
+        _sending = false;
+        _changed = true;
+      });
+
+      _focusBinhLuan.unfocus();
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _sending = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    }
+  }
+
+  void _quayLai() {
+    if (Navigator.canPop(context)) {
+      Navigator.pop(context, _changed);
+    } else {
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        AppRoutes.home,
+        (route) => false,
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final post = timBaiVietTheoId(widget.postId);
-
     return Scaffold(
       backgroundColor: mauNen,
       resizeToAvoidBottomInset: true,
@@ -81,67 +153,93 @@ class _TrangBinhLuanState extends State<TrangBinhLuan> {
           children: [
             _thanhTren(context),
 
-            Expanded(
-              child: SingleChildScrollView(
-                keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-                physics: const BouncingScrollPhysics(),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    PostCard(
-                      post: post,
-                      cheDo: CheDoPostCard.binhLuan,
-                      onComment: () {},
-                      onShare: () {
-                        Navigator.pushNamed(
-                          context,
-                          AppRoutes.messages,
-                        );
-                      },
-                    ),
+            Expanded(child: _noiDungTrang()),
 
-                    const Divider(
-                      color: mauVien,
-                      height: 1,
-                      thickness: 1,
-                    ),
+            if (!_loading && _error == null) _oNhapBinhLuan(),
 
-                    _sapXepBinhLuan(),
-
-                    if (_danhSachBinhLuan.isEmpty)
-                      _khongCoBinhLuan()
-                    else
-                      Padding(
-                        padding: const EdgeInsets.only(left: 26, right: 22),
-                        child: Column(
-                          children: _danhSachBinhLuan.map((binhLuan) {
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 14),
-                              child: _BinhLuanCha(
-                                binhLuan: binhLuan,
-                              ),
-                            );
-                          }).toList(),
-                        ),
-                      ),
-
-                    const SizedBox(height: 16),
-                  ],
-                ),
-              ),
-            ),
-
-            _oNhapBinhLuan(),
-
-            const Divider(
-              color: mauVien,
-              height: 1,
-              thickness: 1,
-            ),
+            const Divider(color: mauVien, height: 1, thickness: 1),
 
             _thanhDieuHuongDuoi(context),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _noiDungTrang() {
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_error != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                _error!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white70, fontSize: 14),
+              ),
+              const SizedBox(height: 14),
+              TextButton(onPressed: _loadData, child: const Text('Tải lại')),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final post = _post;
+
+    if (post == null) {
+      return _khongCoBinhLuan();
+    }
+
+    return SingleChildScrollView(
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+      physics: const BouncingScrollPhysics(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          PostCard(
+            post: post,
+            onComment: () {},
+            onShare: () {
+              Navigator.pushNamed(context, AppRoutes.messages);
+            },
+            onPostModified: () async {
+              _changed = true;
+              final updated = await _postService.loadPostById(widget.postId);
+
+              if (!mounted) {
+                return;
+              }
+
+              setState(() {
+                _post = updated;
+              });
+            },
+          ),
+          const Divider(color: mauVien, height: 1, thickness: 1),
+          _sapXepBinhLuan(),
+          if (_danhSachBinhLuan.isEmpty)
+            _khongCoBinhLuan()
+          else
+            Padding(
+              padding: const EdgeInsets.only(left: 26, right: 22),
+              child: Column(
+                children: _danhSachBinhLuan.map((binhLuan) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 14),
+                    child: _BinhLuanCha(binhLuan: binhLuan),
+                  );
+                }).toList(),
+              ),
+            ),
+          const SizedBox(height: 16),
+        ],
       ),
     );
   }
@@ -157,17 +255,7 @@ class _TrangBinhLuanState extends State<TrangBinhLuan> {
             top: 18,
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
-              onTap: () {
-                if (Navigator.canPop(context)) {
-                  Navigator.pop(context);
-                } else {
-                  Navigator.pushNamedAndRemoveUntil(
-                    context,
-                    AppRoutes.home,
-                        (route) => false,
-                  );
-                }
-              },
+              onTap: _quayLai,
               child: Container(
                 width: 46,
                 height: 46,
@@ -214,11 +302,7 @@ class _TrangBinhLuanState extends State<TrangBinhLuan> {
           const Positioned(
             right: 34,
             top: 27,
-            child: Icon(
-              LucideIcons.bell,
-              color: Colors.white,
-              size: 27,
-            ),
+            child: Icon(LucideIcons.bell, color: Colors.white, size: 27),
           ),
         ],
       ),
@@ -239,11 +323,7 @@ class _TrangBinhLuanState extends State<TrangBinhLuan> {
             ),
           ),
           SizedBox(width: 3),
-          Icon(
-            LucideIcons.chevronDown,
-            color: Colors.white,
-            size: 17,
-          ),
+          Icon(LucideIcons.chevronDown, color: Colors.white, size: 17),
         ],
       ),
     );
@@ -277,11 +357,7 @@ class _TrangBinhLuanState extends State<TrangBinhLuan> {
           children: [
             const SizedBox(width: 13),
 
-            const Icon(
-              LucideIcons.camera,
-              color: Colors.white,
-              size: 21,
-            ),
+            const Icon(LucideIcons.camera, color: Colors.white, size: 21),
 
             const SizedBox(width: 10),
 
@@ -315,25 +391,34 @@ class _TrangBinhLuanState extends State<TrangBinhLuan> {
 
             GestureDetector(
               behavior: HitTestBehavior.opaque,
-              onTap: _themBinhLuan,
-              child: const SizedBox(
+              onTap: _sending
+                  ? null
+                  : () {
+                      _themBinhLuan();
+                    },
+              child: SizedBox(
                 width: 32,
                 height: 34,
-                child: Icon(
-                  LucideIcons.sendHorizontal,
-                  color: Colors.white,
-                  size: 20,
-                ),
+                child: _sending
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(
+                        LucideIcons.sendHorizontal,
+                        color: Colors.white,
+                        size: 20,
+                      ),
               ),
             ),
 
             const SizedBox(width: 4),
 
-            const Icon(
-              LucideIcons.image,
-              color: Colors.white,
-              size: 21,
-            ),
+            const Icon(LucideIcons.image, color: Colors.white, size: 21),
 
             const SizedBox(width: 12),
           ],
@@ -355,7 +440,7 @@ class _TrangBinhLuanState extends State<TrangBinhLuan> {
               Navigator.pushNamedAndRemoveUntil(
                 context,
                 AppRoutes.home,
-                    (route) => false,
+                (route) => false,
               );
             },
           ),
@@ -366,7 +451,7 @@ class _TrangBinhLuanState extends State<TrangBinhLuan> {
               Navigator.pushNamedAndRemoveUntil(
                 context,
                 AppRoutes.momentCamera,
-                    (route) => false,
+                (route) => false,
               );
             },
           ),
@@ -377,7 +462,7 @@ class _TrangBinhLuanState extends State<TrangBinhLuan> {
               Navigator.pushNamedAndRemoveUntil(
                 context,
                 AppRoutes.map,
-                    (route) => false,
+                (route) => false,
               );
             },
           ),
@@ -388,7 +473,7 @@ class _TrangBinhLuanState extends State<TrangBinhLuan> {
               Navigator.pushNamedAndRemoveUntil(
                 context,
                 AppRoutes.messages,
-                    (route) => false,
+                (route) => false,
               );
             },
           ),
@@ -399,7 +484,7 @@ class _TrangBinhLuanState extends State<TrangBinhLuan> {
               Navigator.pushNamedAndRemoveUntil(
                 context,
                 AppRoutes.profile,
-                    (route) => false,
+                (route) => false,
               );
             },
           ),
@@ -419,11 +504,7 @@ class _TrangBinhLuanState extends State<TrangBinhLuan> {
       child: SizedBox(
         width: 48,
         height: 48,
-        child: Icon(
-          icon,
-          color: mau,
-          size: 26,
-        ),
+        child: Icon(icon, color: mau, size: 26),
       ),
     );
   }
@@ -432,9 +513,7 @@ class _TrangBinhLuanState extends State<TrangBinhLuan> {
 class _BinhLuanCha extends StatelessWidget {
   final BinhLuanModel binhLuan;
 
-  const _BinhLuanCha({
-    required this.binhLuan,
-  });
+  const _BinhLuanCha({required this.binhLuan});
 
   static const Color mauXanh = Color(0xFF4AA8FF);
 
@@ -449,10 +528,7 @@ class _BinhLuanCha extends StatelessWidget {
             left: 17,
             top: 38,
             height: 42,
-            child: Container(
-              width: 1,
-              color: Colors.white24,
-            ),
+            child: Container(width: 1, color: Colors.white24),
           ),
 
         Column(
@@ -484,39 +560,67 @@ class _BinhLuanCha extends StatelessWidget {
   }
 
   Widget _noiDungBinhLuan(BinhLuanModel binhLuan) {
+    final avatarUrl = binhLuan.anhDaiDienNguoiBinhLuan?.trim() ?? '';
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const CircleAvatar(
+        CircleAvatar(
           radius: 17,
           backgroundColor: mauXanh,
+          backgroundImage: avatarUrl.isNotEmpty
+              ? NetworkImage(avatarUrl)
+              : null,
+          child: avatarUrl.isEmpty
+              ? Text(
+                  binhLuan.tenNguoiBinhLuan.isEmpty
+                      ? '?'
+                      : binhLuan.tenNguoiBinhLuan[0].toUpperCase(),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                  ),
+                )
+              : null,
         ),
         const SizedBox(width: 10),
         Expanded(
-          child: _cotNoiDungBinhLuan(
-            binhLuan: binhLuan,
-            laTraLoi: false,
-          ),
+          child: _cotNoiDungBinhLuan(binhLuan: binhLuan, laTraLoi: false),
         ),
       ],
     );
   }
 
   Widget _noiDungTraLoi(BinhLuanModel binhLuan) {
+    final avatarUrl = binhLuan.anhDaiDienNguoiBinhLuan?.trim() ?? '';
+
     return Expanded(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const CircleAvatar(
+          CircleAvatar(
             radius: 17,
             backgroundColor: mauXanh,
+            backgroundImage: avatarUrl.isNotEmpty
+                ? NetworkImage(avatarUrl)
+                : null,
+            child: avatarUrl.isEmpty
+                ? Text(
+                    binhLuan.tenNguoiBinhLuan.isEmpty
+                        ? '?'
+                        : binhLuan.tenNguoiBinhLuan[0].toUpperCase(),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  )
+                : null,
           ),
           const SizedBox(width: 10),
           Expanded(
-            child: _cotNoiDungBinhLuan(
-              binhLuan: binhLuan,
-              laTraLoi: true,
-            ),
+            child: _cotNoiDungBinhLuan(binhLuan: binhLuan, laTraLoi: true),
           ),
         ],
       ),

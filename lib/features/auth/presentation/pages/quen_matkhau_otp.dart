@@ -4,16 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../../app/routes/app_routes.dart';
+import '../../../../core/services/auth_service.dart';
 import '../../data/models/du_lieu_quen_matkhau.dart';
 import '../widgets/khung_quen_matkhau.dart';
 
 class QuenMatKhauOtp extends StatefulWidget {
   final DuLieuQuenMatKhau duLieu;
 
-  const QuenMatKhauOtp({
-    super.key,
-    required this.duLieu,
-  });
+  const QuenMatKhauOtp({super.key, required this.duLieu});
 
   @override
   State<QuenMatKhauOtp> createState() => _QuenMatKhauOtpState();
@@ -22,13 +20,10 @@ class QuenMatKhauOtp extends StatefulWidget {
 class _QuenMatKhauOtpState extends State<QuenMatKhauOtp> {
   final List<TextEditingController> _otpControllers = List.generate(
     6,
-        (_) => TextEditingController(),
+    (_) => TextEditingController(),
   );
 
-  final List<FocusNode> _focusNodes = List.generate(
-    6,
-        (_) => FocusNode(),
-  );
+  final List<FocusNode> _focusNodes = List.generate(6, (_) => FocusNode());
 
   Timer? _timer;
   int _giayConLai = 39;
@@ -60,6 +55,8 @@ class _QuenMatKhauOtpState extends State<QuenMatKhauOtp> {
         return;
       }
 
+      if (!mounted) return;
+
       setState(() {
         _giayConLai--;
       });
@@ -87,18 +84,31 @@ class _QuenMatKhauOtpState extends State<QuenMatKhauOtp> {
     _batDauDemNguoc();
 
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Đã gửi lại mã OTP demo'),
-        backgroundColor: Color(0xFF43A9F5),
+      SnackBar(
+        content: Text('Đã gửi lại OTP demo: ${AuthService.demoOtp}'),
+        backgroundColor: const Color(0xFF43A9F5),
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(16),
       ),
     );
   }
 
   void _diDenChonMatKhauMoi() {
+    if (_maOtp != AuthService.demoOtp) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('OTP không đúng. Mã demo là ${AuthService.demoOtp}'),
+          behavior: SnackBarBehavior.floating,
+          margin: const EdgeInsets.all(16),
+        ),
+      );
+      return;
+    }
+
     Navigator.pushNamed(
       context,
       AppRoutes.quenMatKhauMoi,
-      arguments: widget.duLieu,
+      arguments: widget.duLieu.copyWith(otp: _maOtp),
     );
   }
 
@@ -119,6 +129,8 @@ class _QuenMatKhauOtpState extends State<QuenMatKhauOtp> {
 
   @override
   Widget build(BuildContext context) {
+    final gmail = widget.duLieu.gmailNhanOtp ?? widget.duLieu.giaTriLienHe;
+
     return KhungQuenMatKhau(
       tieuDe: 'Nhập mã OTP',
       hienDieuKhoan: false,
@@ -126,6 +138,16 @@ class _QuenMatKhauOtpState extends State<QuenMatKhauOtp> {
       khiBamTiepTuc: _diDenChonMatKhauMoi,
       noiDung: Column(
         children: [
+          Text(
+            'Mã OTP đã gửi về:\n$gmail',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 13,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 14),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: List.generate(6, (index) {

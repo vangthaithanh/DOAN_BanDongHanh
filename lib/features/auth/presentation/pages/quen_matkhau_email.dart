@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../app/routes/app_routes.dart';
+import '../../../../core/services/auth_service.dart';
 import '../../data/models/du_lieu_quen_matkhau.dart';
 import '../../data/models/phuong_thuc_quen_matkhau.dart';
 import '../widgets/khung_quen_matkhau.dart';
@@ -15,6 +16,7 @@ class QuenMatKhauEmail extends StatefulWidget {
 
 class _QuenMatKhauEmailState extends State<QuenMatKhauEmail> {
   final TextEditingController _emailController = TextEditingController();
+  final AuthService _authService = AuthService();
 
   bool _emailHopLe = false;
 
@@ -29,17 +31,36 @@ class _QuenMatKhauEmailState extends State<QuenMatKhauEmail> {
     });
   }
 
-  void _diDenNhapOtp() {
-    final duLieu = DuLieuQuenMatKhau(
-      phuongThuc: PhuongThucQuenMatKhau.email,
-      giaTriLienHe: _emailController.text.trim(),
-    );
+  void _guiOtpVaDiTiep() {
+    final email = _emailController.text.trim();
 
-    Navigator.pushNamed(
-      context,
-      AppRoutes.quenMatKhauOtp,
-      arguments: duLieu,
-    );
+    try {
+      final otp = _authService.requestEmailOtpDemo(email);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('OTP demo gửi về Gmail $email là $otp'),
+          behavior: SnackBarBehavior.floating,
+          margin: const EdgeInsets.all(16),
+        ),
+      );
+
+      final duLieu = DuLieuQuenMatKhau(
+        phuongThuc: PhuongThucQuenMatKhau.email,
+        giaTriLienHe: email,
+        gmailNhanOtp: email,
+      );
+
+      Navigator.pushNamed(context, AppRoutes.quenMatKhauOtp, arguments: duLieu);
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+          behavior: SnackBarBehavior.floating,
+          margin: const EdgeInsets.all(16),
+        ),
+      );
+    }
   }
 
   @override
@@ -51,28 +72,23 @@ class _QuenMatKhauEmailState extends State<QuenMatKhauEmail> {
   @override
   Widget build(BuildContext context) {
     return KhungQuenMatKhau(
-      tieuDe: 'Nhập Email của bạn',
+      tieuDe: 'Nhập Gmail của bạn',
       hienDieuKhoan: false,
       choPhepTiepTuc: _emailHopLe,
-      khiBamTiepTuc: _diDenNhapOtp,
+      khiBamTiepTuc: _guiOtpVaDiTiep,
       noiDung: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           ONhapQuenMatKhau(
             controller: _emailController,
-            goiY: 'Địa chỉ Email',
+            goiY: 'Địa chỉ Gmail',
             kieuBanPhim: TextInputType.emailAddress,
             khiThayDoi: _xuLyThayDoiEmail,
           ),
-
           const SizedBox(height: 12),
-
           GestureDetector(
             onTap: () {
-              Navigator.pushReplacementNamed(
-                context,
-                AppRoutes.quenMatKhauSdt,
-              );
+              Navigator.pushReplacementNamed(context, AppRoutes.quenMatKhauSdt);
             },
             child: const Text(
               'Sử dụng số điện thoại >',
@@ -83,6 +99,12 @@ class _QuenMatKhauEmailState extends State<QuenMatKhauEmail> {
                 fontWeight: FontWeight.w500,
               ),
             ),
+          ),
+          const SizedBox(height: 10),
+          const Text(
+            'OTP demo sẽ hiện bằng thông báo trên app.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.white54, fontSize: 12),
           ),
         ],
       ),
