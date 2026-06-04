@@ -388,8 +388,14 @@ class ProfileService {
           .order('created_at', ascending: false)
           .limit(20);
 
+      final postList = rows as List;
+      final postIds = postList
+          .map((r) => (r as Map<String, dynamic>)['id'] as int)
+          .toList();
+      final hashtagMap = await _loadHashtagsForPosts(postIds);
+
       return Future.wait(
-        (rows as List).map((raw) async {
+        postList.map((raw) async {
           final map = raw as Map<String, dynamic>;
           final postId = (map['id'] as int?) ?? 0;
 
@@ -425,6 +431,7 @@ class ProfileService {
                 : (title.isNotEmpty ? title : null),
             danhSachAnh: firstMediaUrl != null ? [firstMediaUrl] : const [],
             viTri: _emptyToNull(map['location_name']),
+            danhSachHashTag: hashtagMap[postId] ?? const [],
             soLuotThich: (map['like_count'] as int?) ?? 0,
             soLuotBinhLuan: (map['comment_count'] as int?) ?? 0,
 
@@ -442,6 +449,47 @@ class ProfileService {
       );
     } catch (_) {
       return [];
+    }
+  }
+
+  Future<Map<int, List<String>>> _loadHashtagsForPosts(
+      List<int> postIds) async {
+    if (postIds.isEmpty) return {};
+    try {
+      final phRows = await _client
+          .from('post_hashtags')
+          .select('post_id, hashtag_id')
+          .inFilter('post_id', postIds);
+
+      if ((phRows as List).isEmpty) return {};
+
+      final hashtagIds = phRows
+          .map((r) => r['hashtag_id'])
+          .toSet()
+          .toList();
+
+      final hRows = await _client
+          .from('hashtags')
+          .select('id, name')
+          .inFilter('id', hashtagIds);
+
+      final nameById = <int, String>{};
+      for (final Map<String, dynamic> h in hRows as List) {
+        nameById[(h['id'] as num).toInt()] = h['name']?.toString() ?? '';
+      }
+
+      final result = <int, List<String>>{};
+      for (final Map<String, dynamic> ph in phRows) {
+        final postId = (ph['post_id'] as num).toInt();
+        final hashtagId = (ph['hashtag_id'] as num).toInt();
+        final name = nameById[hashtagId];
+        if (name != null && name.isNotEmpty) {
+          result.putIfAbsent(postId, () => []).add(name);
+        }
+      }
+      return result;
+    } catch (_) {
+      return {};
     }
   }
 
