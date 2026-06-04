@@ -123,6 +123,7 @@ class _PostCardState extends State<PostCard> {
                           'content': widget.post.caption,
                           'hashtags': widget.post.danhSachHashTag,
                           'visibility': widget.post.visibility ?? 'public',
+                          'viTri': widget.post.viTri,
                         },
                       ),
                     ),
