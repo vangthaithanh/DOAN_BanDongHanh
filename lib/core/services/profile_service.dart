@@ -380,9 +380,9 @@ class ProfileService {
       final rows = await _client
           .from('posts')
           .select(
-        'id, content, title, visibility, like_count, comment_count, created_at,'
+            'id, content, title, visibility, like_count, comment_count, created_at, location_name,'
             'post_media(url, display_order)',
-      )
+          )
           .eq('profile_id', userId)
           .eq('status', 'active')
           .order('created_at', ascending: false)
@@ -397,13 +397,14 @@ class ProfileService {
           final media = map['post_media'];
 
           if (media is List && media.isNotEmpty) {
-            final sorted = List<Map<String, dynamic>>.from(
-              media.map((m) => m as Map<String, dynamic>),
-            )..sort((a, b) {
-              final aO = (a['display_order'] as int?) ?? 0;
-              final bO = (b['display_order'] as int?) ?? 0;
-              return aO.compareTo(bO);
-            });
+            final sorted =
+                List<Map<String, dynamic>>.from(
+                  media.map((m) => m as Map<String, dynamic>),
+                )..sort((a, b) {
+                  final aO = (a['display_order'] as int?) ?? 0;
+                  final bO = (b['display_order'] as int?) ?? 0;
+                  return aO.compareTo(bO);
+                });
 
             firstMediaUrl = sorted.first['url']?.toString();
           }
@@ -415,13 +416,15 @@ class ProfileService {
           return PostModel(
             id: postId,
             tenNguoiDang: profile.displayName,
-            anhDaiDienNguoiDang:
-            profile.avatarUrl.isNotEmpty ? profile.avatarUrl : null,
+            anhDaiDienNguoiDang: profile.avatarUrl.isNotEmpty
+                ? profile.avatarUrl
+                : null,
             thoiGian: _timeAgo(createdAtRaw),
             caption: content.isNotEmpty
                 ? content
                 : (title.isNotEmpty ? title : null),
             danhSachAnh: firstMediaUrl != null ? [firstMediaUrl] : const [],
+            viTri: _emptyToNull(map['location_name']),
             soLuotThich: (map['like_count'] as int?) ?? 0,
             soLuotBinhLuan: (map['comment_count'] as int?) ?? 0,
 
@@ -474,5 +477,11 @@ class ProfileService {
     } catch (_) {
       return raw;
     }
+  }
+
+  String? _emptyToNull(dynamic value) {
+    final text = value?.toString().trim() ?? '';
+
+    return text.isEmpty ? null : text;
   }
 }

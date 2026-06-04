@@ -22,7 +22,7 @@ class PostService {
       return _client
           .from('posts')
           .select(
-            'id, profile_id, title, content, like_count, comment_count, created_at',
+            'id, profile_id, title, content, visibility, like_count, comment_count, created_at, location_name',
           )
           .eq('id', postId)
           .maybeSingle();
@@ -36,14 +36,17 @@ class PostService {
     final profile = await _loadPublicProfile(authorProfileId);
     final mediaUrls = await _loadPostMedia(postId);
     final hashtags = await _loadPostHashTags(postId);
-    final locationName = await _loadTaggedPlaces(postId);
+    final taggedLocationName = await _loadTaggedPlaces(postId);
+    final locationName =
+        _emptyToNull(row['location_name']) ?? taggedLocationName;
     final liked = await _isLikedByMe(postId);
+    final createdAtRaw = row['created_at']?.toString().trim() ?? '';
 
     return PostModel(
       id: _asInt(row['id']),
       tenNguoiDang: _firstText([profile?['nickname']], fallback: 'Người dùng'),
       anhDaiDienNguoiDang: _emptyToNull(profile?['avatar_url']),
-      thoiGian: _timeAgo(row['created_at']),
+      thoiGian: _timeAgo(createdAtRaw),
       caption: _caption(row),
       danhSachAnh: mediaUrls,
       viTri: locationName,
@@ -53,6 +56,8 @@ class PostService {
       daThich: liked,
       laBaiVietCuaToi:
           currentUserId != null && authorProfileId == currentUserId,
+      createdAt: DateTime.tryParse(createdAtRaw)?.toLocal(),
+      visibility: row['visibility']?.toString(),
     );
   }
 
@@ -187,6 +192,7 @@ class PostService {
     }
 
     final cleanContent = content.trim();
+    final cleanLocationName = locationName?.trim() ?? '';
     final now = DateTime.now().toIso8601String();
     final postRow = await _wrapSupabaseError(() {
       return _client
@@ -200,6 +206,9 @@ class PostService {
             'comment_count': 0,
             'share_count': 0,
             'status': 'active',
+            'location_name': cleanLocationName.isEmpty
+                ? null
+                : cleanLocationName,
             'created_at': now,
             'updated_at': now,
           })
@@ -270,10 +279,10 @@ class PostService {
         });
 
         await _wrapSupabaseError(() {
-          return _client.from('post_hashtags').upsert(
-            {'post_id': postId, 'hashtag_id': _asInt(h['id'])},
-            onConflict: 'post_id,hashtag_id',
-          );
+          return _client.from('post_hashtags').upsert({
+            'post_id': postId,
+            'hashtag_id': _asInt(h['id']),
+          }, onConflict: 'post_id,hashtag_id');
         });
       }
     }

@@ -8,6 +8,7 @@ import '../../../../core/utils/time_ago.dart';
 import '../../data/models/post_model.dart';
 import '../../data/services/post_service.dart';
 import '../pages/trang_chinh_sua_baiviet.dart';
+
 class PostCard extends StatefulWidget {
   final PostModel post;
   final VoidCallback? onComment;
@@ -40,12 +41,16 @@ class _PostCardState extends State<PostCard> {
   Timer? _timer;
   late String _timeText;
 
-
   @override
   void initState() {
     super.initState();
     _soThich = widget.post.soLuotThich;
     _daThich = widget.post.daThich;
+    _initTimeText();
+  }
+
+  void _initTimeText() {
+    _timer?.cancel();
 
     final createdAt = widget.post.createdAt;
     if (createdAt != null) {
@@ -88,61 +93,58 @@ class _PostCardState extends State<PostCard> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (sheetCtx) =>
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 36,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: Colors.white24,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  _sheetItem(
-                    icon: LucideIcons.pencil,
-                    label: 'Chỉnh sửa',
-                    color: Colors.white,
-                    onTap: () async {
-                      Navigator.pop(sheetCtx);
-                      final result = await Navigator.push<bool>(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) =>
-                              TrangChinhSuaBaiViet(
-                                post: {
-                                  'post_id': widget.post.id,
-                                  'content': widget.post.caption,
-                                  'hashtags': widget.post.danhSachHashTag,
-                                  'visibility': widget.post.visibility ??
-                                      'public',
-                                },
-                              ),
-                        ),
-                      );
-                      if (result == true) widget.onPostModified?.call();
-                    },
-                  ),
-                  const Divider(color: Color(0xFF2B2B2B), height: 1),
-                  _sheetItem(
-                    icon: LucideIcons.trash2,
-                    label: 'Xóa bài viết',
-                    color: Colors.redAccent,
-                    onTap: () {
-                      Navigator.pop(sheetCtx);
-                      _handleDelete(context);
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                ],
+      builder: (sheetCtx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.white24,
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
-            ),
+              const SizedBox(height: 16),
+              _sheetItem(
+                icon: LucideIcons.pencil,
+                label: 'Chỉnh sửa',
+                color: Colors.white,
+                onTap: () async {
+                  Navigator.pop(sheetCtx);
+                  final result = await Navigator.push<bool>(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => TrangChinhSuaBaiViet(
+                        post: {
+                          'post_id': widget.post.id,
+                          'content': widget.post.caption,
+                          'hashtags': widget.post.danhSachHashTag,
+                          'visibility': widget.post.visibility ?? 'public',
+                        },
+                      ),
+                    ),
+                  );
+                  if (result == true) widget.onPostModified?.call();
+                },
+              ),
+              const Divider(color: Color(0xFF2B2B2B), height: 1),
+              _sheetItem(
+                icon: LucideIcons.trash2,
+                label: 'Xóa bài viết',
+                color: Colors.redAccent,
+                onTap: () {
+                  Navigator.pop(sheetCtx);
+                  _handleDelete(context);
+                },
+              ),
+              const SizedBox(height: 8),
+            ],
           ),
+        ),
+      ),
     );
   }
 
@@ -178,55 +180,52 @@ class _PostCardState extends State<PostCard> {
   void _handleDelete(BuildContext context) {
     showDialog(
       context: context,
-      builder: (dialogCtx) =>
-          AlertDialog(
-            backgroundColor: const Color(0xFF1C1C1E),
-            title: const Text(
-              'Xóa bài viết?',
-              style: TextStyle(
-                  color: Colors.white, fontWeight: FontWeight.w700),
-            ),
-            content: const Text(
-              'Bài viết sẽ bị ẩn và không hiển thị nữa.',
-              style: TextStyle(color: Colors.white70),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dialogCtx),
-                child: const Text('Huỷ',
-                    style: TextStyle(color: Colors.white54)),
-              ),
-              TextButton(
-                onPressed: () async {
-                  Navigator.pop(dialogCtx);
-                  try {
-                    await PostService().deletePost(widget.post.id);
-                    widget.onPostModified?.call();
-                  } catch (e) {
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            e.toString().replaceFirst('Exception: ', ''),
-                          ),
-                          backgroundColor: Colors.redAccent,
-                        ),
-                      );
-                    }
-                  }
-                },
-                child: const Text(
-                  'Xóa',
-                  style: TextStyle(
-                    color: Colors.redAccent,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ],
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: const Color(0xFF1C1C1E),
+        title: const Text(
+          'Xóa bài viết?',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+        ),
+        content: const Text(
+          'Bài viết sẽ bị ẩn và không hiển thị nữa.',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx),
+            child: const Text('Huỷ', style: TextStyle(color: Colors.white54)),
           ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(dialogCtx);
+              try {
+                await PostService().deletePost(widget.post.id);
+                widget.onPostModified?.call();
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        e.toString().replaceFirst('Exception: ', ''),
+                      ),
+                      backgroundColor: Colors.redAccent,
+                    ),
+                  );
+                }
+              }
+            },
+            child: const Text(
+              'Xóa',
+              style: TextStyle(
+                color: Colors.redAccent,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
-    }
+  }
 
   @override
   void didUpdateWidget(covariant PostCard oldWidget) {
@@ -237,6 +236,12 @@ class _PostCardState extends State<PostCard> {
         oldWidget.post.daThich != widget.post.daThich) {
       _soThich = widget.post.soLuotThich;
       _daThich = widget.post.daThich;
+    }
+
+    if (oldWidget.post.id != widget.post.id ||
+        oldWidget.post.createdAt != widget.post.createdAt ||
+        oldWidget.post.thoiGian != widget.post.thoiGian) {
+      _initTimeText();
     }
   }
 
@@ -345,18 +350,19 @@ class _PostCardState extends State<PostCard> {
           backgroundColor: widget.post.laBaiVietCuaToi
               ? const Color(0xFF5AB2FF)
               : const Color(0xFF4AA8FF),
-          backgroundImage:
-          avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
+          backgroundImage: avatarUrl.isNotEmpty
+              ? NetworkImage(avatarUrl)
+              : null,
           child: avatarUrl.isEmpty
               ? Text(
-            widget.post.tenNguoiDang.isEmpty
-                ? '?'
-                : widget.post.tenNguoiDang[0].toUpperCase(),
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w800,
-            ),
-          )
+                  widget.post.tenNguoiDang.isEmpty
+                      ? '?'
+                      : widget.post.tenNguoiDang[0].toUpperCase(),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                  ),
+                )
               : null,
         ),
         const SizedBox(width: 10),
@@ -384,13 +390,34 @@ class _PostCardState extends State<PostCard> {
                     ),
                   ),
                   const SizedBox(width: 6),
-                  Icon(
-                    _visibilityIcon,
-                    color: Colors.white60,
-                    size: 13,
-                  ),
+                  Icon(_visibilityIcon, color: Colors.white60, size: 13),
                 ],
               ),
+              if (widget.post.viTri?.trim().isNotEmpty == true) ...[
+                const SizedBox(height: 3),
+                Row(
+                  children: [
+                    const Icon(
+                      LucideIcons.mapPin,
+                      color: Colors.white60,
+                      size: 13,
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        widget.post.viTri!.trim(),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white60,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ],
           ),
         ),
@@ -435,8 +462,7 @@ class _PostCardState extends State<PostCard> {
             text: TextSpan(text: text, style: style),
             maxLines: 3,
             textDirection: TextDirection.ltr,
-          )
-            ..layout(maxWidth: constraints.maxWidth);
+          )..layout(maxWidth: constraints.maxWidth);
 
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -454,10 +480,7 @@ class _PostCardState extends State<PostCard> {
                     padding: EdgeInsets.only(top: 2),
                     child: Text(
                       'Xem thêm',
-                      style: TextStyle(
-                        color: Colors.white54,
-                        fontSize: 13,
-                      ),
+                      style: TextStyle(color: Colors.white54, fontSize: 13),
                     ),
                   ),
                 ),
@@ -476,8 +499,7 @@ class _PostCardState extends State<PostCard> {
         runSpacing: 4,
         children: widget.post.danhSachHashTag
             .map(
-              (tag) =>
-              Text(
+              (tag) => Text(
                 '#$tag',
                 style: const TextStyle(
                   color: _mauXanh,
@@ -485,7 +507,7 @@ class _PostCardState extends State<PostCard> {
                   fontWeight: FontWeight.w600,
                 ),
               ),
-        )
+            )
             .toList(),
       ),
     );

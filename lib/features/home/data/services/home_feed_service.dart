@@ -116,15 +116,16 @@ class HomeFeedService {
       posts.add(
         PostModel(
           id: postId,
-          tenNguoiDang: _firstText(
-            [row['author_nickname']],
-            fallback: 'Người dùng',
-          ),
+          tenNguoiDang: _firstText([
+            row['author_nickname'],
+          ], fallback: 'Người dùng'),
           anhDaiDienNguoiDang: _emptyToNull(row['author_avatar_url']),
           thoiGian: _timeAgo(createdAtRaw),
           caption: _caption(row),
           danhSachAnh: mediaUrl.isEmpty ? const [] : [mediaUrl],
-          viTri: _emptyToNull(row['tagged_places']),
+          viTri:
+              _emptyToNull(row['location_name']) ??
+              _emptyToNull(row['tagged_places']),
           danhSachHashTag: _parseHashTags(
             row['matched_hashtags'] ?? row['hashtags'],
           ),

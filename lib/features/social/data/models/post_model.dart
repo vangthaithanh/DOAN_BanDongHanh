@@ -47,6 +47,8 @@ class PostModel {
     int? soLuotBinhLuan,
     bool? daThich,
     bool? laBaiVietCuaToi,
+    DateTime? createdAt,
+    String? visibility,
   }) {
     return PostModel(
       id: id ?? this.id,
@@ -62,6 +64,8 @@ class PostModel {
       soLuotBinhLuan: soLuotBinhLuan ?? this.soLuotBinhLuan,
       daThich: daThich ?? this.daThich,
       laBaiVietCuaToi: laBaiVietCuaToi ?? this.laBaiVietCuaToi,
+      createdAt: createdAt ?? this.createdAt,
+      visibility: visibility ?? this.visibility,
     );
   }
 }
