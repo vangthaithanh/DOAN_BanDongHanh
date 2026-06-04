@@ -11,6 +11,7 @@ import '../../features/auth/presentation/pages/dangki_ten_email.dart';
 import '../../features/auth/presentation/pages/dangki_ten_sdt.dart';
 import '../../features/auth/presentation/pages/dangnhap_email.dart';
 import '../../features/auth/presentation/pages/dangnhap_sdt.dart';
+import '../../features/auth/presentation/pages/google_login_callback.dart';
 import '../../features/auth/presentation/pages/man_hinh_cho.dart';
 import '../../features/auth/presentation/pages/matkhau_email.dart';
 import '../../features/auth/presentation/pages/matkhau_sdt.dart';
@@ -120,6 +121,8 @@ class AppRouter {
         return TrangBinhLuan(postId: postId);
       },
       AppRoutes.waitingMessages: (_) => const TrangTinNhanChoPage(),
+      AppRoutes.waitingMessages: (_) => const TrangTinNhanChoPage(),
+      AppRoutes.loginCallback: (_) => const GoogleLoginCallbackPage(),
       AppRoutes.chatDetail: (context) {
         final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
         final name = args?['name'] as String? ?? 'Người dùng';
