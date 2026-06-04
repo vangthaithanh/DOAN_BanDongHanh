@@ -172,6 +172,7 @@ class _TrangChuPageState extends State<TrangChuPage> {
               onShare: () {
                 Navigator.pushNamed(context, AppRoutes.messages);
               },
+              onPostModified: _refreshFeed,
             ),
           );
         },

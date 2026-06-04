@@ -383,7 +383,7 @@ class ProfileService {
       final rows = await _client
           .from('posts')
           .select(
-            'id, content, title, like_count, comment_count, created_at,'
+            'id, content, title, visibility, like_count, comment_count, created_at,'
             'post_media(url, display_order)',
           )
           .eq('profile_id', userId)
@@ -424,6 +424,10 @@ class ProfileService {
           soLuotThich: (map['like_count'] as int?) ?? 0,
           soLuotBinhLuan: (map['comment_count'] as int?) ?? 0,
           laBaiVietCuaToi: true,
+          createdAt: DateTime.tryParse(
+            map['created_at']?.toString() ?? '',
+          )?.toLocal(),
+          visibility: map['visibility']?.toString(),
         );
       }).toList();
     } catch (_) {

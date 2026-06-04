@@ -196,6 +196,7 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
                                 context,
                                 AppRoutes.messages,
                               ),
+                              onPostModified: _reloadProfile,
                             ),
                           ),
                       ] else ...[

@@ -70,20 +70,16 @@ class PostService {
     final user = _client.auth.currentUser;
     if (user == null) throw Exception('Chưa đăng nhập');
 
-    final updates = <String, dynamic>{
+    final fields = <String, dynamic>{
       'updated_at': DateTime.now().toIso8601String(),
     };
-    if (content != null) {
-      updates['content'] = content.trim().isEmpty ? null : content.trim();
-    }
-    if (visibility != null) {
-      updates['visibility'] = visibility;
-    }
+    if (content != null) fields['content'] = content.trim();
+    if (visibility != null) fields['visibility'] = visibility;
 
     await _wrapSupabaseError(() {
       return _client
           .from('posts')
-          .update(updates)
+          .update(fields)
           .eq('id', postId)
           .eq('profile_id', user.id);
     });
@@ -92,7 +88,26 @@ class PostService {
       await _wrapSupabaseError(() {
         return _client.from('post_hashtags').delete().eq('post_id', postId);
       });
-      await _saveHashTags(postId, hashtags);
+
+      for (final tag in hashtags) {
+        final clean = tag.trim().toLowerCase();
+        if (clean.isEmpty) continue;
+
+        final h = await _wrapSupabaseError(() {
+          return _client
+              .from('hashtags')
+              .upsert({'name': clean}, onConflict: 'name')
+              .select('id')
+              .single();
+        });
+
+        await _wrapSupabaseError(() {
+          return _client.from('post_hashtags').upsert(
+            {'post_id': postId, 'hashtag_id': _asInt(h['id'])},
+            onConflict: 'post_id,hashtag_id',
+          );
+        });
+      }
     }
   }
 
@@ -103,10 +118,7 @@ class PostService {
     await _wrapSupabaseError(() {
       return _client
           .from('posts')
-          .update({
-            'status': 'hidden',
-            'updated_at': DateTime.now().toIso8601String(),
-          })
+          .update({'status': 'hidden'})
           .eq('id', postId)
           .eq('profile_id', user.id);
     });
