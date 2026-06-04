@@ -164,6 +164,9 @@ class ProfileService {
       throw Exception('Biệt danh tối thiểu 3 ký tự');
     }
 
+    /// NOTE SỬA:
+    /// Check nickname bằng RPC nếu có.
+    /// Nếu RPC chưa có thì bỏ qua để tránh app chết.
     try {
       final isTaken = await _client.rpc(
         'is_nickname_taken',
@@ -190,15 +193,18 @@ class ProfileService {
       }
     }
 
+    /// NOTE SỬA:
+    /// Chỉ update những cột user được sửa.
+    /// Không update role/status/email vì trigger Supabase sẽ chặn.
     await _client
         .from('profiles')
         .update({
-      'nickname': cleanNickname,
-      'full_name': fullName.trim(),
-      'bio': bio.trim(),
-      'facebook_url': facebookUrl.trim(),
-      'updated_at': DateTime.now().toIso8601String(),
-    })
+          'nickname': cleanNickname,
+          'full_name': fullName.trim(),
+          'bio': bio.trim(),
+          'facebook_url': facebookUrl.trim(),
+          'updated_at': DateTime.now().toIso8601String(),
+        })
         .eq('id', user.id);
   }
 
@@ -394,9 +400,9 @@ class ProfileService {
             final sorted = List<Map<String, dynamic>>.from(
               media.map((m) => m as Map<String, dynamic>),
             )..sort((a, b) {
-              final aOrder = (a['display_order'] as int?) ?? 0;
-              final bOrder = (b['display_order'] as int?) ?? 0;
-              return aOrder.compareTo(bOrder);
+              final aO = (a['display_order'] as int?) ?? 0;
+              final bO = (b['display_order'] as int?) ?? 0;
+              return aO.compareTo(bO);
             });
 
             firstMediaUrl = sorted.first['url']?.toString();
@@ -418,8 +424,14 @@ class ProfileService {
             danhSachAnh: firstMediaUrl != null ? [firstMediaUrl] : const [],
             soLuotThich: (map['like_count'] as int?) ?? 0,
             soLuotBinhLuan: (map['comment_count'] as int?) ?? 0,
+
+            // Phần của bạn: giữ trạng thái đã thích thật
             daThich: await _isPostLikedByMe(postId, userId),
+
+            // Phần chung
             laBaiVietCuaToi: true,
+
+            // Phần của bạn bạn: giữ thời gian realtime và quyền riêng tư
             createdAt: DateTime.tryParse(createdAtRaw)?.toLocal(),
             visibility: map['visibility']?.toString(),
           );
@@ -450,30 +462,14 @@ class ProfileService {
   }
 
   String _timeAgo(String raw) {
-    if (raw.isEmpty) {
-      return '';
-    }
-
+    if (raw.isEmpty) return '';
     try {
       final dt = DateTime.parse(raw).toLocal();
       final diff = DateTime.now().difference(dt);
-
-      if (diff.inMinutes < 1) {
-        return 'Vừa xong';
-      }
-
-      if (diff.inHours < 1) {
-        return '${diff.inMinutes} phút trước';
-      }
-
-      if (diff.inDays < 1) {
-        return '${diff.inHours} giờ trước';
-      }
-
-      if (diff.inDays < 7) {
-        return '${diff.inDays} ngày trước';
-      }
-
+      if (diff.inMinutes < 1) return 'Vừa xong';
+      if (diff.inHours < 1) return '${diff.inMinutes} phút trước';
+      if (diff.inDays < 1) return '${diff.inHours} giờ trước';
+      if (diff.inDays < 7) return '${diff.inDays} ngày trước';
       return '${dt.day}/${dt.month}/${dt.year}';
     } catch (_) {
       return raw;
