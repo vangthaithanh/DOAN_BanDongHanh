@@ -193,7 +193,7 @@ class PostService {
 
     final cleanContent = content.trim();
     final cleanLocationName = locationName?.trim() ?? '';
-    final now = DateTime.now().toIso8601String();
+    final now = DateTime.now().toUtc().toIso8601String();
     final postRow = await _wrapSupabaseError(() {
       return _client
           .from('posts')
@@ -248,7 +248,7 @@ class PostService {
     if (user == null) throw Exception('Chưa đăng nhập');
 
     final fields = <String, dynamic>{
-      'updated_at': DateTime.now().toIso8601String(),
+      'updated_at': DateTime.now().toUtc().toIso8601String(),
     };
     if (content != null) fields['content'] = content.trim();
     if (visibility != null) fields['visibility'] = visibility;
