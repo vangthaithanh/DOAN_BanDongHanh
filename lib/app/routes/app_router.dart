@@ -25,6 +25,7 @@ import '../../features/map/presentation/pages/map.dart';
 import '../../features/messages/presentation/pages/trang_doan_chat.dart';
 import '../../features/messages/presentation/pages/trang_tinnhan.dart';
 import '../../features/messages/presentation/pages/trang_tinnhan_cho.dart';
+import '../../features/moments/data/model/khoanh_khac_mau.dart';
 import '../../features/moments/presentation/pages/trang_chia_se_camera.dart';
 import '../../features/moments/presentation/pages/trang_gallery_khoanhkhac.dart';
 import '../../features/moments/presentation/pages/trang_hinh_anh_chi_tiet.dart';
@@ -51,12 +52,10 @@ class AppRouter {
   static Map<String, WidgetBuilder> get routes {
     return {
       AppRoutes.start: (_) => const TrangBatDauPage(),
-
       AppRoutes.loginEmail: (_) => const DangNhapEmailPage(),
       AppRoutes.loginPhone: (_) => const DangNhapSdtPage(),
       AppRoutes.passwordEmail: (_) => const MatKhauEmailPage(),
       AppRoutes.passwordPhone: (_) => const MatKhauSdtPage(),
-
       AppRoutes.registerEmail: (_) => const DangKiEmailPage(),
       AppRoutes.registerPasswordEmail: (_) => const DangKiMatKhauEmailPage(),
       AppRoutes.registerNameEmail: (_) => const DangKiTenEmailPage(),
@@ -65,106 +64,66 @@ class AppRouter {
       AppRoutes.registerNamePhone: (_) => const DangKiTenSdtPage(),
       AppRoutes.addAvatar: (_) => const ThemAnhDaiDienPage(),
       AppRoutes.loading: (_) => const ManHinhChoPage(),
-
       AppRoutes.quenMatKhauEmail: (_) => const QuenMatKhauEmail(),
-
       AppRoutes.quenMatKhauSdt: (_) => const QuenMatKhauSdt(),
-
       AppRoutes.quenMatKhauOtp: (context) {
-        final duLieu =
-            ModalRoute.of(context)!.settings.arguments as DuLieuQuenMatKhau;
-
+        final duLieu = ModalRoute.of(context)!.settings.arguments as DuLieuQuenMatKhau;
         return QuenMatKhauOtp(duLieu: duLieu);
       },
-
       AppRoutes.quenMatKhauMoi: (context) {
-        final duLieu =
-            ModalRoute.of(context)!.settings.arguments as DuLieuQuenMatKhau;
-
+        final duLieu = ModalRoute.of(context)!.settings.arguments as DuLieuQuenMatKhau;
         return QuenMatKhauMoi(duLieu: duLieu);
       },
-
       AppRoutes.surveyIntro: (_) => const CauHoiPage(),
       AppRoutes.surveyQuestion1: (_) => const CauHoi1Page(),
       AppRoutes.surveyQuestion2: (_) => const CauHoi2Page(),
       AppRoutes.surveyQuestion3: (_) => const CauHoi3Page(),
-
       AppRoutes.home: (_) => const TrangChuPage(),
       AppRoutes.map: (_) => const MapPage(),
       AppRoutes.momentCamera: (_) => const TrangChiaSeCamera(),
-
       AppRoutes.trangPreviewHinh: (context) {
-        final duongDanAnh =
-            ModalRoute.of(context)?.settings.arguments as String?;
-
+        final duongDanAnh = ModalRoute.of(context)?.settings.arguments as String?;
         return TrangPreviewHinh(duongDanAnh: duongDanAnh);
       },
-
       AppRoutes.trangGalleryKhoanhKhac: (_) => const TrangGalleryKhoanhKhac(),
       AppRoutes.trangViTri: (context) => const TrangViTri(),
       AppRoutes.trangHinhAnhChiTiet: (context) {
-        final args = ModalRoute.of(context)?.settings.arguments;
-
-        if (args is Map<String, dynamic>) {
-          return TrangHinhAnhChiTiet(
-            duongDanAnh: args['duongDanAnh'],
-            viTri: args['viTri'],
-          );
-        }
-
-        return TrangHinhAnhChiTiet(duongDanAnh: args as String?);
+        final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+        return TrangHinhAnhChiTiet(
+          danhSachMoments: args?['danhSachMoments'] as List<KhoanhKhacMau>? ?? [],
+          indexBatDau: args?['indexBatDau'] as int? ?? 0,
+        );
       },
       AppRoutes.notifications: (_) => const TrangThongBaoPage(),
       AppRoutes.messages: (_) => const TrangTinNhanPage(),
       AppRoutes.profile: (_) => const TrangCaNhanPage(),
-
       AppRoutes.createPost: (_) => const TrangTaoBaiViet(),
-      AppRoutes.postDetail: (_) =>
-          const ComingSoonPage(title: 'Chi tiết bài viết'),
-
+      AppRoutes.postDetail: (_) => const ComingSoonPage(title: 'Chi tiết bài viết'),
       AppRoutes.search: (_) => const ComingSoonPage(title: 'Tìm kiếm'),
       AppRoutes.placeList: (_) => const TrangDiaDiemPage(),
       AppRoutes.placeDetail: (_) => const TrangChiTietDiaDiemPage(),
       AppRoutes.placeReview: (_) => const TrangDanhGiaDiaDiemPage(),
-      AppRoutes.tripList: (_) =>
-          const ComingSoonPage(title: 'Lịch trình của tôi'),
-      AppRoutes.tripCreate: (_) =>
-          const ComingSoonPage(title: 'Tạo lịch trình'),
-      AppRoutes.tripDetail: (_) =>
-          const ComingSoonPage(title: 'Chi tiết lịch trình'),
-      // NOTE SỬA:
-      // Trước đây route này ra ComingSoonPage.
-      // Bây giờ bấm Chỉnh sửa sẽ mở form chỉnh sửa hồ sơ thật.
+      AppRoutes.tripList: (_) => const ComingSoonPage(title: 'Lịch trình của tôi'),
+      AppRoutes.tripCreate: (_) => const ComingSoonPage(title: 'Tạo lịch trình'),
+      AppRoutes.tripDetail: (_) => const ComingSoonPage(title: 'Chi tiết lịch trình'),
       AppRoutes.editProfile: (context) {
         final args = ModalRoute.of(context)?.settings.arguments;
-
-        return TrangChinhSuaHoSoPage(
-          initialProfile: args is MyProfile ? args : null,
-        );
+        return TrangChinhSuaHoSoPage(initialProfile: args is MyProfile ? args : null);
       },
       AppRoutes.settings: (_) => const TrangCaiDatHoatDongPage(),
-      AppRoutes.followRequests: (_) =>
-          const ComingSoonPage(title: 'Yêu cầu theo dõi'),
-      AppRoutes.friendSuggestions: (_) =>
-          const ComingSoonPage(title: 'Gợi ý bạn bè'),
-      AppRoutes.adminDashboard: (_) =>
-          const ComingSoonPage(title: 'Quản trị viên'),
-      AppRoutes.adminReports: (_) =>
-          const ComingSoonPage(title: 'Báo cáo vi phạm'),
+      AppRoutes.followRequests: (_) => const ComingSoonPage(title: 'Yêu cầu theo dõi'),
+      AppRoutes.friendSuggestions: (_) => const ComingSoonPage(title: 'Gợi ý bạn bè'),
+      AppRoutes.adminDashboard: (_) => const ComingSoonPage(title: 'Quản trị viên'),
+      AppRoutes.adminReports: (_) => const ComingSoonPage(title: 'Báo cáo vi phạm'),
       AppRoutes.trangBinhLuan: (context) {
         final postId = ModalRoute.of(context)?.settings.arguments as int? ?? 1;
-
         return TrangBinhLuan(postId: postId);
       },
       AppRoutes.waitingMessages: (_) => const TrangTinNhanChoPage(),
-
       AppRoutes.chatDetail: (context) {
-        final args =
-            ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+        final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
         final name = args?['name'] as String? ?? 'Người dùng';
-        final isWaiting =
-            args?['isWaiting'] as bool? ?? false; // mặc định là chat thường
-
+        final isWaiting = args?['isWaiting'] as bool? ?? false;
         return TrangDoanChatPage(name: name, isWaiting: isWaiting);
       },
     };
