@@ -12,6 +12,8 @@ class PostModel {
   final int soLuotBinhLuan;
   final bool daThich;
   final bool laBaiVietCuaToi;
+  final DateTime? createdAt;
+  final String? visibility;
 
   const PostModel({
     required this.id,
@@ -27,6 +29,8 @@ class PostModel {
     this.soLuotBinhLuan = 0,
     this.daThich = false,
     this.laBaiVietCuaToi = false,
+    this.createdAt,
+    this.visibility,
   });
 
   PostModel copyWith({

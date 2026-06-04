@@ -92,9 +92,9 @@ class _TrangChuPageState extends State<TrangChuPage> {
   }
 
   Widget _feedBody(
-    BuildContext context,
-    AsyncSnapshot<List<PostModel>> snapshot,
-  ) {
+      BuildContext context,
+      AsyncSnapshot<List<PostModel>> snapshot,
+      ) {
     if (snapshot.connectionState == ConnectionState.waiting) {
       return _feedShell(
         children: const [
@@ -127,7 +127,7 @@ class _TrangChuPageState extends State<TrangChuPage> {
           _feedMessage(
             title: 'Chưa có bài viết',
             message:
-                'Khi có bài viết thật trên Supabase, nội dung sẽ hiện ở đây.',
+            'Khi có bài viết thật trên Supabase, nội dung sẽ hiện ở đây.',
             actionText: 'Tải lại',
             onAction: _refreshFeed,
           ),
@@ -286,9 +286,7 @@ class _TrangChuPageState extends State<TrangChuPage> {
             CircleAvatar(
               radius: 20,
               backgroundColor: AppColors.primary,
-              backgroundImage: avatarUrl.isNotEmpty
-                  ? NetworkImage(avatarUrl)
-                  : null,
+              backgroundImage: avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
               child: avatarUrl.isEmpty
                   ? const Icon(Icons.person, color: Colors.white, size: 20)
                   : null,

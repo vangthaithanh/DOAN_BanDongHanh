@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../data/services/post_service.dart';
 
@@ -41,16 +40,17 @@ extension _VisibilityX on _Visibility {
   }
 }
 
+/// Nhận Map với các key:
+///   'post_id'  int           — bắt buộc
+///   'content'  String?       — nội dung hiện tại
+///   'hashtags' List(String)  — hashtag hiện tại
+/// Visibility được load từ Supabase khi mở trang.
 class TrangChinhSuaBaiViet extends StatefulWidget {
-  final int postId;
-  final String? initialContent;
-  final List<String> initialHashtags;
+  final Map<String, dynamic> post;
 
   const TrangChinhSuaBaiViet({
     super.key,
-    required this.postId,
-    this.initialContent,
-    this.initialHashtags = const [],
+    required this.post,
   });
 
   @override
@@ -65,9 +65,8 @@ class _TrangChinhSuaBaiVietState extends State<TrangChinhSuaBaiViet> {
 
   late TextEditingController _contentController;
   late List<String> _hashtags;
-  _Visibility _visibility = _Visibility.moiNguoi;
+  late _Visibility _visibility;
 
-  bool _loadingVisibility = true;
   bool _saving = false;
 
   final PostService _postService = PostService();
@@ -75,10 +74,15 @@ class _TrangChinhSuaBaiVietState extends State<TrangChinhSuaBaiViet> {
   @override
   void initState() {
     super.initState();
-    _contentController =
-        TextEditingController(text: widget.initialContent ?? '');
-    _hashtags = List<String>.from(widget.initialHashtags);
-    _loadVisibility();
+    _contentController = TextEditingController(
+      text: widget.post['content']?.toString() ?? '',
+    );
+    _hashtags = _parseHashtags(
+      widget.post['hashtags'] ?? widget.post['matched_hashtags'],
+    );
+    _visibility = _VisibilityX.fromValue(
+      widget.post['visibility']?.toString() ?? 'public',
+    );
   }
 
   @override
@@ -87,24 +91,21 @@ class _TrangChinhSuaBaiVietState extends State<TrangChinhSuaBaiViet> {
     super.dispose();
   }
 
-  Future<void> _loadVisibility() async {
-    try {
-      final row = await Supabase.instance.client
-          .from('posts')
-          .select('visibility')
-          .eq('id', widget.postId)
-          .single();
-      if (mounted) {
-        setState(() {
-          _visibility = _VisibilityX.fromValue(
-            row['visibility']?.toString() ?? 'public',
-          );
-          _loadingVisibility = false;
-        });
-      }
-    } catch (_) {
-      if (mounted) setState(() => _loadingVisibility = false);
+  static List<String> _parseHashtags(dynamic raw) {
+    if (raw == null) return [];
+    if (raw is List) {
+      return raw
+          .map((e) => e.toString().replaceFirst(RegExp(r'^#+'), '').trim())
+          .where((t) => t.isNotEmpty)
+          .toList();
     }
+    final text = raw.toString().trim();
+    if (text.isEmpty) return [];
+    return text
+        .split(RegExp(r'[\s,]+'))
+        .map((t) => t.replaceFirst(RegExp(r'^#+'), '').trim())
+        .where((t) => t.isNotEmpty)
+        .toList();
   }
 
   Future<void> _luu() async {
@@ -114,7 +115,7 @@ class _TrangChinhSuaBaiVietState extends State<TrangChinhSuaBaiViet> {
 
     try {
       await _postService.updatePost(
-        postId: widget.postId,
+        postId: widget.post['post_id'] as int,
         content: _contentController.text,
         visibility: _visibility.value,
         hashtags: _hashtags,
@@ -497,7 +498,7 @@ class _TrangChinhSuaBaiVietState extends State<TrangChinhSuaBaiViet> {
 
   Widget _khuVucDoiTuong() {
     return InkWell(
-      onTap: _loadingVisibility ? null : _chonDoiTuong,
+      onTap: _chonDoiTuong,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
         child: Row(
@@ -517,7 +518,7 @@ class _TrangChinhSuaBaiVietState extends State<TrangChinhSuaBaiViet> {
             ),
             const SizedBox(width: 14),
             Text(
-              _loadingVisibility ? 'Đang tải...' : _visibility.label,
+              _visibility.label,
               style: const TextStyle(
                 color: Colors.white,
                 fontSize: 15,
