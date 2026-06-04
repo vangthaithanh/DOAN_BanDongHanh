@@ -1,61 +1,24 @@
 import 'dart:ui';
+
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
-import 'package:lucide_icons_flutter/lucide_icons.dart';
-import 'package:do_an/app/routes/app_routes.dart';
+
+import '../../../../app/routes/app_routes.dart';
+import '../../../../core/services/profile_service.dart';
 import '../../../../shared/navigation/app_bottom_nav.dart';
 import '../../../../shared/navigation/main_tab.dart';
-import '../../../social/data/mock/kho_luu_bai_viet.dart';
-import '../../../social/data/mock/mock_posts.dart';
-import '../../../social/data/models/post_model.dart';
-import '../../../social/presentation/widgets/post_card.dart';
-import '../../../users/presentation/pages/trang_danhsach_banbe.dart';
-import '../../../users/presentation/pages/trang_danhsach_nguoitheodoi.dart';
 
-
-const double contentIndent = 52;
-
-ColorFilter _iconColor(bool isActive) {
-  return ColorFilter.mode(
-    isActive ? Colors.white : Colors.white70,
-    BlendMode.srcIn,
-  );
-}
-
-class ProfilePlanItem {
-  final String title;
-  final String timeText;
-  final String actionText;
-  final bool isActive;
-
-  const ProfilePlanItem({
-    required this.title,
-    required this.timeText,
-    required this.actionText,
-    this.isActive = false,
-  });
-}
-
-class ProfilePlanGroup {
-  final String name;
-  final String routeText;
-  final List<ProfilePlanItem> items;
-
-  const ProfilePlanGroup({
-    required this.name,
-    required this.routeText,
-    required this.items,
-  });
-}
-class FollowerData {
-  final String userName;
-  final String action;
-
-  const FollowerData({
-    required this.userName,
-    required this.action,
-  });
-}
+/// NOTE SỬA:
+/// Trang cá nhân đã bỏ dữ liệu fix cứng.
+/// Dữ liệu lấy từ Supabase qua ProfileService:
+/// - profiles: avatar, nickname, full_name, bio, facebook_url
+/// - follows: follower count
+/// - friends: friend count
+/// - posts: post count
+/// - itineraries + itinerary_items: plan/lịch trình
+///
+/// NOTE RESPONSIVE:
+/// - Không fix cứng theo Pixel Emulator.
+/// - Dùng MediaQuery/LayoutBuilder để tự co theo màn hình.
 class TrangCaNhanPage extends StatefulWidget {
   const TrangCaNhanPage({super.key});
 
@@ -68,88 +31,27 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
   static const Color divider = Color(0xFF242424);
   static const Color softGrey = Color(0xFF2D2D2D);
   static const Color textGrey = Color(0xFFA9A9A9);
-  static const double planMenuWidth = 150;
+
+  final ProfileService _service = ProfileService();
+
+  late Future<ProfilePageData> _future;
 
   int selectedTab = 0;
   int selectedPlanIndex = 0;
   bool isPlanPickerOpen = false;
 
-  final List<ProfilePlanGroup> planGroups = const [
-    ProfilePlanGroup(
-      name: 'Plan 1',
-      routeText: 'Đà Nẵng - Huế',
-      items: [
-        ProfilePlanItem(
-          title: 'Bán đảo sơn trà',
-          timeText: 'Th2-6 - 4, 15:30',
-          actionText: 'Đánh giá',
-        ),
-        ProfilePlanItem(
-          title: 'Cộng CF',
-          timeText: 'Th2-6 - 4, 16:30',
-          actionText: 'Đặt lại',
-        ),
-        ProfilePlanItem(
-          title: 'Mỳ quảng gà Bà Đình',
-          timeText: 'Th2-6 - 4, 19:30',
-          actionText: 'Xem điểm đến',
-          isActive: true,
-        ),
-      ],
-    ),
-    ProfilePlanGroup(
-      name: 'Plan 2',
-      routeText: 'Huế - Đà Nẵng',
-      items: [
-        ProfilePlanItem(
-          title: 'Đại Nội Huế',
-          timeText: 'Th7-5 - 5, 08:30',
-          actionText: 'Đánh giá',
-        ),
-        ProfilePlanItem(
-          title: 'Cà phê muối',
-          timeText: 'Th7-5 - 5, 10:00',
-          actionText: 'Đặt lại',
-        ),
-        ProfilePlanItem(
-          title: 'Chợ Đông Ba',
-          timeText: 'Th7-5 - 5, 15:30',
-          actionText: 'Xem điểm đến',
-          isActive: true,
-        ),
-      ],
-    ),
-    ProfilePlanGroup(
-      name: 'Plan 3',
-      routeText: 'Quảng Ngãi',
-      items: [
-        ProfilePlanItem(
-          title: 'Đầm An Khê',
-          timeText: 'Th7-5 - 5, 08:30',
-          actionText: 'Đánh giá',
-        ),
-        ProfilePlanItem(
-          title: 'Quán ốc sông cầu',
-          timeText: 'Th7-5 - 5, 10:00',
-          actionText: 'Đặt lại',
-        ),
-        ProfilePlanItem(
-          title: 'Bãi biển Mỹ Khê',
-          timeText: 'Th7-5 - 5, 15:30',
-          actionText: 'Xem điểm đến',
-          isActive: true,
-        ),
-        ProfilePlanItem(
-          title: 'Lủng Ồ Ba Tơ',
-          timeText: 'Th4-10 - 5, 13:30',
-          actionText: 'Xem điểm đến',
-          isActive: true,
-        ),
-      ],
-    ),
-  ];
+  @override
+  void initState() {
+    super.initState();
 
-  ProfilePlanGroup get currentPlan => planGroups[selectedPlanIndex];
+    _future = _service.loadMine();
+  }
+
+  void _reloadProfile() {
+    setState(() {
+      _future = _service.loadMine();
+    });
+  }
 
   TextStyle _textStyle({
     double size = 14,
@@ -166,96 +68,179 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
     );
   }
 
+  bool _isSmallPhone(BuildContext context) {
+    return MediaQuery.sizeOf(context).width < 360;
+  }
+
+  double _horizontalPadding(BuildContext context) {
+    return _isSmallPhone(context) ? 12.0 : 16.0;
+  }
+
+  double _planMenuWidth(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
+
+    return width < 360 ? 132 : 150;
+  }
+
+  ImageProvider? _avatarProvider(MyProfile profile) {
+    if (profile.avatarUrl.trim().isEmpty) {
+      return null;
+    }
+
+    return NetworkImage(profile.avatarUrl);
+  }
+
+  Widget _avatar({required MyProfile profile, required double radius}) {
+    final provider = _avatarProvider(profile);
+
+    return CircleAvatar(
+      radius: radius,
+      backgroundColor: const Color(0xFF5AB2FF),
+      backgroundImage: provider,
+      child: provider == null
+          ? Icon(Icons.person, color: Colors.white, size: radius)
+          : null,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
+      bottomNavigationBar: const AppBottomNav(activeTab: MainTab.profile),
       body: SafeArea(
-        child: Column(
-          children: [
-            _topBar(context),
-            Expanded(
-              child: ListenableBuilder(
-                listenable: KhoLuuBaiViet.instance,
-                builder: (context, _) {
-                  final danhSachCuaToi =
-                      KhoLuuBaiViet.instance.danhSachCuaToi;
+        child: FutureBuilder<ProfilePageData>(
+          future: _future,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return Column(
+                children: [
+                  _topBar(context, null),
+                  const Expanded(
+                    child: Center(child: CircularProgressIndicator()),
+                  ),
+                ],
+              );
+            }
 
-                  return ListView(
+            if (snapshot.hasError) {
+              return Column(
+                children: [
+                  _topBar(context, null),
+                  Expanded(
+                    child: Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              snapshot.error.toString().replaceFirst(
+                                'Exception: ',
+                                '',
+                              ),
+                              textAlign: TextAlign.center,
+                              style: _textStyle(
+                                size: 15,
+                                color: Colors.white70,
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            ElevatedButton(
+                              onPressed: _reloadProfile,
+                              child: const Text('Tải lại'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            }
+
+            final data = snapshot.data!;
+
+            return Column(
+              children: [
+                _topBar(context, data),
+                Expanded(
+                  child: ListView(
                     padding: EdgeInsets.zero,
                     children: [
                       Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                        child: _profileHeader(),
-                      ),
-                      _tabButtons(),
-                      if (selectedTab == 0) ...[
-                        _shareBox(),
-                        // Bài viết của mình (mới tạo)
-                        ...danhSachCuaToi.map(
-                              (post) => PostCard(
-                            post: post,
-                            onComment: () {
-                              Navigator.pushNamed(
-                                context,
-                                AppRoutes.trangBinhLuan,
-                                arguments: post.id,
-                              );
-                            },
-                            onShare: () {
-                              Navigator.pushNamed(
-                                context,
-                                AppRoutes.messages,
-                              );
-                            },
-                          ),
+                        padding: EdgeInsets.fromLTRB(
+                          _horizontalPadding(context),
+                          8,
+                          _horizontalPadding(context),
+                          0,
                         ),
-                        // Bài viết mock cũ (placeholder)
-                        _postCardMock(),
+                        child: _profileHeader(context, data),
+                      ),
+                      _tabButtons(context),
+                      if (selectedTab == 0) ...[
+                        _shareBox(context, data),
+                        _emptyPostBox(context, data),
                       ] else ...[
-                        _planSection(),
+                        _planSection(context, data),
                       ],
                       const SizedBox(height: 20),
                     ],
-                  );
-                },
-              ),
-            ),
-          ],
+                  ),
+                ),
+              ],
+            );
+          },
         ),
       ),
-      bottomNavigationBar: const AppBottomNav(activeTab: MainTab.profile),
     );
   }
 
-  Widget _topBar(BuildContext context) {
+  Widget _topBar(BuildContext context, ProfilePageData? data) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+      padding: EdgeInsets.fromLTRB(
+        _horizontalPadding(context),
+        12,
+        _horizontalPadding(context),
+        8,
+      ),
       child: Row(
         children: [
+          // NOTE SỬA:
+          // Nút bên trái là dấu + để tạo bài viết/khoảnh khắc/lịch trình.
+          // Trước đó bạn để menu ở đây nên bị nhầm.
           InkWell(
             onTap: () => _showCreateSheet(context),
             borderRadius: BorderRadius.circular(20),
             child: const SizedBox(
               width: 36,
               height: 36,
-              child: Icon(LucideIcons.plus, color: Colors.white, size: 22),
+              child: Icon(Icons.add, color: Colors.white, size: 26),
             ),
           ),
+
           Expanded(
             child: Text(
-              'Xuthu',
+              data?.profile.displayName ?? 'Hồ sơ',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
               style: _textStyle(size: 20, weight: FontWeight.w700),
             ),
           ),
+
+          // NOTE SỬA:
+          // Nút bên phải mới là nút 3 gạch mở Cài đặt và hoạt động.
+          // Trước đó onTap để rỗng nên bấm không có gì xảy ra.
           InkWell(
-            onTap: () {},
+            onTap: () {
+              Navigator.pushNamed(context, AppRoutes.settings);
+            },
             borderRadius: BorderRadius.circular(20),
             child: const SizedBox(
               width: 36,
               height: 36,
-              child: Icon(LucideIcons.menu, color: Colors.white, size: 22),
+              child: Icon(Icons.menu, color: Colors.white, size: 24),
             ),
           ),
         ],
@@ -263,17 +248,17 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
     );
   }
 
-  Widget _profileHeader() {
+  Widget _profileHeader(BuildContext context, ProfilePageData data) {
+    final isSmallPhone = _isSmallPhone(context);
+    final avatarRadius = isSmallPhone ? 24.0 : 28.0;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const CircleAvatar(
-              radius: 28,
-              backgroundColor: Color(0xFF5AB2FF),
-            ),
+            _avatar(profile: data.profile, radius: avatarRadius),
             const SizedBox(width: 12),
             Expanded(
               child: Padding(
@@ -281,54 +266,33 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Xuân Thu',
-                        style: _textStyle(size: 14, weight: FontWeight.w700)),
+                    /// NOTE SỬA:
+                    /// Tên không fix cứng nữa, lấy từ Supabase.
+                    Text(
+                      data.profile.displayName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: _textStyle(size: 14, weight: FontWeight.w700),
+                    ),
                     const SizedBox(height: 8),
-                    Row(
+
+                    /// NOTE SỬA:
+                    /// Follower/Friend/Post lấy từ Supabase.
+                    Wrap(
+                      spacing: 14,
+                      runSpacing: 6,
                       children: [
-                        Text('4 Người theo dõi',
-                            style: _textStyle(
-                                size: 12, weight: FontWeight.w600)),
-                        const SizedBox(width: 18),
-                        Text('4 Bạn bè',
-                            style: _textStyle(
-                                size: 12, weight: FontWeight.w600)),
-                        GestureDetector(
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) =>
-                                const TrangDanhSachNguoiTheoDoiPage(),
-                              ),
-                            );
-                          },
-                          child: Text(
-                              '4 Người theo dõi',
-                            style: _textStyle(
-                              size: 12,
-                              weight: FontWeight.w600,
-                            ),
-                          ),
+                        Text(
+                          '${data.followerCount} Người theo dõi',
+                          style: _textStyle(size: 12, weight: FontWeight.w600),
                         ),
-                        const SizedBox(width: 18),
-                        GestureDetector(
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) =>
-                                const TrangDanhSachBanBePage(),
-                              ),
-                            );
-                          },
-                          child: Text(
-                            '4 Bạn bè',
-                          style: _textStyle(
-                            size: 12,
-                            weight: FontWeight.w600,
-                          ),
+                        Text(
+                          '${data.friendCount} Bạn bè',
+                          style: _textStyle(size: 12, weight: FontWeight.w600),
                         ),
+                        Text(
+                          '${data.postCount} Bài viết',
+                          style: _textStyle(size: 12, weight: FontWeight.w600),
                         ),
                       ],
                     ),
@@ -339,17 +303,59 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
           ],
         ),
         const SizedBox(height: 14),
-        Text('Tiểu sử',
-            style: _textStyle(size: 13, weight: FontWeight.w500)),
-        const SizedBox(height: 6),
-        Text('Link fb.....',
-            style: _textStyle(size: 13, weight: FontWeight.w600)),
+
+        /// NOTE SỬA:
+        /// Tiểu sử lấy từ profiles.bio.
+        Text(
+          data.profile.bio.isNotEmpty ? data.profile.bio : 'Chưa có tiểu sử',
+          style: _textStyle(size: 13, weight: FontWeight.w500),
+        ),
+
+        /// NOTE SỬA:
+        /// Link Facebook lấy từ profiles.facebook_url.
+        if (data.profile.facebookUrl.isNotEmpty) ...[
+          const SizedBox(height: 6),
+          Text(
+            data.profile.facebookUrl,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: _textStyle(size: 13, weight: FontWeight.w600, color: blue),
+          ),
+        ],
+
         const SizedBox(height: 12),
         Row(
           children: [
-            Expanded(child: _grayButton('Chỉnh sửa')),
+            Expanded(
+              child: _grayButton(
+                'Chỉnh sửa',
+                onTap: () async {
+                  /// NOTE SỬA:
+                  /// Mở màn chỉnh sửa thật, truyền profile hiện tại qua.
+                  final updated = await Navigator.pushNamed(
+                    context,
+                    AppRoutes.editProfile,
+                    arguments: data.profile,
+                  );
+
+                  if (updated == true) {
+                    _reloadProfile();
+                  }
+                },
+              ),
+            ),
             const SizedBox(width: 12),
-            Expanded(child: _grayButton('Lịch trình')),
+            Expanded(
+              child: _grayButton(
+                'Lịch trình',
+                onTap: () {
+                  setState(() {
+                    selectedTab = 1;
+                    isPlanPickerOpen = false;
+                  });
+                },
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 10),
@@ -357,84 +363,74 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
     );
   }
 
-  Widget _tabButtons() {
+  Widget _tabButtons(BuildContext context) {
     return Container(
       height: 56,
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      padding: EdgeInsets.fromLTRB(
+        _horizontalPadding(context),
+        8,
+        _horizontalPadding(context),
+        0,
+      ),
       decoration: const BoxDecoration(
-        border:
-        Border(bottom: BorderSide(color: divider, width: 1)),
+        border: Border(bottom: BorderSide(color: divider, width: 1)),
       ),
       child: Row(
         children: [
-          Expanded(child: _postTabButton()),
-          Expanded(child: _planTabButton()),
-        ],
-      ),
-    );
-  }
-
-  Widget _postTabButton() {
-    return InkWell(
-      onTap: () => setState(() {
-        selectedTab = 0;
-        isPlanPickerOpen = false;
-      }),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          SizedBox(
-            width: 28,
-            height: 28,
-            child: SvgPicture.asset(
-              'assets/icons/baiviet.svg',
-              fit: BoxFit.contain,
-              colorFilter: _iconColor(selectedTab == 0),
+          Expanded(
+            child: _tabButton(
+              active: selectedTab == 0,
+              icon: Icons.grid_on_rounded,
+              onTap: () {
+                setState(() {
+                  selectedTab = 0;
+                  isPlanPickerOpen = false;
+                });
+              },
             ),
           ),
-          const SizedBox(height: 8),
-          Container(
-              height: 2,
-              color: selectedTab == 0 ? Colors.white : Colors.transparent),
-        ],
-      ),
-    );
-  }
-
-  Widget _planTabButton() {
-    return InkWell(
-      onTap: () => setState(() {
-        if (selectedTab == 0) {
-          selectedTab = 1;
-          isPlanPickerOpen = false;
-        } else {
-          isPlanPickerOpen = !isPlanPickerOpen;
-        }
-      }),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.checklist_rounded,
-                  color: selectedTab == 1 ? Colors.white : Colors.white70,
-                  size: 30),
-              const SizedBox(width: 3),
-              Icon(Icons.keyboard_arrow_down_rounded,
-                  color: selectedTab == 1 ? Colors.white : Colors.white70,
-                  size: 30),
-            ],
-          ),
-          const SizedBox(height: 8),
-          SizedBox(
-            width: planMenuWidth,
-            child: Container(
-              height: 2,
-              decoration: BoxDecoration(
-                color:
-                selectedTab == 1 ? Colors.white : Colors.transparent,
-                borderRadius: BorderRadius.circular(999),
+          Expanded(
+            child: InkWell(
+              onTap: () {
+                setState(() {
+                  if (selectedTab == 0) {
+                    selectedTab = 1;
+                    isPlanPickerOpen = false;
+                  } else {
+                    isPlanPickerOpen = !isPlanPickerOpen;
+                  }
+                });
+              },
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.checklist_rounded,
+                        color: selectedTab == 1 ? Colors.white : Colors.white70,
+                        size: 30,
+                      ),
+                      const SizedBox(width: 3),
+                      Icon(
+                        Icons.keyboard_arrow_down_rounded,
+                        color: selectedTab == 1 ? Colors.white : Colors.white70,
+                        size: 30,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: _planMenuWidth(context),
+                    child: Container(
+                      height: 2,
+                      color: selectedTab == 1
+                          ? Colors.white
+                          : Colors.transparent,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -443,34 +439,50 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
     );
   }
 
-  Widget _shareBox() {
+  Widget _tabButton({
+    required bool active,
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
     return InkWell(
-      onTap: () => Navigator.pushNamed(context, AppRoutes.createPost),
+      onTap: onTap,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, color: active ? Colors.white : Colors.white70, size: 28),
+          const SizedBox(height: 8),
+          Container(
+            height: 2,
+            color: active ? Colors.white : Colors.transparent,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _shareBox(BuildContext context, ProfilePageData data) {
+    return InkWell(
+      onTap: () {
+        Navigator.pushNamed(context, AppRoutes.createPost);
+      },
       child: Container(
-        padding:
-        const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+        padding: EdgeInsets.symmetric(
+          horizontal: _horizontalPadding(context),
+          vertical: 14,
+        ),
         decoration: const BoxDecoration(
-          border:
-          Border(bottom: BorderSide(color: divider, width: 1)),
+          border: Border(bottom: BorderSide(color: divider, width: 1)),
         ),
         child: Row(
           children: [
-            const CircleAvatar(
-                radius: 20,
-                backgroundColor: Color(0xFF5AB2FF)),
+            _avatar(profile: data.profile, radius: 20),
             const SizedBox(width: 12),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Xuthu',
-                      style:
-                      _textStyle(size: 15, weight: FontWeight.w700)),
-                  const SizedBox(height: 3),
-                  Text('Chia sẻ điều gì mới?',
-                      style: _textStyle(
-                          size: 13, color: Colors.white70)),
-                ],
+              child: Text(
+                'Chia sẻ điều gì mới?',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: _textStyle(size: 14, color: Colors.white70),
               ),
             ),
           ],
@@ -479,104 +491,70 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
     );
   }
 
-  // Bài viết mock placeholder (giữ lại UI cũ)
-  Widget _postCardMock() {
-    final postImages = [
-      'assets/images/anh1.jpg',
-      'assets/images/anh2.jpg',
-      'assets/images/anh3.jpg',
-    ];
+  Widget _emptyPostBox(BuildContext context, ProfilePageData data) {
+    final imageSize = (MediaQuery.sizeOf(context).width * 0.68)
+        .clamp(210.0, 290.0)
+        .toDouble();
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+      width: double.infinity,
+      padding: EdgeInsets.fromLTRB(
+        _horizontalPadding(context),
+        24,
+        _horizontalPadding(context),
+        24,
+      ),
       decoration: const BoxDecoration(
         border: Border(bottom: BorderSide(color: divider, width: 1)),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const CircleAvatar(
-                  radius: 20,
-                  backgroundColor: Color(0xFF5AB2FF)),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text('Xuthu',
-                    style:
-                    _textStyle(size: 18, weight: FontWeight.w700)),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Padding(
-            padding: const EdgeInsets.only(left: 48),
-            child: Text('Caption',
-                style:
-                _textStyle(size: 18, weight: FontWeight.w600)),
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            height: 280,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.only(left: contentIndent, right: 16),
-              clipBehavior: Clip.none,
-              physics: const BouncingScrollPhysics(),
-              itemCount: postImages.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 10),
-              itemBuilder: (context, index) {
-                return ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: SizedBox(
-                    width: 270,
-                    height: 270,
-                    child: Image.asset(postImages[index],
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Container(
-                          color: const Color(0xFF222222),
-                        )),
-                  ),
-                );
-              },
+          Container(
+            width: imageSize,
+            height: imageSize * 0.75,
+            decoration: BoxDecoration(
+              color: const Color(0xFF181818),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: const Color(0xFF2D2D2D)),
+            ),
+            child: const Icon(
+              Icons.image_outlined,
+              color: Colors.white38,
+              size: 50,
             ),
           ),
-          const SizedBox(height: 12),
-          Padding(
-            padding: const EdgeInsets.only(left: 48),
-            child: Row(
-              children: [
-                const Icon(LucideIcons.heart, color: blue, size: 20),
-                const SizedBox(width: 5),
-                Text('4',
-                    style: _textStyle(size: 13, weight: FontWeight.w500)),
-                const SizedBox(width: 18),
-                const Icon(LucideIcons.messageCircle,
-                    color: Colors.white, size: 20),
-                const SizedBox(width: 18),
-                const Icon(LucideIcons.sendHorizontal,
-                    color: Colors.white, size: 20),
-              ],
-            ),
+          const SizedBox(height: 14),
+          Text(
+            'Chưa có bài viết',
+            style: _textStyle(size: 16, weight: FontWeight.w700),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Bấm dấu + hoặc ô chia sẻ để tạo bài viết mới.',
+            textAlign: TextAlign.center,
+            style: _textStyle(size: 13, color: Colors.white60),
           ),
         ],
       ),
     );
   }
 
-  Widget _planSection() {
+  Widget _planSection(BuildContext context, ProfilePageData data) {
     return Stack(
       children: [
-        _planList(),
+        _planList(context, data),
         if (isPlanPickerOpen) ...[
           Positioned.fill(
             child: GestureDetector(
-              onTap: () => setState(() => isPlanPickerOpen = false),
+              onTap: () {
+                setState(() {
+                  isPlanPickerOpen = false;
+                });
+              },
               child: ClipRect(
                 child: BackdropFilter(
                   filter: ImageFilter.blur(sigmaX: 4, sigmaY: 4),
-                  child: Container(
-                      color: Colors.black.withOpacity(0.28)),
+                  child: Container(color: Colors.black.withOpacity(0.28)),
                 ),
               ),
             ),
@@ -584,29 +562,45 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
           Positioned(
             top: 0,
             right: 18,
-            child: _planPickerOverlay(),
+            child: _planPickerOverlay(context, data),
           ),
         ],
       ],
     );
   }
 
-  Widget _planPickerOverlay() {
+  ProfilePlanGroupData? _currentPlan(ProfilePageData data) {
+    if (data.plans.isEmpty) {
+      return null;
+    }
+
+    final safeIndex = selectedPlanIndex.clamp(0, data.plans.length - 1).toInt();
+
+    return data.plans[safeIndex];
+  }
+
+  Widget _planPickerOverlay(BuildContext context, ProfilePageData data) {
+    if (data.plans.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
     return ClipRRect(
       borderRadius: BorderRadius.circular(16),
       child: Container(
-        width: planMenuWidth,
+        width: _planMenuWidth(context),
         color: const Color(0xFF3A3A3A),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            for (int i = 0; i < planGroups.length; i++) ...[
+            for (int i = 0; i < data.plans.length; i++) ...[
               InkWell(
-                onTap: () => setState(() {
-                  selectedPlanIndex = i;
-                  isPlanPickerOpen = false;
-                  selectedTab = 1;
-                }),
+                onTap: () {
+                  setState(() {
+                    selectedPlanIndex = i;
+                    isPlanPickerOpen = false;
+                    selectedTab = 1;
+                  });
+                },
                 child: Container(
                   width: double.infinity,
                   padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
@@ -614,47 +608,41 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
                     children: [
                       Expanded(
                         child: Column(
-                          crossAxisAlignment:
-                          CrossAxisAlignment.start,
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(planGroups[i].name,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: _textStyle(
-                                    size: 16,
-                                    weight: FontWeight.w700)),
-                            const SizedBox(height: 5),
-                            Container(
-                              width: 18,
-                              height: 1.5,
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.9),
-                                borderRadius:
-                                BorderRadius.circular(999),
+                            Text(
+                              data.plans[i].name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: _textStyle(
+                                size: 16,
+                                weight: FontWeight.w700,
                               ),
                             ),
                             const SizedBox(height: 5),
-                            Text(planGroups[i].routeText,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: _textStyle(
-                                    size: 13,
-                                    weight: FontWeight.w600,
-                                    color: Colors.white70)),
+                            Text(
+                              data.plans[i].routeText,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: _textStyle(
+                                size: 13,
+                                weight: FontWeight.w600,
+                                color: Colors.white70,
+                              ),
+                            ),
                           ],
                         ),
                       ),
                       if (selectedPlanIndex == i)
                         const Padding(
                           padding: EdgeInsets.only(left: 8),
-                          child: Icon(Icons.check,
-                              color: blue, size: 18),
+                          child: Icon(Icons.check, color: blue, size: 18),
                         ),
                     ],
                   ),
                 ),
               ),
-              if (i != planGroups.length - 1)
+              if (i != data.plans.length - 1)
                 Container(
                   width: double.infinity,
                   height: 6,
@@ -667,32 +655,99 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
     );
   }
 
-  Widget _planList() {
+  Widget _planList(BuildContext context, ProfilePageData data) {
+    final plan = _currentPlan(data);
+
+    if (plan == null) {
+      return Container(
+        width: double.infinity,
+        padding: EdgeInsets.fromLTRB(
+          _horizontalPadding(context),
+          24,
+          _horizontalPadding(context),
+          24,
+        ),
+        decoration: const BoxDecoration(
+          border: Border(bottom: BorderSide(color: divider, width: 1)),
+        ),
+        child: Text(
+          'Chưa có lịch trình',
+          style: _textStyle(
+            size: 18,
+            weight: FontWeight.w600,
+            color: Colors.white70,
+          ),
+        ),
+      );
+    }
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.only(top: 8, bottom: 8),
       decoration: const BoxDecoration(
-        border:
-        Border(bottom: BorderSide(color: divider, width: 1)),
+        border: Border(bottom: BorderSide(color: divider, width: 1)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-            child: Text(currentPlan.name,
-                style:
-                _textStyle(size: 24, weight: FontWeight.w700)),
+            padding: EdgeInsets.fromLTRB(
+              _horizontalPadding(context),
+              0,
+              _horizontalPadding(context),
+              8,
+            ),
+            child: Text(
+              plan.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: _textStyle(size: 24, weight: FontWeight.w700),
+            ),
           ),
-          ...currentPlan.items.map((item) => _planRow(item)),
+          Padding(
+            padding: EdgeInsets.fromLTRB(
+              _horizontalPadding(context),
+              0,
+              _horizontalPadding(context),
+              8,
+            ),
+            child: Text(
+              plan.routeText,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: _textStyle(size: 14, color: Colors.white70),
+            ),
+          ),
+          if (plan.items.isEmpty)
+            Padding(
+              padding: EdgeInsets.fromLTRB(
+                _horizontalPadding(context),
+                8,
+                _horizontalPadding(context),
+                18,
+              ),
+              child: Text(
+                'Lịch trình này chưa có điểm đến',
+                style: _textStyle(size: 15, color: Colors.white70),
+              ),
+            )
+          else
+            ...plan.items.map((item) => _planRow(context, item)),
         ],
       ),
     );
   }
 
-  Widget _planRow(ProfilePlanItem item) {
+  Widget _planRow(BuildContext context, ProfilePlanItemData item) {
+    final isSmallPhone = _isSmallPhone(context);
+
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+      padding: EdgeInsets.fromLTRB(
+        _horizontalPadding(context),
+        8,
+        _horizontalPadding(context),
+        8,
+      ),
       child: Row(
         children: [
           Container(
@@ -708,28 +763,41 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(item.title,
-                    style: _textStyle(
-                        size: 20, weight: FontWeight.w600)),
+                Text(
+                  item.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: _textStyle(
+                    size: isSmallPhone ? 17 : 20,
+                    weight: FontWeight.w600,
+                  ),
+                ),
                 const SizedBox(height: 3),
-                Text(item.timeText,
-                    style: _textStyle(
-                        size: 15,
-                        weight: FontWeight.w500,
-                        color: textGrey)),
+                Text(
+                  item.timeText,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: _textStyle(
+                    size: isSmallPhone ? 13 : 15,
+                    weight: FontWeight.w500,
+                    color: textGrey,
+                  ),
+                ),
               ],
             ),
           ),
           const SizedBox(width: 10),
-          _planActionButton(item.actionText),
+          _planActionButton(context, item.actionText),
         ],
       ),
     );
   }
 
-  Widget _planActionButton(String text) {
+  Widget _planActionButton(BuildContext context, String text) {
+    final isSmallPhone = _isSmallPhone(context);
+
     return SizedBox(
-      width: 110,
+      width: isSmallPhone ? 92 : 110,
       height: 32,
       child: DecoratedBox(
         decoration: BoxDecoration(
@@ -737,30 +805,43 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
           borderRadius: BorderRadius.circular(999),
         ),
         child: Center(
-          child: Text(text,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style:
-              _textStyle(size: 14, weight: FontWeight.w700)),
+          child: Text(
+            text,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: _textStyle(
+              size: isSmallPhone ? 12 : 14,
+              weight: FontWeight.w700,
+            ),
+          ),
         ),
       ),
     );
   }
 
-  Widget _grayButton(String text) {
-    return Container(
-      height: 30,
-      decoration: BoxDecoration(
-        color: softGrey,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      alignment: Alignment.center,
-      child: Text(text,
+  Widget _grayButton(String text, {VoidCallback? onTap}) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        height: 30,
+        decoration: BoxDecoration(
+          color: softGrey,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        alignment: Alignment.center,
+        child: Text(
+          text,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: _textStyle(
-              size: 16,
-              weight: FontWeight.w600,
-              color: Colors.white70)),
+            size: 16,
+            weight: FontWeight.w600,
+            color: Colors.white70,
+          ),
+        ),
+      ),
     );
   }
 
@@ -774,36 +855,40 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
           padding: const EdgeInsets.fromLTRB(18, 12, 18, 28),
           decoration: const BoxDecoration(
             color: Color(0xFF2F2C2C),
-            borderRadius:
-            BorderRadius.vertical(top: Radius.circular(22)),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text('Tạo',
-                  style: _textStyle(
-                      size: 24, weight: FontWeight.w700)),
+              Text('Tạo', style: _textStyle(size: 24, weight: FontWeight.w700)),
               const SizedBox(height: 12),
-              _sheetSvgItem(
-                assetPath: 'assets/icons/baiviet.svg',
+              _sheetItem(
+                icon: Icons.article_outlined,
                 text: 'Bài viết',
                 onTap: () {
                   Navigator.pop(context);
                   Navigator.pushNamed(context, AppRoutes.createPost);
                 },
               ),
-              _sheetIconItem(
-                icon: LucideIcons.aperture,
+              _sheetItem(
+                icon: Icons.camera_alt_outlined,
                 text: 'Khoảnh khắc',
                 onTap: () {
                   Navigator.pop(context);
                   Navigator.pushNamed(context, AppRoutes.momentCamera);
                 },
               ),
-              _sheetIconItem(
-                icon: LucideIcons.calendarRange,
+              _sheetItem(
+                icon: Icons.calendar_month_outlined,
                 text: 'Lịch trình',
-                onTap: () => Navigator.pop(context),
+                onTap: () {
+                  Navigator.pop(context);
+
+                  setState(() {
+                    selectedTab = 1;
+                    isPlanPickerOpen = false;
+                  });
+                },
               ),
             ],
           ),
@@ -812,40 +897,7 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
     );
   }
 
-  Widget _sheetSvgItem({
-    required String assetPath,
-    required String text,
-    VoidCallback? onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        decoration: const BoxDecoration(
-          border: Border(top: BorderSide(color: Color(0xFF4A4A4A))),
-        ),
-        child: Row(
-          children: [
-            SizedBox(
-              width: 20,
-              height: 20,
-              child: SvgPicture.asset(assetPath,
-                  fit: BoxFit.contain,
-                  colorFilter: const ColorFilter.mode(
-                      Colors.white, BlendMode.srcIn)),
-            ),
-            const SizedBox(width: 14),
-            Text(text,
-                style:
-                _textStyle(size: 15, weight: FontWeight.w600)),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _sheetIconItem({
+  Widget _sheetItem({
     required IconData icon,
     required String text,
     VoidCallback? onTap,
@@ -862,9 +914,7 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
           children: [
             Icon(icon, color: Colors.white, size: 20),
             const SizedBox(width: 14),
-            Text(text,
-                style:
-                _textStyle(size: 15, weight: FontWeight.w600)),
+            Text(text, style: _textStyle(size: 15, weight: FontWeight.w600)),
           ],
         ),
       ),

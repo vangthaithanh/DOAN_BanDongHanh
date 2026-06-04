@@ -1,0 +1,371 @@
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+/// NOTE SỬA:
+/// Service này dùng cho trang cá nhân.
+/// Query khớp RLS/database hiện tại:
+/// follows: follower_id, following_id
+/// friends: profile_id1, profile_id2
+/// posts: profile_id
+/// itineraries: profile_id
+/// itinerary_items: itinerary_id
+class MyProfile {
+  final String id;
+  final String nickname;
+  final String email;
+  final String fullName;
+  final String avatarUrl;
+  final String bio;
+  final String facebookUrl;
+
+  const MyProfile({
+    required this.id,
+    required this.nickname,
+    required this.email,
+    required this.fullName,
+    required this.avatarUrl,
+    required this.bio,
+    required this.facebookUrl,
+  });
+
+  String get displayName {
+    if (fullName.trim().isNotEmpty) {
+      return fullName.trim();
+    }
+
+    if (nickname.trim().isNotEmpty) {
+      return nickname.trim();
+    }
+
+    if (email.contains('@')) {
+      return email.split('@').first;
+    }
+
+    return 'Người dùng';
+  }
+
+  factory MyProfile.fromMap(Map<String, dynamic> map) {
+    return MyProfile(
+      id: map['id']?.toString() ?? '',
+      nickname: map['nickname']?.toString() ?? '',
+      email: map['email']?.toString() ?? '',
+      fullName: map['full_name']?.toString() ?? '',
+      avatarUrl: map['avatar_url']?.toString() ?? '',
+      bio: map['bio']?.toString() ?? '',
+      facebookUrl: map['facebook_url']?.toString() ?? '',
+    );
+  }
+}
+
+class ProfilePlanItemData {
+  final String id;
+  final String title;
+  final String timeText;
+  final String actionText;
+  final bool isActive;
+
+  const ProfilePlanItemData({
+    required this.id,
+    required this.title,
+    required this.timeText,
+    required this.actionText,
+    required this.isActive,
+  });
+}
+
+class ProfilePlanGroupData {
+  final String id;
+  final String name;
+  final String routeText;
+  final List<ProfilePlanItemData> items;
+
+  const ProfilePlanGroupData({
+    required this.id,
+    required this.name,
+    required this.routeText,
+    required this.items,
+  });
+}
+
+class ProfilePageData {
+  final MyProfile profile;
+  final int followerCount;
+  final int friendCount;
+  final int postCount;
+  final List<ProfilePlanGroupData> plans;
+
+  const ProfilePageData({
+    required this.profile,
+    required this.followerCount,
+    required this.friendCount,
+    required this.postCount,
+    required this.plans,
+  });
+}
+
+class ProfileService {
+  final SupabaseClient _client = Supabase.instance.client;
+
+  User? get _currentUser => _client.auth.currentUser;
+
+  Future<ProfilePageData> loadMine() async {
+    final user = _currentUser;
+
+    if (user == null) {
+      throw Exception('Chưa đăng nhập');
+    }
+
+    final profileMap = await _client
+        .from('profiles')
+        .select('id, nickname, email, full_name, avatar_url, bio, facebook_url')
+        .eq('id', user.id)
+        .maybeSingle();
+
+    if (profileMap == null) {
+      throw Exception('Không tìm thấy hồ sơ người dùng');
+    }
+
+    final profile = MyProfile.fromMap(profileMap);
+
+    final followerCount = await _countFollowers(user.id);
+    final friendCount = await _countFriends(user.id);
+    final postCount = await _countPosts(user.id);
+    final plans = await _loadPlans(user.id);
+
+    return ProfilePageData(
+      profile: profile,
+      followerCount: followerCount,
+      friendCount: friendCount,
+      postCount: postCount,
+      plans: plans,
+    );
+  }
+
+  Future<void> updateProfile({
+    required String nickname,
+    required String fullName,
+    required String bio,
+    required String facebookUrl,
+  }) async {
+    final user = _currentUser;
+
+    if (user == null) {
+      throw Exception('Chưa đăng nhập');
+    }
+
+    final cleanNickname = nickname.trim();
+
+    if (cleanNickname.length < 3) {
+      throw Exception('Biệt danh tối thiểu 3 ký tự');
+    }
+
+    /// NOTE SỬA:
+    /// Check nickname bằng RPC nếu có.
+    /// Nếu RPC chưa có thì bỏ qua để tránh app chết.
+    try {
+      final isTaken = await _client.rpc(
+        'is_nickname_taken',
+        params: {'p_nickname': cleanNickname},
+      );
+
+      if (isTaken == true) {
+        final currentProfile = await _client
+            .from('profiles')
+            .select('nickname')
+            .eq('id', user.id)
+            .maybeSingle();
+
+        final currentNickname =
+            currentProfile?['nickname']?.toString().trim().toLowerCase() ?? '';
+
+        if (currentNickname != cleanNickname.toLowerCase()) {
+          throw Exception('Biệt danh đã tồn tại');
+        }
+      }
+    } catch (e) {
+      if (e.toString().contains('Biệt danh đã tồn tại')) {
+        rethrow;
+      }
+    }
+
+    /// NOTE SỬA:
+    /// Chỉ update những cột user được sửa.
+    /// Không update role/status/email vì trigger Supabase sẽ chặn.
+    await _client
+        .from('profiles')
+        .update({
+          'nickname': cleanNickname,
+          'full_name': fullName.trim(),
+          'bio': bio.trim(),
+          'facebook_url': facebookUrl.trim(),
+          'updated_at': DateTime.now().toIso8601String(),
+        })
+        .eq('id', user.id);
+  }
+
+  Future<int> _countFollowers(String userId) async {
+    try {
+      final rows = await _client
+          .from('follows')
+          .select('id')
+          .eq('following_id', userId)
+          .eq('status', 'active');
+
+      return (rows as List).length;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  Future<int> _countFriends(String userId) async {
+    try {
+      final rows1 = await _client
+          .from('friends')
+          .select('id')
+          .eq('profile_id1', userId)
+          .eq('status', 'active');
+
+      final rows2 = await _client
+          .from('friends')
+          .select('id')
+          .eq('profile_id2', userId)
+          .eq('status', 'active');
+
+      return (rows1 as List).length + (rows2 as List).length;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  Future<int> _countPosts(String userId) async {
+    try {
+      final rows = await _client
+          .from('posts')
+          .select('id')
+          .eq('profile_id', userId)
+          .neq('status', 'deleted');
+
+      return (rows as List).length;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  Future<List<ProfilePlanGroupData>> _loadPlans(String userId) async {
+    try {
+      final planRows = await _client
+          .from('itineraries')
+          .select('*')
+          .eq('profile_id', userId)
+          .order('created_at', ascending: false)
+          .limit(10);
+
+      final plans = <ProfilePlanGroupData>[];
+
+      for (final rawPlan in planRows as List) {
+        final plan = rawPlan as Map<String, dynamic>;
+        final planId = plan['id']?.toString() ?? '';
+
+        final items = await _loadPlanItems(planId);
+
+        plans.add(
+          ProfilePlanGroupData(
+            id: planId,
+            name: _firstText([plan['title'], plan['name']], fallback: 'Plan'),
+            routeText: _firstText([
+              plan['route_text'],
+              plan['destination'],
+              plan['description'],
+            ], fallback: 'Chưa có tuyến'),
+            items: items,
+          ),
+        );
+      }
+
+      return plans;
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<List<ProfilePlanItemData>> _loadPlanItems(String itineraryId) async {
+    if (itineraryId.isEmpty) {
+      return [];
+    }
+
+    try {
+      final itemRows = await _client
+          .from('itinerary_items')
+          .select('*')
+          .eq('itinerary_id', itineraryId)
+          .order('sort_order', ascending: true)
+          .limit(30);
+
+      final items = <ProfilePlanItemData>[];
+
+      for (final rawItem in itemRows as List) {
+        final item = rawItem as Map<String, dynamic>;
+
+        items.add(
+          ProfilePlanItemData(
+            id: item['id']?.toString() ?? '',
+            title: _firstText([
+              item['title'],
+              item['name'],
+              item['place_name'],
+            ], fallback: 'Địa điểm'),
+            timeText: _formatTime(
+              _firstText([
+                item['start_time'],
+                item['scheduled_at'],
+                item['time_text'],
+              ], fallback: ''),
+            ),
+            actionText: _firstText([
+              item['action_text'],
+              item['action'],
+            ], fallback: 'Xem điểm đến'),
+            isActive: _isActiveItem(item['status']),
+          ),
+        );
+      }
+
+      return items;
+    } catch (_) {
+      return [];
+    }
+  }
+
+  String _firstText(List<dynamic> values, {required String fallback}) {
+    for (final value in values) {
+      final text = value?.toString().trim() ?? '';
+
+      if (text.isNotEmpty) {
+        return text;
+      }
+    }
+
+    return fallback;
+  }
+
+  String _formatTime(String raw) {
+    if (raw.trim().isEmpty) {
+      return 'Chưa có thời gian';
+    }
+
+    try {
+      final dateTime = DateTime.parse(raw).toLocal();
+      final hour = dateTime.hour.toString().padLeft(2, '0');
+      final minute = dateTime.minute.toString().padLeft(2, '0');
+
+      return '${dateTime.day}/${dateTime.month}, $hour:$minute';
+    } catch (_) {
+      return raw;
+    }
+  }
+
+  bool _isActiveItem(dynamic status) {
+    final text = status?.toString().toLowerCase() ?? '';
+
+    return text == 'active' || text == 'current' || text == 'ongoing';
+  }
+}

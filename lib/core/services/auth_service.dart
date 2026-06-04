@@ -3,6 +3,19 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../app/routes/app_routes.dart';
+
+/// NOTE SỬA:
+/// File này xử lý Supabase Auth + profiles + avatar.
+///
+/// SỬA CHÍNH:
+/// 1. uploadAvatar() upload đúng path <user_id>/avatar_xxx.jpg để khớp Storage RLS.
+/// 2. signUpWithEmail() insert profiles với id = auth.uid().
+/// 3. Không update role/status/email khi user thường sửa profile.
+/// 4. Thêm getNextRouteAfterAuth() để xử lý Google login:
+///    - chưa có avatar -> thêm avatar
+///    - chưa khảo sát -> màn câu hỏi
+///    - đủ rồi -> home
 class AuthService {
   AuthService();
 
@@ -10,10 +23,6 @@ class AuthService {
 
   User? get currentUser => _client.auth.currentUser;
 
-  // ================================
-  // LẤY PROFILE HIỆN TẠI
-  // Dùng cho màn khảo sát / profile
-  // ================================
   Future<Map<String, dynamic>?> getCurrentProfile() async {
     final user = currentUser;
 
@@ -23,60 +32,87 @@ class AuthService {
 
     final data = await _client
         .from('profiles')
-        .select('id, nickname, email, avatar_url')
+        .select(
+          'id, email, nickname, full_name, avatar_url, bio, facebook_url, role, status',
+        )
         .eq('id', user.id)
         .maybeSingle();
 
     return data;
   }
 
-  // ================================
-  // KIỂM TRA BIỆT DANH TRÙNG
-  // Dùng khi đăng ký email/password
-  // ================================
+  /// NOTE SỬA:
+  /// Dùng RPC is_nickname_taken nếu Supabase có hàm này.
+  /// Không select profiles trực tiếp để tránh lỗi RLS recursion.
   Future<bool> isNicknameTaken(String nickname) async {
-    final data = await _client
-        .from('profiles')
-        .select('id')
-        .eq('nickname', nickname.trim())
-        .maybeSingle();
+    final cleanNickname = nickname.trim();
 
-    return data != null;
+    if (cleanNickname.isEmpty) {
+      return false;
+    }
+
+    try {
+      final result = await _client.rpc(
+        'is_nickname_taken',
+        params: {'p_nickname': cleanNickname},
+      );
+
+      return result == true;
+    } catch (_) {
+      return false;
+    }
   }
 
-  // ================================
-  // ĐĂNG KÝ BẰNG EMAIL + PASSWORD
-  // Sau khi Supabase Auth tạo user,
-  // mình tự tạo thêm profiles + user_settings
-  // ================================
   Future<void> signUpWithEmail({
     required String email,
     required String password,
     required String nickname,
   }) async {
-    final isTaken = await isNicknameTaken(nickname);
+    final cleanEmail = email.trim();
+    final cleanNickname = nickname.trim();
+
+    if (cleanEmail.isEmpty) {
+      throw Exception('Email không được để trống');
+    }
+
+    if (password.length < 8) {
+      throw Exception('Mật khẩu tối thiểu 8 ký tự');
+    }
+
+    if (cleanNickname.length < 3) {
+      throw Exception('Biệt danh tối thiểu 3 ký tự');
+    }
+
+    final isTaken = await isNicknameTaken(cleanNickname);
 
     if (isTaken) {
       throw Exception('Biệt danh đã tồn tại');
     }
 
-    final AuthResponse res = await _client.auth.signUp(
-      email: email.trim(),
+    final AuthResponse response = await _client.auth.signUp(
+      email: cleanEmail,
       password: password,
     );
 
-    final user = res.user;
+    final user = response.user;
 
     if (user == null) {
       throw Exception('Không tạo được tài khoản');
     }
 
+    /// NOTE SỬA:
+    /// RLS profiles_insert_own yêu cầu id = auth.uid().
+    /// Vì vậy id trong profiles bắt buộc là user.id.
     await _client.from('profiles').insert({
       'id': user.id,
-      'email': email.trim(),
-      'nickname': nickname.trim(),
+      'email': cleanEmail,
+      'nickname': cleanNickname,
+      'full_name': null,
+      'bio': '',
+      'facebook_url': '',
       'role': 'user',
       'status': 'active',
+      'updated_at': DateTime.now().toIso8601String(),
     });
 
     await _client.from('user_settings').insert({
@@ -90,9 +126,6 @@ class AuthService {
     });
   }
 
-  // ================================
-  // ĐĂNG NHẬP EMAIL + PASSWORD
-  // ================================
   Future<void> signInWithEmail({
     required String email,
     required String password,
@@ -105,19 +138,18 @@ class AuthService {
     final user = currentUser;
 
     if (user != null) {
-      await _client
-          .from('profiles')
-          .update({'last_login_at': DateTime.now().toIso8601String()})
-          .eq('id', user.id);
+      try {
+        await _client
+            .from('profiles')
+            .update({'last_login_at': DateTime.now().toIso8601String()})
+            .eq('id', user.id);
+      } catch (_) {
+        /// NOTE:
+        /// Nếu bảng chưa có last_login_at thì bỏ qua.
+      }
     }
   }
 
-  // ================================
-  // THÊM MỚI: ĐĂNG NHẬP GOOGLE
-  // Hàm này mở trình duyệt để user chọn Gmail.
-  // Sau khi xong, Supabase sẽ redirect về:
-  // gomate://login-callback
-  // ================================
   Future<void> signInWithGoogle() async {
     await _client.auth.signInWithOAuth(
       OAuthProvider.google,
@@ -128,11 +160,9 @@ class AuthService {
     );
   }
 
-  // ================================
-  // THÊM MỚI: TẠO PROFILE SAU GOOGLE LOGIN
-  // Vì Google OAuth chỉ tạo user trong Authentication.
-  // Nếu chưa có dòng trong profiles thì tự tạo.
-  // ================================
+  /// NOTE SỬA:
+  /// Hàm này dùng sau khi Google login.
+  /// Nếu tài khoản Google mới chưa có profile thì tự tạo profile.
   Future<void> ensureProfileAfterOAuth() async {
     final user = currentUser;
 
@@ -175,10 +205,13 @@ class AuthService {
       'id': user.id,
       'email': email,
       'nickname': nickname,
-      'full_name': fullName.isEmpty ? null : fullName,
+      'full_name': fullName.trim().isEmpty ? null : fullName.trim(),
       'avatar_url': avatarUrl,
+      'bio': '',
+      'facebook_url': '',
       'role': 'user',
       'status': 'active',
+      'updated_at': DateTime.now().toIso8601String(),
     });
 
     await _client.from('user_settings').insert({
@@ -192,12 +225,6 @@ class AuthService {
     });
   }
 
-  // ================================
-  // THÊM MỚI: TẠO NICKNAME KHÔNG TRÙNG
-  // Ví dụ Google trả tên "Bui Trong"
-  // thì nickname là bui_trong.
-  // Nếu trùng thì thành bui_trong_1, bui_trong_2...
-  // ================================
   Future<String> _makeUniqueNickname(String baseNickname) async {
     String cleaned = baseNickname
         .toLowerCase()
@@ -220,10 +247,68 @@ class AuthService {
     return nickname;
   }
 
-  // ================================
-  // UPLOAD AVATAR
-  // Dùng cho đăng ký thường khi chọn ảnh đại diện
-  // ================================
+  /// NOTE SỬA:
+  /// Hàm kiểm tra user đã trả lời khảo sát chưa.
+  /// Nếu profile_interests chưa có dòng nào thì xem như chưa khảo sát.
+  Future<bool> hasAnsweredSurvey() async {
+    final user = currentUser;
+
+    if (user == null) {
+      return false;
+    }
+
+    try {
+      final rows = await _client
+          .from('profile_interests')
+          .select('profile_id')
+          .eq('profile_id', user.id)
+          .limit(1);
+
+      return (rows as List).isNotEmpty;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// NOTE SỬA QUAN TRỌNG:
+  /// Hàm này quyết định sau đăng nhập sẽ đi đâu.
+  ///
+  /// Luồng:
+  /// - Chưa login -> start
+  /// - Google login mới chưa có profile -> tự tạo profile
+  /// - Chưa có avatar -> addAvatar
+  /// - Chưa trả lời câu hỏi -> surveyIntro
+  /// - Đủ rồi -> home
+  Future<String> getNextRouteAfterAuth() async {
+    final user = currentUser;
+
+    if (user == null) {
+      return AppRoutes.start;
+    }
+
+    await ensureProfileAfterOAuth();
+
+    final profile = await getCurrentProfile();
+
+    if (profile == null) {
+      return AppRoutes.start;
+    }
+
+    final avatarUrl = profile['avatar_url']?.toString() ?? '';
+
+    if (avatarUrl.trim().isEmpty) {
+      return AppRoutes.addAvatar;
+    }
+
+    final hasSurvey = await hasAnsweredSurvey();
+
+    if (!hasSurvey) {
+      return AppRoutes.surveyIntro;
+    }
+
+    return AppRoutes.home;
+  }
+
   Future<String> uploadAvatar(File file) async {
     final user = currentUser;
 
@@ -233,6 +318,9 @@ class AuthService {
 
     final ext = file.path.split('.').last.toLowerCase();
 
+    /// NOTE SỬA QUAN TRỌNG:
+    /// Storage RLS bắt user upload vào thư mục chính mình:
+    /// <user_id>/<filename>
     final path =
         '${user.id}/avatar_${DateTime.now().millisecondsSinceEpoch}.$ext';
 
@@ -246,6 +334,9 @@ class AuthService {
 
     final publicUrl = _client.storage.from('avatars').getPublicUrl(path);
 
+    /// NOTE SỬA:
+    /// Chỉ update avatar_url + updated_at.
+    /// Không update role/status/email vì trigger RLS sẽ chặn.
     await _client
         .from('profiles')
         .update({
@@ -257,10 +348,6 @@ class AuthService {
     return publicUrl;
   }
 
-  // ================================
-  // LƯU KHẢO SÁT SỞ THÍCH
-  // Xóa sở thích cũ rồi thêm danh sách mới
-  // ================================
   Future<void> saveInterests(List<String> optionCodes) async {
     final user = currentUser;
 
@@ -281,9 +368,6 @@ class AuthService {
     await _client.from('profile_interests').insert(rows);
   }
 
-  // ================================
-  // ĐĂNG XUẤT
-  // ================================
   Future<void> signOut() async {
     await _client.auth.signOut();
   }

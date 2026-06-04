@@ -1,10 +1,22 @@
 import 'dart:async';
 
-import 'package:do_an/app/routes/app_routes.dart';
-import 'package:do_an/core/services/auth_service.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../../app/routes/app_routes.dart';
+import '../../../../core/services/auth_service.dart';
+
+/// NOTE SỬA:
+/// Màn nhập email + đăng nhập Google.
+///
+/// SỬA CHÍNH:
+/// 1. Google login xong KHÔNG tự vào thẳng trang chủ/profile.
+/// 2. Khi Supabase báo signedIn, chuyển sang AppRoutes.loading.
+/// 3. ManHinhChoPage sẽ tự kiểm tra:
+///    - chưa avatar -> thêm avatar
+///    - chưa khảo sát -> câu hỏi
+///    - đủ rồi -> trang chủ
+/// 4. Form responsive, khi bàn phím mở vẫn cuộn được.
 class DangNhapEmailPage extends StatefulWidget {
   const DangNhapEmailPage({super.key});
 
@@ -14,15 +26,12 @@ class DangNhapEmailPage extends StatefulWidget {
 
 class _DangNhapEmailPageState extends State<DangNhapEmailPage> {
   final TextEditingController emailController = TextEditingController();
-
-  // THÊM MỚI: service xử lý đăng nhập Supabase
   final AuthService authService = AuthService();
 
-  // THÊM MỚI: trạng thái loading cho nút Google
-  bool isGoogleLoading = false;
-
-  // THÊM MỚI: lắng nghe khi Google login xong quay lại app
   StreamSubscription<AuthState>? authSub;
+
+  bool isGoogleLoading = false;
+  bool isNavigating = false;
 
   bool get isValidEmail {
     final email = emailController.text.trim();
@@ -34,18 +43,15 @@ class _DangNhapEmailPageState extends State<DangNhapEmailPage> {
   void initState() {
     super.initState();
 
-    // THÊM MỚI:
-    // Khi đăng nhập Google thành công, Supabase bắn event signedIn.
-    // Lúc đó tạo profile nếu chưa có rồi chuyển vào loading/home.
+    /// NOTE SỬA:
+    /// Khi Google login thành công và quay lại app,
+    /// Supabase phát event signedIn.
+    /// Ta chỉ chuyển sang màn loading, KHÔNG chuyển thẳng vào home.
     authSub = Supabase.instance.client.auth.onAuthStateChange.listen((
       data,
     ) async {
-      if (data.event == AuthChangeEvent.signedIn) {
-        try {
-          await authService.ensureProfileAfterOAuth();
-        } catch (e) {
-          debugPrint('ensureProfileAfterOAuth error: $e');
-        }
+      if (data.event == AuthChangeEvent.signedIn && !isNavigating) {
+        isNavigating = true;
 
         if (!mounted) return;
 
@@ -61,14 +67,10 @@ class _DangNhapEmailPageState extends State<DangNhapEmailPage> {
   @override
   void dispose() {
     emailController.dispose();
-
-    // THÊM MỚI: hủy listener để tránh rò rỉ bộ nhớ
     authSub?.cancel();
-
     super.dispose();
   }
 
-  // THÊM MỚI: hàm xử lý bấm nút Google
   Future<void> handleGoogleLogin() async {
     if (isGoogleLoading) return;
 
@@ -77,12 +79,20 @@ class _DangNhapEmailPageState extends State<DangNhapEmailPage> {
     });
 
     try {
+      /// NOTE SỬA:
+      /// Chỉ mở Google login.
+      /// Không Navigator thẳng vào home/profile ở đây.
+      /// Đăng nhập xong listener ở initState sẽ bắt signedIn.
       await authService.signInWithGoogle();
     } catch (e) {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+        SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+          behavior: SnackBarBehavior.floating,
+          margin: const EdgeInsets.all(16),
+        ),
       );
     } finally {
       if (mounted) {
@@ -93,6 +103,16 @@ class _DangNhapEmailPageState extends State<DangNhapEmailPage> {
     }
   }
 
+  void goToPasswordEmail() {
+    if (!isValidEmail) return;
+
+    Navigator.pushNamed(
+      context,
+      AppRoutes.passwordEmail,
+      arguments: {'email': emailController.text.trim()},
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     const blue = Color(0xFF4AA8FF);
@@ -100,138 +120,146 @@ class _DangNhapEmailPageState extends State<DangNhapEmailPage> {
 
     return Scaffold(
       backgroundColor: Colors.black,
-
-      // SỬA: tránh lỗi bottom overflow khi bàn phím bật
       resizeToAvoidBottomInset: true,
-
       body: SafeArea(
-        // SỬA: bọc SingleChildScrollView để màn hình cuộn được khi bàn phím hiện
-        child: SingleChildScrollView(
-          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-          padding: EdgeInsets.only(
-            left: 24,
-            right: 24,
-            top: 12,
-            bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _backButton(context),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final width = constraints.maxWidth;
+            final isSmallPhone = width < 360;
 
-              const SizedBox(height: 56),
+            final horizontalPadding = isSmallPhone ? 20.0 : 24.0;
+            final topGap = isSmallPhone ? 38.0 : 56.0;
+            final titleSize = isSmallPhone ? 25.0 : 28.0;
+            final buttonHeight = isSmallPhone ? 50.0 : 54.0;
+            final fieldVerticalPadding = isSmallPhone ? 14.0 : 16.0;
 
-              const Text(
-                'Nhập Email của bạn',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 28,
-                  fontWeight: FontWeight.w800,
-                ),
+            return SingleChildScrollView(
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              padding: EdgeInsets.fromLTRB(
+                horizontalPadding,
+                12,
+                horizontalPadding,
+                MediaQuery.of(context).viewInsets.bottom + 24,
               ),
-
-              const SizedBox(height: 18),
-
-              TextField(
-                controller: emailController,
-                onChanged: (_) => setState(() {}),
-                keyboardType: TextInputType.emailAddress,
-                style: const TextStyle(color: Colors.white),
-                decoration: InputDecoration(
-                  hintText: 'Địa chỉ Email',
-                  hintStyle: const TextStyle(color: Colors.white54),
-                  filled: true,
-                  fillColor: field,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 18,
-                    vertical: 16,
-                  ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(28),
-                    borderSide: BorderSide.none,
-                  ),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  minHeight: constraints.maxHeight - 28,
                 ),
-              ),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 520),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _backButton(context),
+                        SizedBox(height: topGap),
+                        Text(
+                          'Nhập Email của bạn',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: titleSize,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 18),
+                        TextField(
+                          controller: emailController,
+                          onChanged: (_) => setState(() {}),
+                          keyboardType: TextInputType.emailAddress,
+                          style: const TextStyle(color: Colors.white),
+                          cursorColor: blue,
+                          decoration: InputDecoration(
+                            hintText: 'Địa chỉ Email',
+                            hintStyle: const TextStyle(color: Colors.white54),
+                            filled: true,
+                            fillColor: field,
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: 18,
+                              vertical: fieldVerticalPadding,
+                            ),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(28),
+                              borderSide: BorderSide.none,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        GestureDetector(
+                          onTap: () {
+                            Navigator.pushReplacementNamed(
+                              context,
+                              AppRoutes.loginPhone,
+                            );
+                          },
+                          child: const Text(
+                            'Sử dụng số điện thoại >',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 18),
 
-              const SizedBox(height: 12),
-
-              GestureDetector(
-                onTap: () {
-                  Navigator.pushReplacementNamed(context, AppRoutes.loginPhone);
-                },
-                child: const Text(
-                  'Sử dụng số điện thoại >',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 18),
-
-              // THÊM MỚI: nút đăng nhập Google
-              SizedBox(
-                width: double.infinity,
-                height: 54,
-                child: OutlinedButton.icon(
-                  onPressed: isGoogleLoading ? null : handleGoogleLogin,
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: Colors.white24),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(28),
+                        /// NOTE SỬA:
+                        /// Nút Google chỉ mở OAuth.
+                        /// Sau khi OAuth thành công, listener sẽ đưa qua AppRoutes.loading.
+                        SizedBox(
+                          width: double.infinity,
+                          height: buttonHeight,
+                          child: OutlinedButton.icon(
+                            onPressed: isGoogleLoading
+                                ? null
+                                : handleGoogleLogin,
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(color: Colors.white24),
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(28),
+                              ),
+                            ),
+                            icon: const Icon(Icons.g_mobiledata, size: 34),
+                            label: Text(
+                              isGoogleLoading
+                                  ? 'Đang mở Google...'
+                                  : 'Tiếp tục với Google',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        const Text(
+                          'Bằng cách nhấn vào nút Tiếp tục,\n'
+                          'bạn đồng ý với chúng tôi Điều khoản\n'
+                          'dịch vụ và Chính sách quyền riêng tư',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Colors.white70,
+                            fontSize: 12,
+                            height: 1.5,
+                          ),
+                        ),
+                        const SizedBox(height: 18),
+                        _primaryButton(
+                          label: 'Tiếp tục',
+                          color: isValidEmail ? blue : Colors.grey,
+                          height: buttonHeight,
+                          onTap: isValidEmail ? goToPasswordEmail : null,
+                        ),
+                        const SizedBox(height: 24),
+                      ],
                     ),
                   ),
-                  icon: const Icon(Icons.g_mobiledata, size: 34),
-                  label: Text(
-                    isGoogleLoading
-                        ? 'Đang mở Google...'
-                        : 'Tiếp tục với Google',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
                 ),
               ),
-
-              const SizedBox(height: 24),
-
-              const Text(
-                'Bằng cách nhấn vào nút Tiếp tục,\n'
-                'bạn đồng ý với chúng tôi Điều khoản\n'
-                'dịch vụ và Chính sách quyền riêng tư',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontSize: 12,
-                  height: 1.5,
-                ),
-              ),
-
-              const SizedBox(height: 18),
-
-              _primaryButton(
-                label: 'Tiếp tục',
-                color: isValidEmail ? blue : Colors.grey,
-                onTap: isValidEmail
-                    ? () {
-                        Navigator.pushNamed(
-                          context,
-                          AppRoutes.passwordEmail,
-                          arguments: {'email': emailController.text.trim()},
-                        );
-                      }
-                    : null,
-              ),
-
-              const SizedBox(height: 24),
-            ],
-          ),
+            );
+          },
         ),
       ),
     );
@@ -241,7 +269,7 @@ class _DangNhapEmailPageState extends State<DangNhapEmailPage> {
     return Align(
       alignment: Alignment.centerLeft,
       child: InkWell(
-        onTap: () => Navigator.pop(context),
+        onTap: isGoogleLoading ? null : () => Navigator.pop(context),
         borderRadius: BorderRadius.circular(20),
         child: Container(
           width: 34,
@@ -263,10 +291,11 @@ class _DangNhapEmailPageState extends State<DangNhapEmailPage> {
   Widget _primaryButton({
     required String label,
     required Color color,
+    required double height,
     required VoidCallback? onTap,
   }) {
     return SizedBox(
-      height: 54,
+      height: height,
       child: ElevatedButton(
         onPressed: onTap,
         style: ElevatedButton.styleFrom(

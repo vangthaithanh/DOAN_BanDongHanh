@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/services/profile_service.dart';
 import '../../core/widgets/coming_soon_page.dart';
 import '../../features/auth/data/models/du_lieu_quen_matkhau.dart';
 import '../../features/auth/presentation/pages/dangki_email.dart';
@@ -37,7 +38,9 @@ import '../../features/onboarding/presentation/pages/cau_hoi_3.dart';
 import '../../features/places/presentation/pages/trang_chi_tiet_dia_diem.dart';
 import '../../features/places/presentation/pages/trang_danh_gia_dia_diem.dart';
 import '../../features/places/presentation/pages/trang_dia_diem.dart';
+import '../../features/profile/presentation/pages/trang_caidat_hoatdong.dart';
 import '../../features/profile/presentation/pages/trang_canhan.dart';
+import '../../features/profile/presentation/pages/trang_chinhsua_hoso.dart';
 import '../../features/social/presentation/pages/trang_binhluan.dart';
 import '../../features/social/presentation/pages/trang_tao_baiviet.dart';
 import 'app_routes.dart';
@@ -129,9 +132,17 @@ class AppRouter {
           const ComingSoonPage(title: 'Tạo lịch trình'),
       AppRoutes.tripDetail: (_) =>
           const ComingSoonPage(title: 'Chi tiết lịch trình'),
-      AppRoutes.editProfile: (_) =>
-          const ComingSoonPage(title: 'Chỉnh sửa hồ sơ'),
-      AppRoutes.settings: (_) => const ComingSoonPage(title: 'Cài đặt'),
+      // NOTE SỬA:
+      // Trước đây route này ra ComingSoonPage.
+      // Bây giờ bấm Chỉnh sửa sẽ mở form chỉnh sửa hồ sơ thật.
+      AppRoutes.editProfile: (context) {
+        final args = ModalRoute.of(context)?.settings.arguments;
+
+        return TrangChinhSuaHoSoPage(
+          initialProfile: args is MyProfile ? args : null,
+        );
+      },
+      AppRoutes.settings: (_) => const TrangCaiDatHoatDongPage(),
       AppRoutes.followRequests: (_) =>
           const ComingSoonPage(title: 'Yêu cầu theo dõi'),
       AppRoutes.friendSuggestions: (_) =>

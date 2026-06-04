@@ -3,6 +3,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../../app/routes/app_routes.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/services/profile_service.dart';
 import '../../../../shared/navigation/app_bottom_nav.dart';
 import '../../../../shared/navigation/main_tab.dart';
 import '../../../../shared/widgets/gomate_logo.dart';
@@ -10,8 +11,52 @@ import '../../../social/data/mock/kho_luu_bai_viet.dart';
 import '../../../social/data/mock/mock_posts.dart';
 import '../../../social/presentation/widgets/post_card.dart';
 
-class TrangChuPage extends StatelessWidget {
+/// NOTE SỬA:
+/// Trang chủ:
+/// - Bài mới đăng từ KhoLuuBaiViet hiện trên đầu.
+/// - Ô chia sẻ lấy tên/avatar user hiện tại.
+/// - Nếu tạo bài từ trang cá nhân, quay về trang chủ vẫn đúng tên người đăng.
+class TrangChuPage extends StatefulWidget {
   const TrangChuPage({super.key});
+
+  @override
+  State<TrangChuPage> createState() => _TrangChuPageState();
+}
+
+class _TrangChuPageState extends State<TrangChuPage> {
+  final ProfileService _profileService = ProfileService();
+
+  MyProfile? _profile;
+  bool _loadingProfile = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfile();
+  }
+
+  Future<void> _loadProfile() async {
+    try {
+      final data = await _profileService.loadMine();
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _profile = data.profile;
+        _loadingProfile = false;
+      });
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _loadingProfile = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -22,23 +67,28 @@ class TrangChuPage extends StatelessWidget {
           children: [
             _topBar(context),
             Expanded(
-              // ListenableBuilder tự rebuild khi có bài viết mới
               child: ListenableBuilder(
                 listenable: KhoLuuBaiViet.instance,
                 builder: (context, _) {
-                  final danhSachMoi =
-                      KhoLuuBaiViet.instance.danhSach;
-                  final tatCa = [
-                    ...danhSachMoi,
-                    ...mockPosts,
-                  ];
+                  /// NOTE SỬA:
+                  /// Bài viết mới đăng được đặt trước mockPosts.
+                  final danhSachMoi = KhoLuuBaiViet.instance.danhSach;
+                  final tatCa = [...danhSachMoi, ...mockPosts];
 
                   return ListView.builder(
                     itemCount: tatCa.length + 3,
                     itemBuilder: (context, index) {
-                      if (index == 0) return const SizedBox(height: 10);
-                      if (index == 1) return _shareBox(context);
-                      if (index == 2) return const SizedBox(height: 12);
+                      if (index == 0) {
+                        return const SizedBox(height: 10);
+                      }
+
+                      if (index == 1) {
+                        return _shareBox(context);
+                      }
+
+                      if (index == 2) {
+                        return const SizedBox(height: 12);
+                      }
 
                       final post = tatCa[index - 3];
 
@@ -56,10 +106,7 @@ class TrangChuPage extends StatelessWidget {
                             );
                           },
                           onShare: () {
-                            Navigator.pushNamed(
-                              context,
-                              AppRoutes.messages,
-                            );
+                            Navigator.pushNamed(context, AppRoutes.messages);
                           },
                         ),
                       );
@@ -82,12 +129,15 @@ class TrangChuPage extends StatelessWidget {
         children: [
           InkWell(
             onTap: () => Navigator.pushNamed(context, AppRoutes.search),
-            child: const Icon(LucideIcons.search, color: Colors.white, size: 24),
+            child: const Icon(
+              LucideIcons.search,
+              color: Colors.white,
+              size: 24,
+            ),
           ),
           const Expanded(child: GoMateLogo()),
           InkWell(
-            onTap: () =>
-                Navigator.pushNamed(context, AppRoutes.notifications),
+            onTap: () => Navigator.pushNamed(context, AppRoutes.notifications),
             child: const Icon(LucideIcons.bell, color: Colors.white, size: 23),
           ),
         ],
@@ -96,41 +146,53 @@ class TrangChuPage extends StatelessWidget {
   }
 
   Widget _shareBox(BuildContext context) {
+    final avatarUrl = _profile?.avatarUrl ?? '';
+    final displayName = _profile?.displayName ?? 'Người dùng';
+
     return InkWell(
-      onTap: () => Navigator.pushNamed(context, AppRoutes.createPost),
+      onTap: () async {
+        await Navigator.pushNamed(context, AppRoutes.createPost);
+
+        if (mounted) {
+          setState(() {});
+        }
+      },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
         decoration: const BoxDecoration(
-          border: Border(
-            bottom: BorderSide(color: AppColors.border, width: 1),
-          ),
+          border: Border(bottom: BorderSide(color: AppColors.border, width: 1)),
         ),
-        child: const Row(
+        child: Row(
           children: [
             CircleAvatar(
               radius: 20,
               backgroundColor: AppColors.primary,
+              backgroundImage: avatarUrl.isNotEmpty
+                  ? NetworkImage(avatarUrl)
+                  : null,
+              child: avatarUrl.isEmpty
+                  ? const Icon(Icons.person, color: Colors.white, size: 20)
+                  : null,
             ),
-            SizedBox(width: 12),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Xuthu',
-                    style: TextStyle(
+                    _loadingProfile ? 'Đang tải...' : displayName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
                       color: Colors.white,
                       fontSize: 15,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
-                  SizedBox(height: 3),
-                  Text(
+                  const SizedBox(height: 3),
+                  const Text(
                     'Chia sẻ điều gì mới?',
-                    style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 13,
-                    ),
+                    style: TextStyle(color: Colors.white70, fontSize: 13),
                   ),
                 ],
               ),
