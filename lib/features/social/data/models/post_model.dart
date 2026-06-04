@@ -10,6 +10,7 @@ class PostModel {
   final List<String> danhSachBanBeDuocTag;
   final int soLuotThich;
   final int soLuotBinhLuan;
+  final bool daThich;
   final bool laBaiVietCuaToi;
 
   const PostModel({
@@ -24,6 +25,7 @@ class PostModel {
     this.danhSachBanBeDuocTag = const [],
     this.soLuotThich = 0,
     this.soLuotBinhLuan = 0,
+    this.daThich = false,
     this.laBaiVietCuaToi = false,
   });
 
@@ -39,6 +41,7 @@ class PostModel {
     List<String>? danhSachBanBeDuocTag,
     int? soLuotThich,
     int? soLuotBinhLuan,
+    bool? daThich,
     bool? laBaiVietCuaToi,
   }) {
     return PostModel(
@@ -53,6 +56,7 @@ class PostModel {
       danhSachBanBeDuocTag: danhSachBanBeDuocTag ?? this.danhSachBanBeDuocTag,
       soLuotThich: soLuotThich ?? this.soLuotThich,
       soLuotBinhLuan: soLuotBinhLuan ?? this.soLuotBinhLuan,
+      daThich: daThich ?? this.daThich,
       laBaiVietCuaToi: laBaiVietCuaToi ?? this.laBaiVietCuaToi,
     );
   }

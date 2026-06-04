@@ -59,6 +59,7 @@ class HomeFeedService {
         ),
         soLuotThich: _asInt(row['like_count']),
         soLuotBinhLuan: _asInt(row['comment_count']),
+        daThich: row['is_liked_by_me'] == true,
         laBaiVietCuaToi:
             currentUserId != null && authorProfileId == currentUserId,
       );

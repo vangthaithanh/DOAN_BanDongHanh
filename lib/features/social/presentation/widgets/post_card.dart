@@ -5,7 +5,6 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../data/models/post_model.dart';
 import '../../data/services/post_service.dart';
-import '../pages/trang_chinh_sua_baiviet.dart';
 
 class PostCard extends StatefulWidget {
   final PostModel post;
@@ -33,18 +32,74 @@ class _PostCardState extends State<PostCard> {
 
   bool _daThich = false;
   late int _soThich;
+  bool _dangXuLyThich = false;
+  final PostService _postService = PostService();
 
   @override
   void initState() {
     super.initState();
     _soThich = widget.post.soLuotThich;
+    _daThich = widget.post.daThich;
   }
 
-  void _toggleThich() {
+  @override
+  void didUpdateWidget(covariant PostCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    if (oldWidget.post.id != widget.post.id ||
+        oldWidget.post.soLuotThich != widget.post.soLuotThich ||
+        oldWidget.post.daThich != widget.post.daThich) {
+      _soThich = widget.post.soLuotThich;
+      _daThich = widget.post.daThich;
+    }
+  }
+
+  Future<void> _toggleThich() async {
+    if (_dangXuLyThich) {
+      return;
+    }
+
+    final previousLiked = _daThich;
+    final previousCount = _soThich;
+
     setState(() {
+      _dangXuLyThich = true;
       _daThich = !_daThich;
       _soThich += _daThich ? 1 : -1;
     });
+
+    try {
+      final result = await _postService.toggleLike(widget.post.id);
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _daThich = result.liked;
+        _soThich = result.likeCount;
+        _dangXuLyThich = false;
+      });
+
+      widget.onPostModified?.call();
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _daThich = previousLiked;
+        _soThich = previousCount;
+        _dangXuLyThich = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    }
   }
 
   @override
@@ -267,7 +322,11 @@ class _PostCardState extends State<PostCard> {
       child: Row(
         children: [
           GestureDetector(
-            onTap: _toggleThich,
+            onTap: _dangXuLyThich
+                ? null
+                : () {
+                    _toggleThich();
+                  },
             child: Row(
               children: [
                 Icon(

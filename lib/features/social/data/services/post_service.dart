@@ -2,8 +2,176 @@ import 'dart:io';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../models/binh_luan_model.dart';
+import '../models/post_model.dart';
+
+class PostLikeResult {
+  final bool liked;
+  final int likeCount;
+
+  const PostLikeResult({required this.liked, required this.likeCount});
+}
+
 class PostService {
   final SupabaseClient _client = Supabase.instance.client;
+
+  Future<PostModel> loadPostById(int postId) async {
+    final currentUserId = _client.auth.currentUser?.id;
+
+    final row = await _wrapSupabaseError(() {
+      return _client
+          .from('posts')
+          .select(
+            'id, profile_id, title, content, like_count, comment_count, created_at',
+          )
+          .eq('id', postId)
+          .maybeSingle();
+    });
+
+    if (row == null) {
+      throw Exception('Không tìm thấy bài viết');
+    }
+
+    final authorProfileId = row['profile_id']?.toString() ?? '';
+    final profile = await _loadPublicProfile(authorProfileId);
+    final mediaUrls = await _loadPostMedia(postId);
+    final hashtags = await _loadPostHashTags(postId);
+    final locationName = await _loadTaggedPlaces(postId);
+    final liked = await _isLikedByMe(postId);
+
+    return PostModel(
+      id: _asInt(row['id']),
+      tenNguoiDang: _firstText([profile?['nickname']], fallback: 'Người dùng'),
+      anhDaiDienNguoiDang: _emptyToNull(profile?['avatar_url']),
+      thoiGian: _timeAgo(row['created_at']),
+      caption: _caption(row),
+      danhSachAnh: mediaUrls,
+      viTri: locationName,
+      danhSachHashTag: hashtags,
+      soLuotThich: await _countPostLikes(postId, row['like_count']),
+      soLuotBinhLuan: await _countPostComments(postId, row['comment_count']),
+      daThich: liked,
+      laBaiVietCuaToi:
+          currentUserId != null && authorProfileId == currentUserId,
+    );
+  }
+
+  Future<PostLikeResult> toggleLike(int postId) async {
+    final user = _client.auth.currentUser;
+
+    if (user == null) {
+      throw Exception('Chưa đăng nhập');
+    }
+
+    final existing = await _wrapSupabaseError(() {
+      return _client
+          .from('post_likes')
+          .select('post_id')
+          .eq('post_id', postId)
+          .eq('profile_id', user.id)
+          .maybeSingle();
+    });
+
+    if (existing == null) {
+      await _wrapSupabaseError(() {
+        return _client.from('post_likes').insert({
+          'post_id': postId,
+          'profile_id': user.id,
+        });
+      });
+    } else {
+      await _wrapSupabaseError(() {
+        return _client
+            .from('post_likes')
+            .delete()
+            .eq('post_id', postId)
+            .eq('profile_id', user.id);
+      });
+    }
+
+    final liked = existing == null;
+    final likeCount = await _countPostLikes(postId, null);
+
+    return PostLikeResult(liked: liked, likeCount: likeCount);
+  }
+
+  Future<List<BinhLuanModel>> loadComments(int postId) async {
+    final rows = await _wrapSupabaseError(() {
+      return _client
+          .from('comments')
+          .select('id, post_id, profile_id, content, created_at')
+          .eq('post_id', postId)
+          .eq('status', 'active')
+          .order('created_at', ascending: false);
+    });
+
+    final comments = <BinhLuanModel>[];
+
+    for (final raw in rows as List) {
+      final row = raw as Map<String, dynamic>;
+      final profile = await _loadPublicProfile(row['profile_id']?.toString());
+
+      comments.add(
+        BinhLuanModel(
+          id: _asInt(row['id']),
+          postId: _asInt(row['post_id']),
+          tenNguoiBinhLuan: _firstText([
+            profile?['nickname'],
+          ], fallback: 'Người dùng'),
+          anhDaiDienNguoiBinhLuan: _emptyToNull(profile?['avatar_url']),
+          thoiGian: _timeAgo(row['created_at']),
+          noiDung: row['content']?.toString() ?? '',
+          danhSachTraLoi: const [],
+        ),
+      );
+    }
+
+    return comments;
+  }
+
+  Future<BinhLuanModel> addComment({
+    required int postId,
+    required String content,
+  }) async {
+    final user = _client.auth.currentUser;
+
+    if (user == null) {
+      throw Exception('Chưa đăng nhập');
+    }
+
+    final cleanContent = content.trim();
+
+    if (cleanContent.isEmpty) {
+      throw Exception('Vui lòng nhập bình luận');
+    }
+
+    final row = await _wrapSupabaseError(() {
+      return _client
+          .from('comments')
+          .insert({
+            'post_id': postId,
+            'profile_id': user.id,
+            'content': cleanContent,
+            'status': 'active',
+          })
+          .select('id, post_id, profile_id, content, created_at')
+          .single();
+    });
+
+    final profile = await _loadPublicProfile(user.id);
+
+    return BinhLuanModel(
+      id: _asInt(row['id']),
+      postId: _asInt(row['post_id']),
+      tenNguoiBinhLuan: _firstText([
+        profile?['nickname'],
+      ], fallback: 'Người dùng'),
+      anhDaiDienNguoiBinhLuan: _emptyToNull(profile?['avatar_url']),
+      thoiGian: 'Vừa xong',
+      noiDung: row['content']?.toString() ?? cleanContent,
+      danhSachTraLoi: const [],
+    );
+  }
 
   Future<int> createPost({
     required String content,
@@ -110,6 +278,150 @@ class PostService {
           .eq('id', postId)
           .eq('profile_id', user.id);
     });
+  }
+
+  Future<Map<String, dynamic>?> _loadPublicProfile(String? profileId) async {
+    final cleanId = profileId?.trim() ?? '';
+
+    if (cleanId.isEmpty) {
+      return null;
+    }
+
+    try {
+      return await _client
+          .from('public_profiles_safe')
+          .select('id, nickname, avatar_url')
+          .eq('id', cleanId)
+          .maybeSingle();
+    } catch (_) {
+      try {
+        return await _client
+            .from('profiles')
+            .select('id, nickname, avatar_url')
+            .eq('id', cleanId)
+            .maybeSingle();
+      } catch (_) {
+        return null;
+      }
+    }
+  }
+
+  Future<List<String>> _loadPostMedia(int postId) async {
+    try {
+      final rows = await _client
+          .from('post_media')
+          .select('url, display_order, created_at')
+          .eq('post_id', postId)
+          .order('display_order', ascending: true)
+          .order('created_at', ascending: true);
+
+      return (rows as List)
+          .map((raw) => (raw as Map<String, dynamic>)['url']?.toString() ?? '')
+          .where((url) => url.trim().isNotEmpty)
+          .toList();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  Future<List<String>> _loadPostHashTags(int postId) async {
+    try {
+      final rows = await _client
+          .from('post_hashtags')
+          .select('hashtags(name)')
+          .eq('post_id', postId);
+
+      return (rows as List)
+          .map((raw) {
+            final row = raw as Map<String, dynamic>;
+            final hashtag = row['hashtags'];
+
+            if (hashtag is Map<String, dynamic>) {
+              return hashtag['name']?.toString() ?? '';
+            }
+
+            return '';
+          })
+          .where((tag) => tag.trim().isNotEmpty)
+          .toList();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  Future<String?> _loadTaggedPlaces(int postId) async {
+    try {
+      final rows = await _client
+          .from('post_place_tags')
+          .select('places(name)')
+          .eq('post_id', postId);
+
+      final names = (rows as List)
+          .map((raw) {
+            final row = raw as Map<String, dynamic>;
+            final place = row['places'];
+
+            if (place is Map<String, dynamic>) {
+              return place['name']?.toString() ?? '';
+            }
+
+            return '';
+          })
+          .where((name) => name.trim().isNotEmpty)
+          .toList();
+
+      return names.isEmpty ? null : names.join(', ');
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<bool> _isLikedByMe(int postId) async {
+    final user = _client.auth.currentUser;
+
+    if (user == null) {
+      return false;
+    }
+
+    try {
+      final row = await _client
+          .from('post_likes')
+          .select('post_id')
+          .eq('post_id', postId)
+          .eq('profile_id', user.id)
+          .maybeSingle();
+
+      return row != null;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<int> _countPostLikes(int postId, dynamic fallback) async {
+    try {
+      final rows = await _client
+          .from('post_likes')
+          .select('post_id')
+          .eq('post_id', postId);
+
+      return (rows as List).length;
+    } catch (_) {
+      return _asInt(fallback);
+    }
+  }
+
+  Future<int> _countPostComments(int postId, dynamic fallback) async {
+    try {
+      final rows = await _client
+          .from('comments')
+          .select('post_id')
+          .eq('post_id', postId)
+          .eq('status', 'active');
+
+      return (rows as List).length;
+    } catch (_) {
+      return _asInt(fallback);
+    }
   }
 
   Future<String> _uploadPostImage(String userId, File file) async {
@@ -254,13 +566,79 @@ class PostService {
     return int.tryParse(value?.toString() ?? '') ?? 0;
   }
 
+  String? _caption(Map<String, dynamic> row) {
+    final title = row['title']?.toString().trim() ?? '';
+    final content = row['content']?.toString().trim() ?? '';
+
+    if (title.isEmpty && content.isEmpty) {
+      return null;
+    }
+
+    if (title.isNotEmpty && content.isNotEmpty && title != content) {
+      return '$title\n$content';
+    }
+
+    return content.isNotEmpty ? content : title;
+  }
+
+  String _timeAgo(dynamic value) {
+    final raw = value?.toString().trim() ?? '';
+
+    if (raw.isEmpty) {
+      return '';
+    }
+
+    try {
+      final createdAt = DateTime.parse(raw).toLocal();
+      final diff = DateTime.now().difference(createdAt);
+
+      if (diff.inMinutes < 1) {
+        return 'Vừa xong';
+      }
+
+      if (diff.inHours < 1) {
+        return '${diff.inMinutes} phút trước';
+      }
+
+      if (diff.inDays < 1) {
+        return '${diff.inHours} giờ trước';
+      }
+
+      if (diff.inDays < 7) {
+        return '${diff.inDays} ngày trước';
+      }
+
+      return '${createdAt.day}/${createdAt.month}/${createdAt.year}';
+    } catch (_) {
+      return raw;
+    }
+  }
+
+  String _firstText(List<dynamic> values, {required String fallback}) {
+    for (final value in values) {
+      final text = value?.toString().trim() ?? '';
+
+      if (text.isNotEmpty) {
+        return text;
+      }
+    }
+
+    return fallback;
+  }
+
+  String? _emptyToNull(dynamic value) {
+    final text = value?.toString().trim() ?? '';
+
+    return text.isEmpty ? null : text;
+  }
+
   Future<T> _wrapSupabaseError<T>(Future<T> Function() action) async {
     try {
       return await action();
     } on PostgrestException catch (e) {
       if (e.code == '42501' || e.message.toLowerCase().contains('policy')) {
         throw Exception(
-          'Supabase chưa cấp quyền tạo bài viết. Cần chạy SQL RLS patch cho posts/post_media/hashtags.',
+          'Supabase chưa cấp quyền cho thao tác bài viết. Cần chạy SQL RLS patch cho posts/post_likes/comments.',
         );
       }
 

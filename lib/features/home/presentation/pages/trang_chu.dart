@@ -162,15 +162,22 @@ class _TrangChuPageState extends State<TrangChuPage> {
             ),
             child: PostCard(
               post: post,
-              onComment: () {
-                Navigator.pushNamed(
+              onComment: () async {
+                final changed = await Navigator.pushNamed(
                   context,
                   AppRoutes.trangBinhLuan,
                   arguments: post.id,
                 );
+
+                if (mounted && changed == true) {
+                  await _refreshFeed();
+                }
               },
               onShare: () {
                 Navigator.pushNamed(context, AppRoutes.messages);
+              },
+              onPostModified: () {
+                _refreshFeed();
               },
             ),
           );

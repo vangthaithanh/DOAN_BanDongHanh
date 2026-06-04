@@ -187,15 +187,22 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
                           ...data.posts.map(
                             (post) => PostCard(
                               post: post,
-                              onComment: () => Navigator.pushNamed(
-                                context,
-                                AppRoutes.trangBinhLuan,
-                                arguments: post.id,
-                              ),
+                              onComment: () async {
+                                final changed = await Navigator.pushNamed(
+                                  context,
+                                  AppRoutes.trangBinhLuan,
+                                  arguments: post.id,
+                                );
+
+                                if (mounted && changed == true) {
+                                  _reloadProfile();
+                                }
+                              },
                               onShare: () => Navigator.pushNamed(
                                 context,
                                 AppRoutes.messages,
                               ),
+                              onPostModified: _reloadProfile,
                             ),
                           ),
                       ] else ...[
@@ -572,7 +579,7 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
               child: ClipRect(
                 child: BackdropFilter(
                   filter: ImageFilter.blur(sigmaX: 4, sigmaY: 4),
-                  child: Container(color: Colors.black.withOpacity(0.28)),
+                  child: Container(color: Colors.black.withValues(alpha: 0.28)),
                 ),
               ),
             ),
@@ -664,7 +671,7 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
                 Container(
                   width: double.infinity,
                   height: 6,
-                  color: Colors.white.withOpacity(0.08),
+                  color: Colors.white.withValues(alpha: 0.08),
                 ),
             ],
           ],

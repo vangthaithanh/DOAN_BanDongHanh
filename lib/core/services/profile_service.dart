@@ -375,10 +375,7 @@ class ProfileService {
     return text == 'active' || text == 'current' || text == 'ongoing';
   }
 
-  Future<List<PostModel>> _loadMyPosts(
-    String userId,
-    MyProfile profile,
-  ) async {
+  Future<List<PostModel>> _loadMyPosts(String userId, MyProfile profile) async {
     try {
       final rows = await _client
           .from('posts')
@@ -391,43 +388,67 @@ class ProfileService {
           .order('created_at', ascending: false)
           .limit(20);
 
-      return (rows as List).map((raw) {
-        final map = raw as Map<String, dynamic>;
+      return Future.wait(
+        (rows as List).map((raw) async {
+          final map = raw as Map<String, dynamic>;
+          final postId = (map['id'] as int?) ?? 0;
 
-        String? firstMediaUrl;
-        final media = map['post_media'];
-        if (media is List && media.isNotEmpty) {
-          final sorted = List<Map<String, dynamic>>.from(
-            media.map((m) => m as Map<String, dynamic>),
-          )..sort((a, b) {
-              final aO = (a['display_order'] as int?) ?? 0;
-              final bO = (b['display_order'] as int?) ?? 0;
-              return aO.compareTo(bO);
-            });
-          firstMediaUrl = sorted.first['url']?.toString();
-        }
+          String? firstMediaUrl;
+          final media = map['post_media'];
+          if (media is List && media.isNotEmpty) {
+            final sorted =
+                List<Map<String, dynamic>>.from(
+                  media.map((m) => m as Map<String, dynamic>),
+                )..sort((a, b) {
+                  final aO = (a['display_order'] as int?) ?? 0;
+                  final bO = (b['display_order'] as int?) ?? 0;
+                  return aO.compareTo(bO);
+                });
+            firstMediaUrl = sorted.first['url']?.toString();
+          }
 
-        final content = map['content']?.toString().trim() ?? '';
-        final title = map['title']?.toString().trim() ?? '';
+          final content = map['content']?.toString().trim() ?? '';
+          final title = map['title']?.toString().trim() ?? '';
 
-        return PostModel(
-          id: (map['id'] as int?) ?? 0,
-          tenNguoiDang: profile.displayName,
-          anhDaiDienNguoiDang:
-              profile.avatarUrl.isNotEmpty ? profile.avatarUrl : null,
-          thoiGian: _timeAgo(map['created_at']?.toString() ?? ''),
-          caption: content.isNotEmpty
-              ? content
-              : (title.isNotEmpty ? title : null),
-          danhSachAnh:
-              firstMediaUrl != null ? [firstMediaUrl] : const [],
-          soLuotThich: (map['like_count'] as int?) ?? 0,
-          soLuotBinhLuan: (map['comment_count'] as int?) ?? 0,
-          laBaiVietCuaToi: true,
-        );
-      }).toList();
+          return PostModel(
+            id: postId,
+            tenNguoiDang: profile.displayName,
+            anhDaiDienNguoiDang: profile.avatarUrl.isNotEmpty
+                ? profile.avatarUrl
+                : null,
+            thoiGian: _timeAgo(map['created_at']?.toString() ?? ''),
+            caption: content.isNotEmpty
+                ? content
+                : (title.isNotEmpty ? title : null),
+            danhSachAnh: firstMediaUrl != null ? [firstMediaUrl] : const [],
+            soLuotThich: (map['like_count'] as int?) ?? 0,
+            soLuotBinhLuan: (map['comment_count'] as int?) ?? 0,
+            daThich: await _isPostLikedByMe(postId, userId),
+            laBaiVietCuaToi: true,
+          );
+        }).toList(),
+      );
     } catch (_) {
       return [];
+    }
+  }
+
+  Future<bool> _isPostLikedByMe(int postId, String userId) async {
+    if (postId == 0) {
+      return false;
+    }
+
+    try {
+      final row = await _client
+          .from('post_likes')
+          .select('post_id')
+          .eq('post_id', postId)
+          .eq('profile_id', userId)
+          .maybeSingle();
+
+      return row != null;
+    } catch (_) {
+      return false;
     }
   }
 

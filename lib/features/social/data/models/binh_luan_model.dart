@@ -2,6 +2,7 @@ class BinhLuanModel {
   final int id;
   final int postId;
   final String tenNguoiBinhLuan;
+  final String? anhDaiDienNguoiBinhLuan;
   final String? tenNguoiDuocTraLoi;
   final String thoiGian;
   final String noiDung;
@@ -11,6 +12,7 @@ class BinhLuanModel {
     required this.id,
     required this.postId,
     required this.tenNguoiBinhLuan,
+    this.anhDaiDienNguoiBinhLuan,
     this.tenNguoiDuocTraLoi,
     required this.thoiGian,
     required this.noiDung,
