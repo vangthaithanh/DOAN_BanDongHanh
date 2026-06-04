@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../../../../app/routes/app_routes.dart';
 import '../../data/services/post_service.dart';
 
 enum _Visibility { moiNguoi, nguoiTheoDoi, chiMinhToi }
@@ -66,6 +67,7 @@ class _TrangChinhSuaBaiVietState extends State<TrangChinhSuaBaiViet> {
   late TextEditingController _contentController;
   late List<String> _hashtags;
   late _Visibility _visibility;
+  String? _viTri;
 
   bool _saving = false;
 
@@ -83,6 +85,7 @@ class _TrangChinhSuaBaiVietState extends State<TrangChinhSuaBaiViet> {
     _visibility = _VisibilityX.fromValue(
       widget.post['visibility']?.toString() ?? 'public',
     );
+    _viTri = widget.post['viTri']?.toString();
   }
 
   @override
@@ -119,6 +122,7 @@ class _TrangChinhSuaBaiVietState extends State<TrangChinhSuaBaiViet> {
         content: _contentController.text,
         visibility: _visibility.value,
         hashtags: _hashtags,
+        locationName: _viTri,
       );
 
       if (!mounted) return;
@@ -141,6 +145,15 @@ class _TrangChinhSuaBaiVietState extends State<TrangChinhSuaBaiViet> {
       );
     } finally {
       if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  void _themViTri() async {
+    final ketQua = await Navigator.pushNamed(context, AppRoutes.trangViTri);
+    if (ketQua != null && mounted) {
+      setState(() {
+        _viTri = ketQua is Map ? ketQua['name']?.toString() : ketQua.toString();
+      });
     }
   }
 
@@ -320,6 +333,8 @@ class _TrangChinhSuaBaiVietState extends State<TrangChinhSuaBaiViet> {
                     const Divider(color: _mauVien, height: 1),
                     _khuVucHashTag(),
                     const Divider(color: _mauVien, height: 1),
+                    _khuVucViTri(),
+                    const Divider(color: _mauVien, height: 1),
                     _khuVucDoiTuong(),
                     const SizedBox(height: 24),
                   ],
@@ -492,6 +507,51 @@ class _TrangChinhSuaBaiVietState extends State<TrangChinhSuaBaiViet> {
             child: const Icon(Icons.close, color: _mauXanh, size: 14),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _khuVucViTri() {
+    return InkWell(
+      onTap: _themViTri,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: _mauO,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(
+                LucideIcons.mapPin,
+                color: Colors.white70,
+                size: 18,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Text(
+                _viTri ?? 'Thêm vị trí',
+                style: TextStyle(
+                  color: _viTri != null ? Colors.white : Colors.white38,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            if (_viTri != null)
+              GestureDetector(
+                onTap: () => setState(() => _viTri = null),
+                child: const Icon(Icons.close, color: Colors.white38, size: 18),
+              )
+            else
+              const Icon(LucideIcons.chevronRight,
+                  color: Colors.white38, size: 18),
+          ],
+        ),
       ),
     );
   }
