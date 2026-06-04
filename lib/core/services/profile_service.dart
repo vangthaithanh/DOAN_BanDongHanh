@@ -1,5 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../features/social/data/models/post_model.dart';
+
 /// NOTE SỬA:
 /// Service này dùng cho trang cá nhân.
 /// Query khớp RLS/database hiện tại:
@@ -92,6 +94,7 @@ class ProfilePageData {
   final int friendCount;
   final int postCount;
   final List<ProfilePlanGroupData> plans;
+  final List<PostModel> posts;
 
   const ProfilePageData({
     required this.profile,
@@ -99,6 +102,7 @@ class ProfilePageData {
     required this.friendCount,
     required this.postCount,
     required this.plans,
+    required this.posts,
   });
 }
 
@@ -130,6 +134,7 @@ class ProfileService {
     final friendCount = await _countFriends(user.id);
     final postCount = await _countPosts(user.id);
     final plans = await _loadPlans(user.id);
+    final posts = await _loadMyPosts(user.id, profile);
 
     return ProfilePageData(
       profile: profile,
@@ -137,6 +142,7 @@ class ProfileService {
       friendCount: friendCount,
       postCount: postCount,
       plans: plans,
+      posts: posts,
     );
   }
 
@@ -367,5 +373,76 @@ class ProfileService {
     final text = status?.toString().toLowerCase() ?? '';
 
     return text == 'active' || text == 'current' || text == 'ongoing';
+  }
+
+  Future<List<PostModel>> _loadMyPosts(
+    String userId,
+    MyProfile profile,
+  ) async {
+    try {
+      final rows = await _client
+          .from('posts')
+          .select(
+            'id, content, title, like_count, comment_count, created_at,'
+            'post_media(url, display_order)',
+          )
+          .eq('profile_id', userId)
+          .eq('status', 'active')
+          .order('created_at', ascending: false)
+          .limit(20);
+
+      return (rows as List).map((raw) {
+        final map = raw as Map<String, dynamic>;
+
+        String? firstMediaUrl;
+        final media = map['post_media'];
+        if (media is List && media.isNotEmpty) {
+          final sorted = List<Map<String, dynamic>>.from(
+            media.map((m) => m as Map<String, dynamic>),
+          )..sort((a, b) {
+              final aO = (a['display_order'] as int?) ?? 0;
+              final bO = (b['display_order'] as int?) ?? 0;
+              return aO.compareTo(bO);
+            });
+          firstMediaUrl = sorted.first['url']?.toString();
+        }
+
+        final content = map['content']?.toString().trim() ?? '';
+        final title = map['title']?.toString().trim() ?? '';
+
+        return PostModel(
+          id: (map['id'] as int?) ?? 0,
+          tenNguoiDang: profile.displayName,
+          anhDaiDienNguoiDang:
+              profile.avatarUrl.isNotEmpty ? profile.avatarUrl : null,
+          thoiGian: _timeAgo(map['created_at']?.toString() ?? ''),
+          caption: content.isNotEmpty
+              ? content
+              : (title.isNotEmpty ? title : null),
+          danhSachAnh:
+              firstMediaUrl != null ? [firstMediaUrl] : const [],
+          soLuotThich: (map['like_count'] as int?) ?? 0,
+          soLuotBinhLuan: (map['comment_count'] as int?) ?? 0,
+          laBaiVietCuaToi: true,
+        );
+      }).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  String _timeAgo(String raw) {
+    if (raw.isEmpty) return '';
+    try {
+      final dt = DateTime.parse(raw).toLocal();
+      final diff = DateTime.now().difference(dt);
+      if (diff.inMinutes < 1) return 'Vừa xong';
+      if (diff.inHours < 1) return '${diff.inMinutes} phút trước';
+      if (diff.inDays < 1) return '${diff.inHours} giờ trước';
+      if (diff.inDays < 7) return '${diff.inDays} ngày trước';
+      return '${dt.day}/${dt.month}/${dt.year}';
+    } catch (_) {
+      return raw;
+    }
   }
 }

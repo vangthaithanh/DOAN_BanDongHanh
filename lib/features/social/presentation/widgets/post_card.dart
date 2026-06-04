@@ -4,12 +4,15 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../data/models/post_model.dart';
+import '../../data/services/post_service.dart';
+import '../pages/trang_chinh_sua_baiviet.dart';
 
 class PostCard extends StatefulWidget {
   final PostModel post;
   final VoidCallback? onComment;
   final VoidCallback? onShare;
   final VoidCallback? onTap;
+  final VoidCallback? onPostModified;
 
   const PostCard({
     super.key,
@@ -17,6 +20,7 @@ class PostCard extends StatefulWidget {
     this.onComment,
     this.onShare,
     this.onTap,
+    this.onPostModified,
   });
 
   @override

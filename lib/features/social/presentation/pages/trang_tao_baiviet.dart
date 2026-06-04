@@ -86,11 +86,7 @@ class _TrangTaoBaiVietState extends State<TrangTaoBaiViet> {
         ),
       );
 
-      Navigator.pushNamedAndRemoveUntil(
-        context,
-        AppRoutes.home,
-        (route) => false,
-      );
+      Navigator.pop(context, true);
     } catch (e) {
       if (!mounted) {
         return;

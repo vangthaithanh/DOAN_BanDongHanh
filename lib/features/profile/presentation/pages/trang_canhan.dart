@@ -6,6 +6,7 @@ import '../../../../app/routes/app_routes.dart';
 import '../../../../core/services/profile_service.dart';
 import '../../../../shared/navigation/app_bottom_nav.dart';
 import '../../../../shared/navigation/main_tab.dart';
+import '../../../social/presentation/widgets/post_card.dart';
 
 /// NOTE SỬA:
 /// Trang cá nhân đã bỏ dữ liệu fix cứng.
@@ -180,7 +181,23 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
                       _tabButtons(context),
                       if (selectedTab == 0) ...[
                         _shareBox(context, data),
-                        _emptyPostBox(context, data),
+                        if (data.posts.isEmpty)
+                          _emptyPostBox(context, data)
+                        else
+                          ...data.posts.map(
+                            (post) => PostCard(
+                              post: post,
+                              onComment: () => Navigator.pushNamed(
+                                context,
+                                AppRoutes.trangBinhLuan,
+                                arguments: post.id,
+                              ),
+                              onShare: () => Navigator.pushNamed(
+                                context,
+                                AppRoutes.messages,
+                              ),
+                            ),
+                          ),
                       ] else ...[
                         _planSection(context, data),
                       ],
@@ -462,8 +479,9 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
 
   Widget _shareBox(BuildContext context, ProfilePageData data) {
     return InkWell(
-      onTap: () {
-        Navigator.pushNamed(context, AppRoutes.createPost);
+      onTap: () async {
+        final result = await Navigator.pushNamed(context, AppRoutes.createPost);
+        if (result == true && mounted) _reloadProfile();
       },
       child: Container(
         padding: EdgeInsets.symmetric(
@@ -865,9 +883,13 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
               _sheetItem(
                 icon: Icons.article_outlined,
                 text: 'Bài viết',
-                onTap: () {
+                onTap: () async {
                   Navigator.pop(context);
-                  Navigator.pushNamed(context, AppRoutes.createPost);
+                  final result = await Navigator.pushNamed(
+                    context,
+                    AppRoutes.createPost,
+                  );
+                  if (result == true && mounted) _reloadProfile();
                 },
               ),
               _sheetItem(

@@ -61,6 +61,57 @@ class PostService {
     return postId;
   }
 
+  Future<void> updatePost({
+    required int postId,
+    String? content,
+    String? visibility,
+    List<String>? hashtags,
+  }) async {
+    final user = _client.auth.currentUser;
+    if (user == null) throw Exception('Chưa đăng nhập');
+
+    final updates = <String, dynamic>{
+      'updated_at': DateTime.now().toIso8601String(),
+    };
+    if (content != null) {
+      updates['content'] = content.trim().isEmpty ? null : content.trim();
+    }
+    if (visibility != null) {
+      updates['visibility'] = visibility;
+    }
+
+    await _wrapSupabaseError(() {
+      return _client
+          .from('posts')
+          .update(updates)
+          .eq('id', postId)
+          .eq('profile_id', user.id);
+    });
+
+    if (hashtags != null) {
+      await _wrapSupabaseError(() {
+        return _client.from('post_hashtags').delete().eq('post_id', postId);
+      });
+      await _saveHashTags(postId, hashtags);
+    }
+  }
+
+  Future<void> deletePost(int postId) async {
+    final user = _client.auth.currentUser;
+    if (user == null) throw Exception('Chưa đăng nhập');
+
+    await _wrapSupabaseError(() {
+      return _client
+          .from('posts')
+          .update({
+            'status': 'hidden',
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('id', postId)
+          .eq('profile_id', user.id);
+    });
+  }
+
   Future<String> _uploadPostImage(String userId, File file) async {
     if (!file.existsSync()) {
       throw Exception('Không tìm thấy ảnh đã chọn');
