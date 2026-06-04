@@ -6,18 +6,18 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../app/routes/app_routes.dart';
 
 /// NOTE SỬA:
-/// File này xử lý Supabase Auth + profiles + avatar.
-///
-/// SỬA CHÍNH:
-/// 1. uploadAvatar() upload đúng path <user_id>/avatar_xxx.jpg để khớp Storage RLS.
-/// 2. signUpWithEmail() insert profiles với id = auth.uid().
-/// 3. Không update role/status/email khi user thường sửa profile.
-/// 4. Thêm getNextRouteAfterAuth() để xử lý Google login:
-///    - chưa có avatar -> thêm avatar
-///    - chưa khảo sát -> màn câu hỏi
-///    - đủ rồi -> home
+/// AuthService dùng cho:
+/// - Đăng ký email thật
+/// - Đăng nhập email thật
+/// - Đăng nhập Google thật
+/// - Đăng ký SĐT demo bằng email ảo
+/// - Đăng nhập SĐT demo bằng email ảo
+/// - OTP demo 123456 cho quên mật khẩu email/SĐT
+/// - Upload avatar đúng Storage RLS
 class AuthService {
   AuthService();
+
+  static const String demoOtp = '123456';
 
   final SupabaseClient _client = Supabase.instance.client;
 
@@ -33,7 +33,7 @@ class AuthService {
     final data = await _client
         .from('profiles')
         .select(
-          'id, email, nickname, full_name, avatar_url, bio, facebook_url, role, status',
+          'id, email, phone, nickname, full_name, avatar_url, bio, facebook_url, role, status',
         )
         .eq('id', user.id)
         .maybeSingle();
@@ -41,9 +41,6 @@ class AuthService {
     return data;
   }
 
-  /// NOTE SỬA:
-  /// Dùng RPC is_nickname_taken nếu Supabase có hàm này.
-  /// Không select profiles trực tiếp để tránh lỗi RLS recursion.
   Future<bool> isNicknameTaken(String nickname) async {
     final cleanNickname = nickname.trim();
 
@@ -100,12 +97,10 @@ class AuthService {
       throw Exception('Không tạo được tài khoản');
     }
 
-    /// NOTE SỬA:
-    /// RLS profiles_insert_own yêu cầu id = auth.uid().
-    /// Vì vậy id trong profiles bắt buộc là user.id.
     await _client.from('profiles').insert({
       'id': user.id,
       'email': cleanEmail,
+      'phone': null,
       'nickname': cleanNickname,
       'full_name': null,
       'bio': '',
@@ -144,8 +139,7 @@ class AuthService {
             .update({'last_login_at': DateTime.now().toIso8601String()})
             .eq('id', user.id);
       } catch (_) {
-        /// NOTE:
-        /// Nếu bảng chưa có last_login_at thì bỏ qua.
+        // Nếu chưa có cột last_login_at thì bỏ qua.
       }
     }
   }
@@ -160,9 +154,6 @@ class AuthService {
     );
   }
 
-  /// NOTE SỬA:
-  /// Hàm này dùng sau khi Google login.
-  /// Nếu tài khoản Google mới chưa có profile thì tự tạo profile.
   Future<void> ensureProfileAfterOAuth() async {
     final user = currentUser;
 
@@ -204,6 +195,7 @@ class AuthService {
     await _client.from('profiles').insert({
       'id': user.id,
       'email': email,
+      'phone': null,
       'nickname': nickname,
       'full_name': fullName.trim().isEmpty ? null : fullName.trim(),
       'avatar_url': avatarUrl,
@@ -247,9 +239,139 @@ class AuthService {
     return nickname;
   }
 
-  /// NOTE SỬA:
-  /// Hàm kiểm tra user đã trả lời khảo sát chưa.
-  /// Nếu profile_interests chưa có dòng nào thì xem như chưa khảo sát.
+  String normalizePhone(String phone) {
+    var text = phone.trim().replaceAll(RegExp(r'[^0-9+]'), '');
+
+    if (text.startsWith('+84')) {
+      text = '84${text.substring(3)}';
+    } else if (text.startsWith('0')) {
+      text = '84${text.substring(1)}';
+    } else if (!text.startsWith('84')) {
+      text = '84$text';
+    }
+
+    return text;
+  }
+
+  bool isValidVietnamPhone(String phone) {
+    final normalized = normalizePhone(phone);
+    return RegExp(r'^84[0-9]{9,10}$').hasMatch(normalized);
+  }
+
+  String phoneToVirtualEmail(String phone) {
+    final normalized = normalizePhone(phone);
+    return 'phone_$normalized@gomate.local';
+  }
+
+  Future<void> signUpWithPhoneDemo({
+    required String phone,
+    required String password,
+    required String nickname,
+  }) async {
+    final cleanPhone = phone.trim();
+    final normalizedPhone = normalizePhone(cleanPhone);
+    final cleanPassword = password.trim();
+    final cleanNickname = nickname.trim();
+
+    if (!isValidVietnamPhone(cleanPhone)) {
+      throw Exception('Số điện thoại không hợp lệ');
+    }
+
+    if (cleanPassword.length < 8) {
+      throw Exception('Mật khẩu tối thiểu 8 ký tự');
+    }
+
+    if (cleanNickname.length < 3) {
+      throw Exception('Biệt danh tối thiểu 3 ký tự');
+    }
+
+    final isTaken = await isNicknameTaken(cleanNickname);
+
+    if (isTaken) {
+      throw Exception('Biệt danh đã tồn tại');
+    }
+
+    final virtualEmail = phoneToVirtualEmail(cleanPhone);
+
+    final AuthResponse response = await _client.auth.signUp(
+      email: virtualEmail,
+      password: cleanPassword,
+    );
+
+    final user = response.user;
+
+    if (user == null) {
+      throw Exception('Không tạo được tài khoản bằng SĐT');
+    }
+
+    await _client.from('profiles').insert({
+      'id': user.id,
+      'email': virtualEmail,
+      'phone': normalizedPhone,
+      'nickname': cleanNickname,
+      'full_name': null,
+      'bio': '',
+      'facebook_url': '',
+      'role': 'user',
+      'status': 'active',
+      'updated_at': DateTime.now().toIso8601String(),
+    });
+
+    await _client.from('user_settings').insert({
+      'profile_id': user.id,
+      'account_mode': 'public',
+      'allow_location_tracking': false,
+      'location_mode': 'none',
+      'allow_friend_suggestion': true,
+      'allow_place_suggestion': true,
+      'allow_notification': true,
+    });
+  }
+
+  Future<void> signInWithPhoneDemo({
+    required String phone,
+    required String password,
+  }) async {
+    final virtualEmail = phoneToVirtualEmail(phone);
+
+    await signInWithEmail(email: virtualEmail, password: password);
+  }
+
+  String requestEmailOtpDemo(String email) {
+    if (email.trim().isEmpty || !email.contains('@')) {
+      throw Exception('Gmail không hợp lệ');
+    }
+
+    return demoOtp;
+  }
+
+  String requestPhoneForgotOtpDemo({
+    required String phone,
+    required String gmail,
+  }) {
+    if (!isValidVietnamPhone(phone)) {
+      throw Exception('Số điện thoại không hợp lệ');
+    }
+
+    if (gmail.trim().isEmpty || !gmail.contains('@')) {
+      throw Exception('Gmail không hợp lệ');
+    }
+
+    return demoOtp;
+  }
+
+  bool verifyOtpDemo(String otp) {
+    return otp.trim() == demoOtp;
+  }
+
+  Future<void> resetPasswordDemo({required String newPassword}) async {
+    if (newPassword.trim().length < 8) {
+      throw Exception('Mật khẩu tối thiểu 8 ký tự');
+    }
+
+    await Future.delayed(const Duration(milliseconds: 500));
+  }
+
   Future<bool> hasAnsweredSurvey() async {
     final user = currentUser;
 
@@ -270,15 +392,6 @@ class AuthService {
     }
   }
 
-  /// NOTE SỬA QUAN TRỌNG:
-  /// Hàm này quyết định sau đăng nhập sẽ đi đâu.
-  ///
-  /// Luồng:
-  /// - Chưa login -> start
-  /// - Google login mới chưa có profile -> tự tạo profile
-  /// - Chưa có avatar -> addAvatar
-  /// - Chưa trả lời câu hỏi -> surveyIntro
-  /// - Đủ rồi -> home
   Future<String> getNextRouteAfterAuth() async {
     final user = currentUser;
 
@@ -318,9 +431,6 @@ class AuthService {
 
     final ext = file.path.split('.').last.toLowerCase();
 
-    /// NOTE SỬA QUAN TRỌNG:
-    /// Storage RLS bắt user upload vào thư mục chính mình:
-    /// <user_id>/<filename>
     final path =
         '${user.id}/avatar_${DateTime.now().millisecondsSinceEpoch}.$ext';
 
@@ -334,9 +444,6 @@ class AuthService {
 
     final publicUrl = _client.storage.from('avatars').getPublicUrl(path);
 
-    /// NOTE SỬA:
-    /// Chỉ update avatar_url + updated_at.
-    /// Không update role/status/email vì trigger RLS sẽ chặn.
     await _client
         .from('profiles')
         .update({
