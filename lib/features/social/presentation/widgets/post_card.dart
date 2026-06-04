@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../data/models/post_model.dart';
-import '../../data/mock/kho_luu_bai_viet.dart';
 
 class PostCard extends StatefulWidget {
   final PostModel post;
@@ -51,9 +50,7 @@ class _PostCardState extends State<PostCard> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
         decoration: const BoxDecoration(
-          border: Border(
-            bottom: BorderSide(color: _mauVien, width: 1),
-          ),
+          border: Border(bottom: BorderSide(color: _mauVien, width: 1)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -84,6 +81,8 @@ class _PostCardState extends State<PostCard> {
   }
 
   Widget _dongTieuDe() {
+    final avatarUrl = widget.post.anhDaiDienNguoiDang?.trim() ?? '';
+
     return Row(
       children: [
         CircleAvatar(
@@ -91,6 +90,20 @@ class _PostCardState extends State<PostCard> {
           backgroundColor: widget.post.laBaiVietCuaToi
               ? const Color(0xFF5AB2FF)
               : const Color(0xFF4AA8FF),
+          backgroundImage: avatarUrl.isNotEmpty
+              ? NetworkImage(avatarUrl)
+              : null,
+          child: avatarUrl.isEmpty
+              ? Text(
+                  widget.post.tenNguoiDang.isEmpty
+                      ? '?'
+                      : widget.post.tenNguoiDang[0].toUpperCase(),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                  ),
+                )
+              : null,
         ),
         const SizedBox(width: 10),
         Expanded(
@@ -162,14 +175,16 @@ class _PostCardState extends State<PostCard> {
         spacing: 6,
         runSpacing: 4,
         children: widget.post.danhSachHashTag
-            .map((tag) => Text(
-          '#$tag',
-          style: const TextStyle(
-            color: _mauXanh,
-            fontSize: 13,
-            fontWeight: FontWeight.w700,
-          ),
-        ))
+            .map(
+              (tag) => Text(
+                '#$tag',
+                style: const TextStyle(
+                  color: _mauXanh,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            )
             .toList(),
       ),
     );
@@ -199,7 +214,7 @@ class _PostCardState extends State<PostCard> {
         padding: const EdgeInsets.only(left: 50, right: 12),
         physics: const BouncingScrollPhysics(),
         itemCount: danhSach.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        separatorBuilder: (context, index) => const SizedBox(width: 8),
         itemBuilder: (context, index) {
           return ClipRRect(
             borderRadius: BorderRadius.circular(12),
@@ -215,19 +230,30 @@ class _PostCardState extends State<PostCard> {
   }
 
   Widget _hienThiAnh(String duongDan) {
-    // Ảnh từ file thực (chụp/chọn từ máy)
-    if (duongDan.startsWith('/') && File(duongDan).existsSync()) {
+    if (duongDan.startsWith('http://') || duongDan.startsWith('https://')) {
+      return Image.network(
+        duongDan,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => _anhLoi(),
+      );
+    }
+
+    if (File(duongDan).existsSync()) {
       return Image.file(File(duongDan), fit: BoxFit.cover);
     }
-    // Ảnh asset
+
     return Image.asset(
       duongDan,
       fit: BoxFit.cover,
-      errorBuilder: (_, __, ___) => Container(
-        color: const Color(0xFF222222),
-        alignment: Alignment.center,
-        child: const Icon(LucideIcons.image, color: Colors.white38, size: 32),
-      ),
+      errorBuilder: (context, error, stackTrace) => _anhLoi(),
+    );
+  }
+
+  Widget _anhLoi() {
+    return Container(
+      color: const Color(0xFF222222),
+      alignment: Alignment.center,
+      child: const Icon(LucideIcons.image, color: Colors.white38, size: 32),
     );
   }
 
@@ -262,8 +288,11 @@ class _PostCardState extends State<PostCard> {
             onTap: widget.onComment,
             child: Row(
               children: [
-                const Icon(LucideIcons.messageCircle,
-                    color: Colors.white, size: 20),
+                const Icon(
+                  LucideIcons.messageCircle,
+                  color: Colors.white,
+                  size: 20,
+                ),
                 const SizedBox(width: 5),
                 Text(
                   '${widget.post.soLuotBinhLuan}',
@@ -279,8 +308,11 @@ class _PostCardState extends State<PostCard> {
           const SizedBox(width: 18),
           GestureDetector(
             onTap: widget.onShare,
-            child: const Icon(LucideIcons.sendHorizontal,
-                color: Colors.white, size: 20),
+            child: const Icon(
+              LucideIcons.sendHorizontal,
+              color: Colors.white,
+              size: 20,
+            ),
           ),
         ],
       ),

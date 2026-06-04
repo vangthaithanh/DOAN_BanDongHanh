@@ -372,6 +372,41 @@ class AuthService {
     await Future.delayed(const Duration(milliseconds: 500));
   }
 
+  Future<void> changePassword({
+    required String oldPassword,
+    required String newPassword,
+    required String confirmPassword,
+  }) async {
+    final session = _client.auth.currentSession;
+
+    if (session == null || session.user.email == null) {
+      throw Exception('Chưa đăng nhập hoặc phiên đăng nhập đã hết hạn');
+    }
+
+    if (oldPassword.trim().isEmpty) {
+      throw Exception('Vui lòng nhập mật khẩu cũ');
+    }
+
+    final cleanNewPassword = newPassword.trim();
+    final cleanConfirmPassword = confirmPassword.trim();
+
+    if (cleanNewPassword.length < 8) {
+      throw Exception('Mật khẩu mới tối thiểu 8 ký tự');
+    }
+
+    if (cleanNewPassword != cleanConfirmPassword) {
+      throw Exception('Xác nhận mật khẩu mới không khớp');
+    }
+
+    try {
+      await _client.auth.updateUser(
+        UserAttributes(password: cleanNewPassword),
+      );
+    } on AuthException catch (e) {
+      throw Exception(e.message);
+    }
+  }
+
   Future<bool> hasAnsweredSurvey() async {
     final user = currentUser;
 

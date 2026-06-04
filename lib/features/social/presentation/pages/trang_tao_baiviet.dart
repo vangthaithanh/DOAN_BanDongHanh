@@ -5,9 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../../app/routes/app_routes.dart';
-import '../../../../shared/navigation/app_bottom_nav.dart';
-import '../../../../shared/navigation/main_tab.dart';
-import '../../data/mock/kho_luu_bai_viet.dart';
+import '../../data/services/post_service.dart';
 
 // ─── Model ───────────────────────────────────────────────────────────────────
 
@@ -31,12 +29,14 @@ class _TrangTaoBaiVietState extends State<TrangTaoBaiViet> {
   final TextEditingController _noiDungController = TextEditingController();
   final FocusNode _focusNoiDung = FocusNode();
   final ImagePicker _picker = ImagePicker();
+  final PostService _postService = PostService();
 
   String? _duongDanAnh;
   String? _viTri;
-  DoiTuongBaiViet _doiTuong = DoiTuongBaiViet.nguoiTheoDoi;
+  DoiTuongBaiViet _doiTuong = DoiTuongBaiViet.moiNguoi;
   final List<String> _danhSachHashTag = [];
   final List<String> _danhSachBanBe = [];
+  bool _dangChiaSe = false;
 
   @override
   void dispose() {
@@ -45,8 +45,13 @@ class _TrangTaoBaiVietState extends State<TrangTaoBaiViet> {
     super.dispose();
   }
 
-  void _chiaSe() {
+  Future<void> _chiaSe() async {
+    if (_dangChiaSe) {
+      return;
+    }
+
     final noiDung = _noiDungController.text.trim();
+
     if (_duongDanAnh == null && noiDung.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -57,26 +62,53 @@ class _TrangTaoBaiVietState extends State<TrangTaoBaiViet> {
       return;
     }
 
-    KhoLuuBaiViet.instance.themBaiViet(
-      duongDanAnh: _duongDanAnh,
-      caption: noiDung.isNotEmpty ? noiDung : null,
-      viTri: _viTri,
-      danhSachHashTag: List.from(_danhSachHashTag),
-      danhSachBanBe: List.from(_danhSachBanBe),
-    );
+    setState(() {
+      _dangChiaSe = true;
+    });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Đã chia sẻ bài viết!'),
-        backgroundColor: Color(0xFF4AA8FF),
-      ),
-    );
+    try {
+      await _postService.createPost(
+        content: noiDung,
+        visibility: _visibilityValue,
+        imagePath: _duongDanAnh,
+        locationName: _viTri,
+        hashtags: List.from(_danhSachHashTag),
+      );
 
-    Navigator.pushNamedAndRemoveUntil(
-      context,
-      AppRoutes.home,
-          (route) => false,
-    );
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Đã chia sẻ bài viết!'),
+          backgroundColor: Color(0xFF4AA8FF),
+        ),
+      );
+
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        AppRoutes.home,
+        (route) => false,
+      );
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _dangChiaSe = false;
+        });
+      }
+    }
   }
 
   void _moChonAnh() {
@@ -185,10 +217,7 @@ class _TrangTaoBaiVietState extends State<TrangTaoBaiViet> {
   }
 
   void _themViTri() async {
-    final ketQua = await Navigator.pushNamed(
-      context,
-      AppRoutes.trangViTri,
-    );
+    final ketQua = await Navigator.pushNamed(context, AppRoutes.trangViTri);
     if (ketQua != null) {
       setState(() {
         _viTri = ketQua.toString();
@@ -234,9 +263,8 @@ class _TrangTaoBaiVietState extends State<TrangTaoBaiViet> {
     final ketQua = await Navigator.push<List<String>>(
       context,
       MaterialPageRoute(
-        builder: (_) => TrangGanTheBanBe(
-          danhSachDaChon: List.from(_danhSachBanBe),
-        ),
+        builder: (_) =>
+            TrangGanTheBanBe(danhSachDaChon: List.from(_danhSachBanBe)),
       ),
     );
     if (ketQua != null) {
@@ -259,6 +287,17 @@ class _TrangTaoBaiVietState extends State<TrangTaoBaiViet> {
     }
   }
 
+  String get _visibilityValue {
+    switch (_doiTuong) {
+      case DoiTuongBaiViet.moiNguoi:
+        return 'public';
+      case DoiTuongBaiViet.nguoiTheoDoi:
+        return 'follower';
+      case DoiTuongBaiViet.chiMinhToi:
+        return 'private';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -271,7 +310,7 @@ class _TrangTaoBaiVietState extends State<TrangTaoBaiViet> {
             Expanded(
               child: SingleChildScrollView(
                 keyboardDismissBehavior:
-                ScrollViewKeyboardDismissBehavior.onDrag,
+                    ScrollViewKeyboardDismissBehavior.onDrag,
                 physics: const BouncingScrollPhysics(),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -309,7 +348,7 @@ class _TrangTaoBaiVietState extends State<TrangTaoBaiViet> {
                 Navigator.pushNamedAndRemoveUntil(
                   context,
                   AppRoutes.home,
-                      (route) => false,
+                  (route) => false,
                 );
               }
             },
@@ -362,70 +401,67 @@ class _TrangTaoBaiVietState extends State<TrangTaoBaiViet> {
         clipBehavior: Clip.antiAlias,
         child: _duongDanAnh == null
             ? Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 56,
-              height: 56,
-              decoration: BoxDecoration(
-                color: const Color(0xFF2B2B2B),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: const Icon(
-                LucideIcons.imagePlus,
-                color: Colors.white54,
-                size: 28,
-              ),
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              'Thêm ảnh',
-              style: TextStyle(
-                color: Colors.white38,
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 4),
-            const Text(
-              'Camera hoặc thư viện',
-              style: TextStyle(
-                color: Colors.white24,
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        )
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2B2B2B),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: const Icon(
+                      LucideIcons.imagePlus,
+                      color: Colors.white54,
+                      size: 28,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Thêm ảnh',
+                    style: TextStyle(
+                      color: Colors.white38,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Camera hoặc thư viện',
+                    style: TextStyle(
+                      color: Colors.white24,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              )
             : Stack(
-          fit: StackFit.expand,
-          children: [
-            Image.file(
-              File(_duongDanAnh!),
-              fit: BoxFit.cover,
-            ),
-            Positioned(
-              top: 10,
-              right: 10,
-              child: GestureDetector(
-                onTap: _moChonAnh,
-                child: Container(
-                  width: 34,
-                  height: 34,
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.55),
-                    shape: BoxShape.circle,
+                fit: StackFit.expand,
+                children: [
+                  Image.file(File(_duongDanAnh!), fit: BoxFit.cover),
+                  Positioned(
+                    top: 10,
+                    right: 10,
+                    child: GestureDetector(
+                      onTap: _moChonAnh,
+                      child: Container(
+                        width: 34,
+                        height: 34,
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.55),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          LucideIcons.pencil,
+                          color: Colors.white,
+                          size: 16,
+                        ),
+                      ),
+                    ),
                   ),
-                  child: const Icon(
-                    LucideIcons.pencil,
-                    color: Colors.white,
-                    size: 16,
-                  ),
-                ),
+                ],
               ),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -475,9 +511,7 @@ class _TrangTaoBaiVietState extends State<TrangTaoBaiViet> {
             Wrap(
               spacing: 6,
               runSpacing: 4,
-              children: _danhSachBanBe
-                  .map((ten) => _chipBanBe(ten))
-                  .toList(),
+              children: _danhSachBanBe.map((ten) => _chipBanBe(ten)).toList(),
             ),
           ],
         ],
@@ -489,9 +523,9 @@ class _TrangTaoBaiVietState extends State<TrangTaoBaiViet> {
     return Container(
       padding: const EdgeInsets.only(left: 10, right: 4, top: 4, bottom: 4),
       decoration: BoxDecoration(
-        color: _mauXanh.withOpacity(0.15),
+        color: _mauXanh.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: _mauXanh.withOpacity(0.4)),
+        border: Border.all(color: _mauXanh.withValues(alpha: 0.4)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -518,7 +552,7 @@ class _TrangTaoBaiVietState extends State<TrangTaoBaiViet> {
     return Container(
       padding: const EdgeInsets.only(left: 10, right: 4, top: 4, bottom: 4),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.08),
+        color: Colors.white.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: Colors.white24),
       ),
@@ -649,22 +683,31 @@ class _TrangTaoBaiVietState extends State<TrangTaoBaiViet> {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
       child: GestureDetector(
-        onTap: _chiaSe,
+        onTap: _dangChiaSe ? null : _chiaSe,
         child: Container(
           height: 52,
           decoration: BoxDecoration(
-            color: _mauXanh,
+            color: _dangChiaSe ? _mauXanh.withValues(alpha: 0.65) : _mauXanh,
             borderRadius: BorderRadius.circular(28),
           ),
           alignment: Alignment.center,
-          child: const Text(
-            'Chia sẻ →',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 16,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
+          child: _dangChiaSe
+              ? const SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.4,
+                    color: Colors.white,
+                  ),
+                )
+              : const Text(
+                  'Chia sẻ →',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
         ),
       ),
     );
@@ -676,10 +719,7 @@ class _TrangTaoBaiVietState extends State<TrangTaoBaiViet> {
 class TrangDoiTuongBaiViet extends StatefulWidget {
   final DoiTuongBaiViet doiTuongHienTai;
 
-  const TrangDoiTuongBaiViet({
-    super.key,
-    required this.doiTuongHienTai,
-  });
+  const TrangDoiTuongBaiViet({super.key, required this.doiTuongHienTai});
 
   @override
   State<TrangDoiTuongBaiViet> createState() => _TrangDoiTuongBaiVietState();
@@ -812,8 +852,13 @@ class _TrangDoiTuongBaiVietState extends State<TrangDoiTuongBaiViet> {
     return InkWell(
       onTap: () {
         setState(() => _duocChon = gia);
+        final navigator = Navigator.of(context);
         Future.delayed(const Duration(milliseconds: 150), () {
-          Navigator.pop(context, gia);
+          if (!mounted) {
+            return;
+          }
+
+          navigator.pop(gia);
         });
       },
       child: Padding(
@@ -899,9 +944,11 @@ class _BottomSheetHashTagState extends State<_BottomSheetHashTag> {
   List<Map<String, dynamic>> get _goiYLocDuoc {
     if (_tuKhoa.isEmpty) return _tatCaGoiY;
     return _tatCaGoiY
-        .where((e) => (e['tag'] as String)
-        .toLowerCase()
-        .contains(_tuKhoa.toLowerCase()))
+        .where(
+          (e) => (e['tag'] as String).toLowerCase().contains(
+            _tuKhoa.toLowerCase(),
+          ),
+        )
         .toList();
   }
 
@@ -982,7 +1029,11 @@ class _BottomSheetHashTagState extends State<_BottomSheetHashTag> {
                       _ctrl.clear();
                       setState(() => _tuKhoa = '');
                     },
-                    child: const Icon(Icons.close, color: Colors.white38, size: 18),
+                    child: const Icon(
+                      Icons.close,
+                      color: Colors.white38,
+                      size: 18,
+                    ),
                   ),
               ],
             ),
@@ -1000,8 +1051,8 @@ class _BottomSheetHashTagState extends State<_BottomSheetHashTag> {
                 padding: EdgeInsets.zero,
                 physics: const BouncingScrollPhysics(),
                 itemCount: _goiYLocDuoc.length,
-                separatorBuilder: (_, __) =>
-                const Divider(color: Color(0xFF3A3A3A), height: 1),
+                separatorBuilder: (context, index) =>
+                    const Divider(color: Color(0xFF3A3A3A), height: 1),
                 itemBuilder: (context, index) {
                   final item = _goiYLocDuoc[index];
                   final tag = item['tag'] as String;
@@ -1011,7 +1062,9 @@ class _BottomSheetHashTagState extends State<_BottomSheetHashTag> {
                     onTap: () => widget.onThem(tag),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 12),
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
                       child: Row(
                         children: [
                           Expanded(
@@ -1036,8 +1089,11 @@ class _BottomSheetHashTagState extends State<_BottomSheetHashTag> {
                           ),
                           if (daDuocChon) ...[
                             const SizedBox(width: 8),
-                            const Icon(Icons.check,
-                                color: Color(0xFF4AA8FF), size: 16),
+                            const Icon(
+                              Icons.check,
+                              color: Color(0xFF4AA8FF),
+                              size: 16,
+                            ),
                           ],
                         ],
                       ),
@@ -1057,10 +1113,7 @@ class _BottomSheetHashTagState extends State<_BottomSheetHashTag> {
 class TrangGanTheBanBe extends StatefulWidget {
   final List<String> danhSachDaChon;
 
-  const TrangGanTheBanBe({
-    super.key,
-    required this.danhSachDaChon,
-  });
+  const TrangGanTheBanBe({super.key, required this.danhSachDaChon});
 
   @override
   State<TrangGanTheBanBe> createState() => _TrangGanTheBanBeState();
@@ -1094,9 +1147,11 @@ class _TrangGanTheBanBeState extends State<TrangGanTheBanBe> {
   List<Map<String, String>> get _locDanhSach {
     if (_tuKhoa.isEmpty) return _tatCaBanBe;
     return _tatCaBanBe
-        .where((b) =>
-    b['ten']!.toLowerCase().contains(_tuKhoa.toLowerCase()) ||
-        b['hoten']!.toLowerCase().contains(_tuKhoa.toLowerCase()))
+        .where(
+          (b) =>
+              b['ten']!.toLowerCase().contains(_tuKhoa.toLowerCase()) ||
+              b['hoten']!.toLowerCase().contains(_tuKhoa.toLowerCase()),
+        )
         .toList();
   }
 
@@ -1219,7 +1274,9 @@ class _TrangGanTheBanBeState extends State<TrangGanTheBanBe> {
                                     color: const Color(0xFF3A3A3A),
                                     shape: BoxShape.circle,
                                     border: Border.all(
-                                        color: Colors.black, width: 1.5),
+                                      color: Colors.black,
+                                      width: 1.5,
+                                    ),
                                   ),
                                   child: const Icon(
                                     Icons.close,
@@ -1258,8 +1315,11 @@ class _TrangGanTheBanBeState extends State<TrangGanTheBanBe> {
                 ),
                 child: Row(
                   children: [
-                    const Icon(LucideIcons.search,
-                        color: Colors.white38, size: 16),
+                    const Icon(
+                      LucideIcons.search,
+                      color: Colors.white38,
+                      size: 16,
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: TextField(
@@ -1347,19 +1407,18 @@ class _TrangGanTheBanBeState extends State<TrangGanTheBanBe> {
                             height: 24,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              color: daDuocChon
-                                  ? _mauXanh
-                                  : Colors.transparent,
+                              color: daDuocChon ? _mauXanh : Colors.transparent,
                               border: Border.all(
-                                color: daDuocChon
-                                    ? _mauXanh
-                                    : Colors.white38,
+                                color: daDuocChon ? _mauXanh : Colors.white38,
                                 width: 2,
                               ),
                             ),
                             child: daDuocChon
-                                ? const Icon(Icons.check,
-                                color: Colors.white, size: 14)
+                                ? const Icon(
+                                    Icons.check,
+                                    color: Colors.white,
+                                    size: 14,
+                                  )
                                 : null,
                           ),
                         ],

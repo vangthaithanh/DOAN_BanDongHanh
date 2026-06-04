@@ -3,10 +3,6 @@ import 'package:flutter/material.dart';
 import '../../../../app/routes/app_routes.dart';
 import '../../../../core/services/auth_service.dart';
 
-/// NOTE SỬA:
-/// Màn này là màn mở ra khi bấm nút 3 gạch ở trang cá nhân.
-/// Làm giao diện giống "Cài đặt và hoạt động" cơ bản.
-/// Có chức năng Đăng xuất thật.
 class TrangCaiDatHoatDongPage extends StatefulWidget {
   const TrangCaiDatHoatDongPage({super.key});
 
@@ -19,6 +15,38 @@ class _TrangCaiDatHoatDongPageState extends State<TrangCaiDatHoatDongPage> {
   final AuthService _authService = AuthService();
 
   bool _loggingOut = false;
+
+  Future<void> _showChangePasswordSheet() async {
+    final result = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      useRootNavigator: true,
+      backgroundColor: const Color(0xFF1C1C1E),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (_) {
+        return _ChangePasswordSheet(authService: _authService);
+      },
+    );
+
+    if (!mounted || result != true) {
+      return;
+    }
+
+    await Future<void>.delayed(const Duration(milliseconds: 180));
+
+    if (!mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Đã đổi mật khẩu'),
+        backgroundColor: Color(0xFF4AA8FF),
+      ),
+    );
+  }
 
   Future<void> _logout() async {
     final confirm = await showDialog<bool>(
@@ -72,7 +100,7 @@ class _TrangCaiDatHoatDongPageState extends State<TrangCaiDatHoatDongPage> {
       Navigator.pushNamedAndRemoveUntil(
         context,
         AppRoutes.start,
-        (route) => false,
+            (route) => false,
       );
     } catch (e) {
       if (!mounted) {
@@ -134,6 +162,12 @@ class _TrangCaiDatHoatDongPageState extends State<TrangCaiDatHoatDongPage> {
               subtitle: 'Mật khẩu, bảo mật, thông tin cá nhân',
               trailingText: 'GoMate',
               onTap: () => _comingSoon('Trung tâm tài khoản'),
+            ),
+            _item(
+              icon: Icons.password_rounded,
+              title: 'Đổi mật khẩu',
+              subtitle: 'Cập nhật mật khẩu đăng nhập',
+              onTap: _loggingOut ? null : _showChangePasswordSheet,
             ),
             _divider(),
 
@@ -290,6 +324,271 @@ class _TrangCaiDatHoatDongPageState extends State<TrangCaiDatHoatDongPage> {
               ),
             ],
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ChangePasswordSheet extends StatefulWidget {
+  const _ChangePasswordSheet({required this.authService});
+
+  final AuthService authService;
+
+  @override
+  State<_ChangePasswordSheet> createState() => _ChangePasswordSheetState();
+}
+
+class _ChangePasswordSheetState extends State<_ChangePasswordSheet> {
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+  final TextEditingController _oldPasswordController = TextEditingController();
+  final TextEditingController _newPasswordController = TextEditingController();
+  final TextEditingController _confirmPasswordController =
+  TextEditingController();
+
+  bool _showOldPassword = false;
+  bool _showNewPassword = false;
+  bool _showConfirmPassword = false;
+  bool _changingPassword = false;
+
+  @override
+  void dispose() {
+    _oldPasswordController.dispose();
+    _newPasswordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (!(_formKey.currentState?.validate() ?? false) || _changingPassword) {
+      return;
+    }
+
+    FocusManager.instance.primaryFocus?.unfocus();
+
+    setState(() {
+      _changingPassword = true;
+    });
+
+    try {
+      await widget.authService.changePassword(
+        oldPassword: _oldPasswordController.text,
+        newPassword: _newPasswordController.text,
+        confirmPassword: _confirmPasswordController.text,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+
+      if (!mounted) {
+        return;
+      }
+
+      Navigator.of(context).pop(true);
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _changingPassword = false;
+      });
+
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        20,
+        16,
+        20,
+        MediaQuery.of(context).viewInsets.bottom + 24,
+      ),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(
+              child: Container(
+                width: 38,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.white24,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 18),
+            const Text(
+              'Đổi mật khẩu',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 18),
+            _passwordField(
+              controller: _oldPasswordController,
+              label: 'Mật khẩu cũ',
+              obscureText: !_showOldPassword,
+              onToggle: () {
+                setState(() {
+                  _showOldPassword = !_showOldPassword;
+                });
+              },
+              validator: (value) {
+                if ((value ?? '').trim().isEmpty) {
+                  return 'Vui lòng nhập mật khẩu cũ';
+                }
+
+                return null;
+              },
+            ),
+            const SizedBox(height: 12),
+            _passwordField(
+              controller: _newPasswordController,
+              label: 'Mật khẩu mới',
+              obscureText: !_showNewPassword,
+              onToggle: () {
+                setState(() {
+                  _showNewPassword = !_showNewPassword;
+                });
+              },
+              validator: (value) {
+                if ((value ?? '').length < 8) {
+                  return 'Mật khẩu mới tối thiểu 8 ký tự';
+                }
+
+                return null;
+              },
+            ),
+            const SizedBox(height: 12),
+            _passwordField(
+              controller: _confirmPasswordController,
+              label: 'Xác nhận mật khẩu mới',
+              obscureText: !_showConfirmPassword,
+              onToggle: () {
+                setState(() {
+                  _showConfirmPassword = !_showConfirmPassword;
+                });
+              },
+              validator: (value) {
+                if (value != _newPasswordController.text) {
+                  return 'Xác nhận mật khẩu mới không khớp';
+                }
+
+                return null;
+              },
+            ),
+            const SizedBox(height: 18),
+            SizedBox(
+              height: 50,
+              child: ElevatedButton(
+                onPressed: _changingPassword ? null : _submit,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF4AA8FF),
+                  disabledBackgroundColor:
+                  const Color(0xFF4AA8FF).withValues(alpha: 0.55),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(26),
+                  ),
+                  elevation: 0,
+                ),
+                child: _changingPassword
+                    ? const SizedBox(
+                  width: 21,
+                  height: 21,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.2,
+                    color: Colors.white,
+                  ),
+                )
+                    : const Text(
+                  'Cập nhật mật khẩu',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _passwordField({
+    required TextEditingController controller,
+    required String label,
+    required bool obscureText,
+    required VoidCallback onToggle,
+    required String? Function(String?) validator,
+  }) {
+    return TextFormField(
+      controller: controller,
+      obscureText: obscureText,
+      cursorColor: const Color(0xFF4AA8FF),
+      style: const TextStyle(
+        color: Colors.white,
+        fontSize: 15,
+        fontWeight: FontWeight.w600,
+      ),
+      validator: validator,
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: const TextStyle(
+          color: Colors.white60,
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+        ),
+        filled: true,
+        fillColor: const Color(0xFF2B2B2B),
+        errorStyle: const TextStyle(
+          color: Colors.redAccent,
+          fontWeight: FontWeight.w600,
+        ),
+        suffixIcon: IconButton(
+          onPressed: onToggle,
+          icon: Icon(
+            obscureText
+                ? Icons.visibility_outlined
+                : Icons.visibility_off_outlined,
+            color: Colors.white54,
+          ),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: Color(0xFF343434)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: Color(0xFF4AA8FF)),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: Colors.redAccent),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: Colors.redAccent),
         ),
       ),
     );

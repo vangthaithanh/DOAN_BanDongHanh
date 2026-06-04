@@ -7,15 +7,14 @@ import '../../../../core/services/profile_service.dart';
 import '../../../../shared/navigation/app_bottom_nav.dart';
 import '../../../../shared/navigation/main_tab.dart';
 import '../../../../shared/widgets/gomate_logo.dart';
-import '../../../social/data/mock/kho_luu_bai_viet.dart';
-import '../../../social/data/mock/mock_posts.dart';
+import '../../data/services/home_feed_service.dart';
+import '../../../social/data/models/post_model.dart';
 import '../../../social/presentation/widgets/post_card.dart';
 
 /// NOTE SỬA:
 /// Trang chủ:
-/// - Bài mới đăng từ KhoLuuBaiViet hiện trên đầu.
+/// - Bài viết lấy từ Supabase view home_recommended_posts/home_public_posts.
 /// - Ô chia sẻ lấy tên/avatar user hiện tại.
-/// - Nếu tạo bài từ trang cá nhân, quay về trang chủ vẫn đúng tên người đăng.
 class TrangChuPage extends StatefulWidget {
   const TrangChuPage({super.key});
 
@@ -25,13 +24,16 @@ class TrangChuPage extends StatefulWidget {
 
 class _TrangChuPageState extends State<TrangChuPage> {
   final ProfileService _profileService = ProfileService();
+  final HomeFeedService _feedService = HomeFeedService();
 
   MyProfile? _profile;
   bool _loadingProfile = true;
+  late Future<List<PostModel>> _feedFuture;
 
   @override
   void initState() {
     super.initState();
+    _feedFuture = _feedService.loadFeed();
     _loadProfile();
   }
 
@@ -58,6 +60,16 @@ class _TrangChuPageState extends State<TrangChuPage> {
     }
   }
 
+  Future<void> _refreshFeed() async {
+    final future = _feedService.loadFeed();
+
+    setState(() {
+      _feedFuture = future;
+    });
+
+    await future;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -67,58 +79,157 @@ class _TrangChuPageState extends State<TrangChuPage> {
           children: [
             _topBar(context),
             Expanded(
-              child: ListenableBuilder(
-                listenable: KhoLuuBaiViet.instance,
-                builder: (context, _) {
-                  /// NOTE SỬA:
-                  /// Bài viết mới đăng được đặt trước mockPosts.
-                  final danhSachMoi = KhoLuuBaiViet.instance.danhSach;
-                  final tatCa = [...danhSachMoi, ...mockPosts];
-
-                  return ListView.builder(
-                    itemCount: tatCa.length + 3,
-                    itemBuilder: (context, index) {
-                      if (index == 0) {
-                        return const SizedBox(height: 10);
-                      }
-
-                      if (index == 1) {
-                        return _shareBox(context);
-                      }
-
-                      if (index == 2) {
-                        return const SizedBox(height: 12);
-                      }
-
-                      final post = tatCa[index - 3];
-
-                      return Padding(
-                        padding: EdgeInsets.only(
-                          bottom: index == tatCa.length + 2 ? 20 : 0,
-                        ),
-                        child: PostCard(
-                          post: post,
-                          onComment: () {
-                            Navigator.pushNamed(
-                              context,
-                              AppRoutes.trangBinhLuan,
-                              arguments: post.id,
-                            );
-                          },
-                          onShare: () {
-                            Navigator.pushNamed(context, AppRoutes.messages);
-                          },
-                        ),
-                      );
-                    },
-                  );
-                },
+              child: FutureBuilder<List<PostModel>>(
+                future: _feedFuture,
+                builder: (context, snapshot) => _feedBody(context, snapshot),
               ),
             ),
           ],
         ),
       ),
       bottomNavigationBar: const AppBottomNav(activeTab: MainTab.home),
+    );
+  }
+
+  Widget _feedBody(
+    BuildContext context,
+    AsyncSnapshot<List<PostModel>> snapshot,
+  ) {
+    if (snapshot.connectionState == ConnectionState.waiting) {
+      return _feedShell(
+        children: const [
+          Padding(
+            padding: EdgeInsets.symmetric(vertical: 34),
+            child: Center(child: CircularProgressIndicator()),
+          ),
+        ],
+      );
+    }
+
+    if (snapshot.hasError) {
+      return _feedShell(
+        children: [
+          _feedMessage(
+            title: 'Không tải được bài viết',
+            message: snapshot.error.toString().replaceFirst('Exception: ', ''),
+            actionText: 'Tải lại',
+            onAction: _refreshFeed,
+          ),
+        ],
+      );
+    }
+
+    final posts = snapshot.data ?? const [];
+
+    if (posts.isEmpty) {
+      return _feedShell(
+        children: [
+          _feedMessage(
+            title: 'Chưa có bài viết',
+            message:
+                'Khi có bài viết thật trên Supabase, nội dung sẽ hiện ở đây.',
+            actionText: 'Tải lại',
+            onAction: _refreshFeed,
+          ),
+        ],
+      );
+    }
+
+    return RefreshIndicator(
+      color: AppColors.primary,
+      backgroundColor: const Color(0xFF1C1C1E),
+      onRefresh: _refreshFeed,
+      child: ListView.builder(
+        itemCount: posts.length + 3,
+        itemBuilder: (context, index) {
+          if (index == 0) {
+            return const SizedBox(height: 10);
+          }
+
+          if (index == 1) {
+            return _shareBox(context);
+          }
+
+          if (index == 2) {
+            return const SizedBox(height: 12);
+          }
+
+          final post = posts[index - 3];
+
+          return Padding(
+            padding: EdgeInsets.only(
+              bottom: index == posts.length + 2 ? 20 : 0,
+            ),
+            child: PostCard(
+              post: post,
+              onComment: () {
+                Navigator.pushNamed(
+                  context,
+                  AppRoutes.trangBinhLuan,
+                  arguments: post.id,
+                );
+              },
+              onShare: () {
+                Navigator.pushNamed(context, AppRoutes.messages);
+              },
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _feedShell({required List<Widget> children}) {
+    return RefreshIndicator(
+      color: AppColors.primary,
+      backgroundColor: const Color(0xFF1C1C1E),
+      onRefresh: _refreshFeed,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: [
+          const SizedBox(height: 10),
+          _shareBox(context),
+          const SizedBox(height: 12),
+          ...children,
+          const SizedBox(height: 20),
+        ],
+      ),
+    );
+  }
+
+  Widget _feedMessage({
+    required String title,
+    required String message,
+    required String actionText,
+    required VoidCallback onAction,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 34, 24, 20),
+      child: Column(
+        children: [
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Colors.white60,
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 14),
+          TextButton(onPressed: onAction, child: Text(actionText)),
+        ],
+      ),
     );
   }
 
@@ -154,7 +265,8 @@ class _TrangChuPageState extends State<TrangChuPage> {
         await Navigator.pushNamed(context, AppRoutes.createPost);
 
         if (mounted) {
-          setState(() {});
+          _loadProfile();
+          await _refreshFeed();
         }
       },
       child: Container(
