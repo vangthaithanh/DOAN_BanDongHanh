@@ -248,36 +248,26 @@ class MessageService {
       throw Exception('Không thể mở cuộc trò chuyện');
     }
 
-    final existing = await _findPrivateConversation(user.id, otherProfileId);
+    try {
+      final result = await _client.rpc(
+        'get_or_create_private_conversation',
+        params: {
+          'p_other_profile_id': otherProfileId,
+        },
+      );
 
-    if (existing != null) {
-      return existing;
+      final conversationId = _asInt(result);
+
+      if (conversationId == 0) {
+        throw Exception('Không tạo được cuộc trò chuyện');
+      }
+
+      return conversationId;
+    } on PostgrestException catch (e) {
+      throw Exception(e.message);
+    } catch (e) {
+      throw Exception(e.toString().replaceFirst('Exception: ', ''));
     }
-
-    final conversation = await _client
-        .from('conversations')
-        .insert({'conversation_type': 'private', 'status': 'active'})
-        .select('id')
-        .single();
-    final conversationId = _asInt(conversation['id']);
-
-    await _client.from('conversation_members').insert([
-      {
-        'conversation_id': conversationId,
-        'profile_id': user.id,
-        'role': 'member',
-        'status': 'active',
-        'last_read_at': DateTime.now().toUtc().toIso8601String(),
-      },
-      {
-        'conversation_id': conversationId,
-        'profile_id': otherProfileId,
-        'role': 'member',
-        'status': 'active',
-      },
-    ]);
-
-    return conversationId;
   }
 
   Future<void> acceptWaitingConversation(String otherProfileId) async {
