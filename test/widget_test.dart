@@ -9,8 +9,6 @@ import 'package:do_an/features/auth/presentation/pages/trang_bat_dau.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:do_an/main.dart';
-
 void main() {
   testWidgets('Counter increments smoke test', (WidgetTester tester) async {
     // Build our app and trigger a frame.

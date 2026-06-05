@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:ui';
 
 import 'package:flutter/material.dart';
 
@@ -35,9 +34,18 @@ class _TrangGalleryKhoanhKhacState extends State<TrangGalleryKhoanhKhac> {
 
   Future<void> _loadProfiles() async {
     try {
-      final profiles = await _service.getTatCaProfiles();
+      final results = await Future.wait([
+        _service.getMyProfile(),
+        _service.getBanBe(),
+      ]);
+      final me = results[0] as Map<String, dynamic>?;
+      final friends = results[1] as List<Map<String, dynamic>>;
+      if (!mounted) return;
       setState(() {
-        _danhSachProfiles = profiles;
+        _danhSachProfiles = [
+          if (me != null) {...me, 'nickname': 'Bạn'},
+          ...friends,
+        ];
       });
     } catch (e) {
       debugPrint("Lỗi tải profiles: $e");
@@ -70,7 +78,7 @@ class _TrangGalleryKhoanhKhacState extends State<TrangGalleryKhoanhKhac> {
 
   @override
   Widget build(BuildContext context) {
-    String tenHienTai = 'Mọi người';
+    String tenHienTai = 'Bạn bè';
     if (_selectedProfile != null) {
       tenHienTai =
           _selectedProfile!['nickname'] ??
@@ -158,7 +166,38 @@ class _TrangGalleryKhoanhKhacState extends State<TrangGalleryKhoanhKhac> {
           },
           child: ClipRRect(
             borderRadius: BorderRadius.circular(12),
-            child: _buildImage(item.duongDanAnh),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                _buildImage(item.duongDanAnh),
+                Positioned(
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 6, vertical: 4),
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.bottomCenter,
+                        end: Alignment.topCenter,
+                        colors: [Colors.black87, Colors.transparent],
+                      ),
+                    ),
+                    child: Text(
+                      item.tenNguoiDang,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         );
       },
@@ -213,67 +252,4 @@ class _TrangGalleryKhoanhKhacState extends State<TrangGalleryKhoanhKhac> {
     );
   }
 
-  Widget _dongViTriDep(String? diaChi) {
-    final text = diaChi?.trim();
-
-    if (text == null || text.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(18),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-        child: Container(
-          constraints: const BoxConstraints(maxWidth: 310),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.48),
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: Colors.white.withOpacity(0.15)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.25),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 24,
-                height: 24,
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.16),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.location_on_rounded,
-                  color: Colors.white,
-                  size: 16,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Flexible(
-                child: Text(
-                  text,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
-                    height: 1.25,
-                    shadows: [Shadow(color: Colors.black54, blurRadius: 4)],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 }

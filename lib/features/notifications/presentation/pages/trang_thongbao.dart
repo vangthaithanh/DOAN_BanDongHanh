@@ -1,8 +1,118 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../app/routes/app_routes.dart';
 import '../../data/notification_service.dart';
+
+// ---------- data model ----------
+
+class _NotifGroup {
+  final String type;
+  final List<NotificationItem> items;
+
+  _NotifGroup(this.type, this.items);
+
+  bool get hasUnread => items.any((e) => !e.isRead);
+  DateTime? get latestTime => items.isEmpty ? null : items.first.createdAt;
+  int? get latestReferenceId => items.isEmpty ? null : items.first.referenceId;
+  List<int> get allIds => items.map((e) => e.id).toList();
+
+  String get _firstName =>
+      items.first.title.trim().isNotEmpty ? items.first.title.trim() : 'Ai đó';
+
+  String get _secondName =>
+      items.length > 1 && items[1].title.trim().isNotEmpty
+          ? items[1].title.trim()
+          : '';
+
+  String get _actionText {
+    switch (type) {
+      case 'follow':
+        return 'đã theo dõi bạn';
+      case 'like':
+        return 'đã thích bài viết của bạn';
+      case 'comment':
+        return 'đã bình luận bài viết của bạn';
+      case 'moment_reply':
+        // content lưu action text, title lưu tên người gửi
+        return items.first.content.isNotEmpty
+            ? items.first.content
+            : 'đã trả lời khoảnh khắc của bạn';
+      default:
+        return items.first.content;
+    }
+  }
+
+  // Returns rich-text spans: [boldActors, normalAction]
+  (String actors, String action) get displayParts {
+    final count = items.length;
+    final action = _actionText;
+    if (count == 1) return (_firstName, ' $action');
+    if (count == 2 && _secondName.isNotEmpty) {
+      return ('$_firstName và $_secondName', ' $action');
+    }
+    return ('$_firstName và ${count - 1} người nữa', ' $action');
+  }
+
+  String get timeText => items.isEmpty ? '' : items.first.timeText;
+
+  IconData get icon {
+    switch (type) {
+      case 'follow':
+        return LucideIcons.userPlus;
+      case 'like':
+        return LucideIcons.heart;
+      case 'comment':
+        return LucideIcons.messageCircle;
+      case 'moment_reply':
+        return LucideIcons.camera;
+      default:
+        return LucideIcons.bell;
+    }
+  }
+
+  Color get iconColor {
+    switch (type) {
+      case 'follow':
+        return const Color(0xFF4AA8FF);
+      case 'like':
+        return Colors.pinkAccent;
+      case 'comment':
+        return Colors.greenAccent;
+      case 'moment_reply':
+        return Colors.orangeAccent;
+      default:
+        return Colors.white70;
+    }
+  }
+}
+
+List<_NotifGroup> _groupNotifications(List<NotificationItem> items) {
+  final map = <String, List<NotificationItem>>{};
+  for (final item in items) {
+    // like/comment: group theo từng bài viết riêng (type_postId)
+    // các loại khác: group theo type
+    final key = (item.type == 'like' || item.type == 'comment')
+        ? '${item.type}_${item.referenceId ?? 0}'
+        : item.type;
+    map.putIfAbsent(key, () => []).add(item);
+  }
+  return map.entries.map((e) {
+    // Dedup: giữ lại thông báo mới nhất của mỗi actor (title)
+    final seen = <String>{};
+    final deduped = e.value.where((item) {
+      final actorKey = item.title.trim().toLowerCase();
+      if (actorKey.isEmpty) return true;
+      return seen.add(actorKey);
+    }).toList();
+    return _NotifGroup(e.value.first.type, deduped);
+  }).toList()
+    ..sort((a, b) =>
+        (b.latestTime ?? DateTime(0)).compareTo(a.latestTime ?? DateTime(0)));
+}
+
+// ---------- page ----------
 
 class TrangThongBaoPage extends StatefulWidget {
   const TrangThongBaoPage({super.key});
@@ -26,11 +136,7 @@ class _TrangThongBaoPageState extends State<TrangThongBaoPage> {
 
   Future<void> _reload() async {
     final future = _service.loadMine();
-
-    setState(() {
-      _future = future;
-    });
-
+    setState(() => _future = future);
     await future;
   }
 
@@ -52,21 +158,21 @@ class _TrangThongBaoPageState extends State<TrangThongBaoPage> {
                   }
 
                   if (snapshot.hasError) {
-                    return _messageState(
+                    return _emptyState(
                       title: 'Không tải được thông báo',
-                      message: snapshot.error.toString().replaceFirst(
-                        'Exception: ',
-                        '',
-                      ),
+                      message: snapshot.error
+                          .toString()
+                          .replaceFirst('Exception: ', ''),
                       actionText: 'Tải lại',
                       onAction: _reload,
                     );
                   }
 
-                  final notifications = snapshot.data ?? const [];
+                  final all = snapshot.data ?? const [];
+                  final groups = _groupNotifications(all);
 
-                  if (notifications.isEmpty) {
-                    return _messageState(
+                  if (groups.isEmpty) {
+                    return _emptyState(
                       title: 'Chưa có thông báo',
                       message:
                           'Khi có người theo dõi bạn, thông báo sẽ hiện ở đây.',
@@ -84,7 +190,7 @@ class _TrangThongBaoPageState extends State<TrangThongBaoPage> {
                         parent: BouncingScrollPhysics(),
                       ),
                       padding: const EdgeInsets.fromLTRB(16, 10, 16, 20),
-                      itemCount: notifications.length + 1,
+                      itemCount: groups.length + 1,
                       itemBuilder: (context, index) {
                         if (index == 0) {
                           return const Padding(
@@ -100,8 +206,7 @@ class _TrangThongBaoPageState extends State<TrangThongBaoPage> {
                             ),
                           );
                         }
-
-                        return _notificationItem(notifications[index - 1]);
+                        return _groupCard(groups[index - 1]);
                       },
                     ),
                   );
@@ -159,15 +264,54 @@ class _TrangThongBaoPageState extends State<TrangThongBaoPage> {
     );
   }
 
-  Widget _notificationItem(NotificationItem data) {
-    final isUnread = !data.isRead;
+  Widget _groupCard(_NotifGroup group) {
+    final (actors, action) = group.displayParts;
+    final isUnread = group.hasUnread;
 
     return InkWell(
       onTap: () async {
-        await _service.markAsRead(data.id);
+        await _service.markGroupAsRead(group.allIds);
+        if (!mounted) return;
 
-        if (mounted) {
-          _reload();
+        switch (group.type) {
+          case 'follow':
+            final userId =
+                Supabase.instance.client.auth.currentUser?.id ?? '';
+            Navigator.pushNamed(
+              context,
+              AppRoutes.profileConnections,
+              arguments: {'targetUserId': userId, 'type': 'followers'},
+            );
+          case 'moment_reply':
+            if ((group.latestReferenceId ?? 0) > 0) {
+              final senderName = group.items.first.title.trim().isNotEmpty
+                  ? group.items.first.title.trim()
+                  : 'Tin nhắn';
+              Navigator.pushNamed(
+                context,
+                AppRoutes.chatDetail,
+                arguments: {
+                  'conversationId': group.latestReferenceId,
+                  'name': senderName,
+                  'isWaiting': false,
+                },
+              );
+            }
+          case 'like':
+          case 'comment':
+            if ((group.latestReferenceId ?? 0) > 0) {
+              Navigator.pushNamed(
+                context,
+                AppRoutes.trangBinhLuan,
+                arguments: group.latestReferenceId,
+              );
+            } else {
+              _reload();
+            }
+          case 'message':
+            Navigator.pushNamed(context, AppRoutes.messages);
+          default:
+            _reload();
         }
       },
       borderRadius: BorderRadius.circular(14),
@@ -176,23 +320,52 @@ class _TrangThongBaoPageState extends State<TrangThongBaoPage> {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
+            // Avatar circle + type icon badge
             Stack(
               clipBehavior: Clip.none,
               children: [
-                const CircleAvatar(radius: 20, backgroundColor: blue),
-                if (data.type == 'follow')
-                  const Positioned(
-                    right: -2,
-                    bottom: -2,
-                    child: CircleAvatar(
-                      radius: 9,
-                      backgroundColor: Colors.black,
-                      child: Icon(LucideIcons.userPlus, color: blue, size: 12),
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: group.iconColor.withValues(alpha: 0.15),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: group.iconColor.withValues(alpha: 0.4),
+                      width: 1.5,
+                    ),
+                  ),
+                  child: Icon(group.icon, color: group.iconColor, size: 20),
+                ),
+                if (group.items.length > 1)
+                  Positioned(
+                    right: -4,
+                    bottom: -4,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 5, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1C1C1E),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                            color: Colors.white12, width: 1),
+                      ),
+                      child: Text(
+                        '${group.items.length}',
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                     ),
                   ),
               ],
             ),
+
             const SizedBox(width: 12),
+
+            // Text content
             Expanded(
               child: Text.rich(
                 TextSpan(
@@ -200,20 +373,20 @@ class _TrangThongBaoPageState extends State<TrangThongBaoPage> {
                     fontFamily: fontFamily,
                     fontSize: 14,
                     color: Colors.white70,
-                    height: 1.3,
+                    height: 1.35,
                   ),
                   children: [
                     TextSpan(
-                      text: data.title.isEmpty ? 'Người dùng' : data.title,
+                      text: actors,
                       style: const TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
-                    TextSpan(text: ' ${data.content}'),
-                    if (data.timeText.isNotEmpty)
+                    TextSpan(text: action),
+                    if (group.timeText.isNotEmpty)
                       TextSpan(
-                        text: '  ${data.timeText}',
+                        text: '  ${group.timeText}',
                         style: const TextStyle(
                           color: Colors.white54,
                           fontSize: 12,
@@ -223,6 +396,8 @@ class _TrangThongBaoPageState extends State<TrangThongBaoPage> {
                 ),
               ),
             ),
+
+            // Unread dot
             if (isUnread) ...[
               const SizedBox(width: 10),
               Container(
@@ -240,7 +415,7 @@ class _TrangThongBaoPageState extends State<TrangThongBaoPage> {
     );
   }
 
-  Widget _messageState({
+  Widget _emptyState({
     required String title,
     required String message,
     required String actionText,

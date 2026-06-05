@@ -1,3 +1,4 @@
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
@@ -24,10 +25,42 @@ class _TrangTinNhanPageState extends State<TrangTinNhanPage> {
   final NotificationService _notificationService = NotificationService();
   late Future<List<ConversationPreview>> _future;
 
+  RealtimeChannel? _messagesChannel;
+  int _badgeVersion = 0;
+
   @override
   void initState() {
     super.initState();
     _future = _messageService.loadConversations(waiting: false);
+    _subscribeRealtime();
+  }
+
+  @override
+  void dispose() {
+    final channel = _messagesChannel;
+    if (channel != null) {
+      Supabase.instance.client.removeChannel(channel);
+    }
+    super.dispose();
+  }
+
+  void _subscribeRealtime() {
+    _messagesChannel = Supabase.instance.client
+        .channel('messages-list-normal')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'messages',
+          callback: (_) => _reloadSilently(),
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.update,
+          schema: 'public',
+          table: 'messages',
+          callback: (_) => _reloadSilently(),
+        )
+        .subscribe();
+
   }
 
   Future<void> _reload() async {
@@ -35,9 +68,22 @@ class _TrangTinNhanPageState extends State<TrangTinNhanPage> {
 
     setState(() {
       _future = future;
+      _badgeVersion++;
+
     });
 
     await future;
+  }
+
+  void _reloadSilently() {
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _future = _messageService.loadConversations(waiting: false);
+      _badgeVersion++;
+    });
   }
 
   @override
@@ -103,7 +149,10 @@ class _TrangTinNhanPageState extends State<TrangTinNhanPage> {
           ],
         ),
       ),
-      bottomNavigationBar: const AppBottomNav(activeTab: MainTab.messages),
+      bottomNavigationBar: AppBottomNav(
+        key: ValueKey('messages_nav_$_badgeVersion'),
+        activeTab: MainTab.messages,
+      ),
     );
   }
 
@@ -130,6 +179,7 @@ class _TrangTinNhanPageState extends State<TrangTinNhanPage> {
               if (mounted) setState(() {});
             },
             child: AsyncUnreadBadge(
+              key: ValueKey('message_top_bell_$_badgeVersion'),
               loadCount: _notificationService.countUnreadMine,
               child: const Icon(
                 LucideIcons.bell,
@@ -235,7 +285,7 @@ class _TrangTinNhanPageState extends State<TrangTinNhanPage> {
   }
 
   Widget _chatCard(BuildContext context, ConversationPreview chat) {
-    return GestureDetector(
+    final card = GestureDetector(
       onTap: () async {
         await Navigator.pushNamed(
           context,
@@ -334,6 +384,56 @@ class _TrangTinNhanPageState extends State<TrangTinNhanPage> {
           ],
         ),
       ),
+    );
+
+    return Dismissible(
+      key: ValueKey('conv_${chat.conversationId}'),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        alignment: Alignment.centerRight,
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.only(right: 24),
+        decoration: BoxDecoration(
+          color: Colors.redAccent,
+          borderRadius: BorderRadius.circular(40),
+        ),
+        child: const Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.delete_outline, color: Colors.white, size: 26),
+            SizedBox(height: 4),
+            Text(
+              'Xóa',
+              style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+            ),
+          ],
+        ),
+      ),
+      confirmDismiss: (_) async {
+        return await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: const Color(0xFF1C1C1E),
+            title: const Text('Xóa đoạn chat', style: TextStyle(color: Colors.white)),
+            content: const Text('Đoạn chat sẽ bị xóa khỏi danh sách của bạn.',
+                style: TextStyle(color: Colors.white70)),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Hủy'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Xóa', style: TextStyle(color: Colors.redAccent)),
+              ),
+            ],
+          ),
+        ) ?? false;
+      },
+      onDismissed: (_) async {
+        await _messageService.deleteConversation(chat.conversationId);
+      },
+      child: card,
     );
   }
 
