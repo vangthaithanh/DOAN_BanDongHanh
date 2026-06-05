@@ -281,8 +281,8 @@ class MessageService {
     await _client.from('notifications').insert({
       'profile_id': momentOwnerProfileId,
       'notification_type': 'moment_reply',
-      'title': '$senderName đã trả lời khoảnh khắc của bạn',
-      'content': replyText.trim().isNotEmpty ? replyText.trim() : '📷',
+      'title': senderName,
+      'content': '📷 đã trả lời khoảnh khắc của bạn',
       'is_read': false,
       'reference_id': conversationId,
     });
@@ -358,6 +358,26 @@ class MessageService {
     } catch (_) {
       return null;
     }
+  }
+
+  Future<void> deleteMessage(int messageId) async {
+    final user = _client.auth.currentUser;
+    if (user == null || messageId == 0) return;
+    await _client
+        .from('messages')
+        .delete()
+        .eq('id', messageId)
+        .eq('sender_profile_id', user.id);
+  }
+
+  Future<void> deleteConversation(int conversationId) async {
+    final user = _client.auth.currentUser;
+    if (user == null || conversationId == 0) return;
+    await _client
+        .from('conversation_members')
+        .update({'status': 'deleted'})
+        .eq('conversation_id', conversationId)
+        .eq('profile_id', user.id);
   }
 
   Future<void> markConversationRead(int conversationId) async {

@@ -95,7 +95,7 @@ class KhoanhKhacService {
           avatarUrl: e['profiles']?['avatar_url']?.toString(),
           viTri: e['nearby_place_name'],
           thoiGian: e['created_at'] != null
-              ? DateTime.tryParse(e['created_at'])
+              ? DateTime.tryParse(e['created_at'])?.toLocal()
               : null,
         );
       }).toList();

@@ -113,4 +113,14 @@ class NotificationService {
         .eq('id', notificationId)
         .eq('profile_id', user.id);
   }
+
+  Future<void> markGroupAsRead(List<int> ids) async {
+    final user = _client.auth.currentUser;
+    if (user == null || ids.isEmpty) return;
+    await _client
+        .from('notifications')
+        .update({'is_read': true})
+        .inFilter('id', ids)
+        .eq('profile_id', user.id);
+  }
 }

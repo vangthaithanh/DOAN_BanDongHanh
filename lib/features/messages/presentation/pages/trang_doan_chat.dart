@@ -273,41 +273,48 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
       case RealMessageType.location:
       case RealMessageType.place:
         return MessageModel(
+          id: message.id,
           text: message.text.isEmpty ? 'Vị trí' : message.text,
           isMe: message.isMe,
           type: MessageType.location,
         );
       case RealMessageType.image:
         return MessageModel(
+          id: message.id,
           text: message.text,
           isMe: message.isMe,
           type: MessageType.image,
         );
       case RealMessageType.video:
         return MessageModel(
+          id: message.id,
           text: message.text,
           isMe: message.isMe,
           type: MessageType.video,
         );
       case RealMessageType.audio:
         return MessageModel(
+          id: message.id,
           text: message.text,
           isMe: message.isMe,
           type: MessageType.audio,
         );
       case RealMessageType.sticker:
         return MessageModel(
+          id: message.id,
           text: message.text,
           isMe: message.isMe,
           type: MessageType.sticker,
         );
       case RealMessageType.post:
         return MessageModel(
+          id: message.id,
           text: message.text.isEmpty ? 'Bài viết' : message.text,
           isMe: message.isMe,
         );
       case RealMessageType.momentReply:
         return MessageModel(
+          id: message.id,
           text: message.text,
           isMe: message.isMe,
           type: MessageType.momentReply,
@@ -315,7 +322,7 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
           momentId: message.momentId?.toString(),
         );
       case RealMessageType.text:
-        return MessageModel(text: message.text, isMe: message.isMe);
+        return MessageModel(id: message.id, text: message.text, isMe: message.isMe);
     }
   }
 
@@ -762,6 +769,8 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
                 builder: (_) => TrangTinNhanCaiDatPage(
                   name: widget.name,
                   isWaiting: widget.isWaiting,
+                  otherProfileId: widget.otherProfileId,
+                  conversationId: _conversationId,
                 ),
               ),
             );
@@ -792,23 +801,27 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
               ),
               const SizedBox(width: 10),
 
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    nicknames[widget.name] ?? widget.name,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      nicknames[widget.name] ?? widget.name,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
-                  ),
-                  const Text(
-                    'Họ tên',
-                    style: TextStyle(color: Colors.white54, fontSize: 12),
-                  ),
-                ],
+                    const Text(
+                      'Họ tên',
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: Colors.white54, fontSize: 12),
+                    ),
+                  ],
+                ),
               ),
 
               const SizedBox(width: 4),
@@ -882,7 +895,13 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
                         ),
                       );
                     }
-                    return _buildChatBubble(_currentMessages[index]);
+                    final msg = _currentMessages[index];
+                    return GestureDetector(
+                      onLongPress: msg.isMe && msg.id != 0
+                          ? () => _showDeleteMessageSheet(msg)
+                          : null,
+                      child: _buildChatBubble(msg),
+                    );
                   },
                 ),
               ),
@@ -907,6 +926,52 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
           // Panel sticker
           if (_showStickerPanel && !_showWaitingActions) _buildStickerPanel(),
         ],
+      ),
+    );
+  }
+
+  void _showDeleteMessageSheet(MessageModel msg) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1C1C1E),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            Container(
+              width: 36, height: 4,
+              decoration: BoxDecoration(
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 8),
+            ListTile(
+              leading: const Icon(Icons.delete_outline, color: Colors.redAccent),
+              title: const Text('Xóa tin nhắn',
+                  style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.w600)),
+              onTap: () async {
+                Navigator.pop(ctx);
+                try {
+                  await _messageService.deleteMessage(msg.id);
+                  if (mounted) {
+                    setState(() => _currentMessages.remove(msg));
+                  }
+                } catch (_) {}
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.close, color: Colors.white),
+              title: const Text('Hủy', style: TextStyle(color: Colors.white)),
+              onTap: () => Navigator.pop(ctx),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
       ),
     );
   }
@@ -953,19 +1018,24 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
 
   Widget _textBubble(MessageModel msg) => _bubbleRow(
     isMe: msg.isMe,
-    child: Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.black,
-        border: Border.all(color: const Color(0xFF2C2C2E), width: 1.5),
-        borderRadius: BorderRadius.circular(20),
+    child: ConstrainedBox(
+      constraints: BoxConstraints(
+        maxWidth: MediaQuery.of(context).size.width * 0.72,
       ),
-      child: Text(
-        msg.text,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 14,
-          fontWeight: FontWeight.w500,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.black,
+          border: Border.all(color: const Color(0xFF2C2C2E), width: 1.5),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(
+          msg.text,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+          ),
         ),
       ),
     ),
@@ -1279,6 +1349,8 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
                     setState(() => _showStickerPanel = false);
                   }
                 },
+                maxLines: null,
+                keyboardType: TextInputType.multiline,
                 decoration: const InputDecoration(
                   hintText: 'Nhắn tin...',
                   hintStyle: TextStyle(color: Colors.white54, fontSize: 16),

@@ -15,6 +15,7 @@ class ChatData {
 enum MessageType { text, location, image, video, audio, sticker, momentReply }
 
 class MessageModel {
+  final int id;
   final String text;
   final bool isMe;
   final MessageType type;
@@ -26,6 +27,7 @@ class MessageModel {
   final String? momentOwnerId;
 
   const MessageModel({
+    this.id = 0,
     required this.text,
     required this.isMe,
     this.type = MessageType.text,

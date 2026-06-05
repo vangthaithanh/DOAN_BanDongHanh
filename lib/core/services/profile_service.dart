@@ -144,18 +144,12 @@ class ProfileService {
     final plans = await _loadPlans(profileId);
 
     bool isFollowing = false;
-    bool mutual = false;
     if (currentUserId != null && currentUserId != profileId) {
       isFollowing = await _checkIsFollowing(currentUserId, profileId);
-
-      // Kiểm tra xem người đó có theo dõi lại mình không để xác định mutual follow
-      final theyFollowMe = await _checkIsFollowing(profileId, currentUserId);
-      mutual = isFollowing && theyFollowMe;
-    } else if (currentUserId == profileId) {
-      mutual = true; // Mình xem mình thì coi như mutual để thấy hết
     }
 
-    final posts = await _loadUserPosts(profileId, profile, mutual);
+    // Truyền isFollowing: người xem đang follow profile owner = là follower của họ
+    final posts = await _loadUserPosts(profileId, profile, isFollowing);
 
     return ProfilePageData(
       profile: profile,
@@ -481,13 +475,14 @@ class ProfileService {
       // Lọc bài viết theo quyền riêng tư nếu không phải chính mình xem
       if (userId != currentUserId) {
         if (mutualFollow) {
-          // Nếu mutual follow, thấy được public và follower
+          // Follower (người đang follow profile owner) thấy public + follower
           query = query.inFilter('visibility', ['public', 'follower']);
         } else {
-          // Nếu không, chỉ thấy public
+          // Người chưa follow chỉ thấy public
           query = query.eq('visibility', 'public');
         }
       }
+      // Chính mình → không lọc, thấy tất cả kể cả private
 
       final rows = await query.order('created_at', ascending: false).limit(20);
 

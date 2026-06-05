@@ -84,6 +84,27 @@ class PostService {
           'profile_id': user.id,
         });
       });
+      // Gửi thông báo cho chủ bài viết (trừ khi tự like bài của mình)
+      try {
+        final post = await _client
+            .from('posts')
+            .select('profile_id')
+            .eq('id', postId)
+            .maybeSingle();
+        final ownerId = post?['profile_id']?.toString() ?? '';
+        if (ownerId.isNotEmpty && ownerId != user.id) {
+          final me = await _loadPublicProfile(user.id);
+          final myName = _firstText([me?['nickname'], me?['full_name']], fallback: 'Ai đó');
+          await _client.from('notifications').insert({
+            'profile_id': ownerId,
+            'notification_type': 'like',
+            'title': myName,
+            'content': 'đã thích bài viết của bạn',
+            'is_read': false,
+            'reference_id': postId,
+          });
+        }
+      } catch (_) {}
     } else {
       await _wrapSupabaseError(() {
         return _client
@@ -164,6 +185,27 @@ class PostService {
     });
 
     final profile = await _loadPublicProfile(user.id);
+    final myName = _firstText([profile?['nickname'], profile?['full_name']], fallback: 'Ai đó');
+
+    // Gửi thông báo cho chủ bài viết (trừ khi tự bình luận bài của mình)
+    try {
+      final post = await _client
+          .from('posts')
+          .select('profile_id')
+          .eq('id', postId)
+          .maybeSingle();
+      final ownerId = post?['profile_id']?.toString() ?? '';
+      if (ownerId.isNotEmpty && ownerId != user.id) {
+        await _client.from('notifications').insert({
+          'profile_id': ownerId,
+          'notification_type': 'comment',
+          'title': myName,
+          'content': 'đã bình luận bài viết của bạn',
+          'is_read': false,
+          'reference_id': postId,
+        });
+      }
+    } catch (_) {}
 
     return BinhLuanModel(
       id: _asInt(row['id']),

@@ -285,7 +285,7 @@ class _TrangTinNhanPageState extends State<TrangTinNhanPage> {
   }
 
   Widget _chatCard(BuildContext context, ConversationPreview chat) {
-    return GestureDetector(
+    final card = GestureDetector(
       onTap: () async {
         await Navigator.pushNamed(
           context,
@@ -384,6 +384,56 @@ class _TrangTinNhanPageState extends State<TrangTinNhanPage> {
           ],
         ),
       ),
+    );
+
+    return Dismissible(
+      key: ValueKey('conv_${chat.conversationId}'),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        alignment: Alignment.centerRight,
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.only(right: 24),
+        decoration: BoxDecoration(
+          color: Colors.redAccent,
+          borderRadius: BorderRadius.circular(40),
+        ),
+        child: const Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.delete_outline, color: Colors.white, size: 26),
+            SizedBox(height: 4),
+            Text(
+              'Xóa',
+              style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+            ),
+          ],
+        ),
+      ),
+      confirmDismiss: (_) async {
+        return await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: const Color(0xFF1C1C1E),
+            title: const Text('Xóa đoạn chat', style: TextStyle(color: Colors.white)),
+            content: const Text('Đoạn chat sẽ bị xóa khỏi danh sách của bạn.',
+                style: TextStyle(color: Colors.white70)),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Hủy'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Xóa', style: TextStyle(color: Colors.redAccent)),
+              ),
+            ],
+          ),
+        ) ?? false;
+      },
+      onDismissed: (_) async {
+        await _messageService.deleteConversation(chat.conversationId);
+      },
+      child: card,
     );
   }
 

@@ -74,8 +74,8 @@ class _TrangPreviewHinhState extends State<TrangPreviewHinh> {
         'nearby_place_name': viTriDaChon,
         'latitude': latitudeDaChon,
         'longitude': longitudeDaChon,
-        'created_at': DateTime.now().toIso8601String(),
-        'expires_at': DateTime.now().add(const Duration(hours: 24)).toIso8601String(),
+        'created_at': DateTime.now().toUtc().toIso8601String(),
+        'expires_at': DateTime.now().toUtc().add(const Duration(hours: 24)).toIso8601String(),
         'status': 'active',
       });
 

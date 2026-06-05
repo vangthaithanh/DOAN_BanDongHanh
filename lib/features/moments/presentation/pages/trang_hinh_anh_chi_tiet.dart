@@ -523,8 +523,8 @@ class _TrangHinhAnhChiTietState extends State<TrangHinhAnhChiTiet> {
 
   String _thoiGianRelative(DateTime? tg) {
     if (tg == null) return 'Vừa xong';
-    final diff = DateTime.now().difference(tg.toLocal());
-    if (diff.inSeconds < 60) return 'Vừa xong';
+    final diff = DateTime.now().difference(tg);
+    if (diff.isNegative || diff.inSeconds < 5) return 'Vừa xong';
     if (diff.inMinutes < 60) return '${diff.inMinutes} phút trước';
     if (diff.inHours < 24) return '${diff.inHours} giờ trước';
     if (diff.inDays < 7) return '${diff.inDays} ngày trước';
