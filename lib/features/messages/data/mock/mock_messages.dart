@@ -12,9 +12,10 @@ class ChatData {
   });
 }
 
-enum MessageType { text, location, image, video, audio, sticker, momentReply }
+enum MessageType { text, location, image, video, audio, sticker, momentReply, sharedPost }
 
 class MessageModel {
+  final int id;
   final String text;
   final bool isMe;
   final MessageType type;
@@ -25,7 +26,11 @@ class MessageModel {
   final String? momentOwnerName;
   final String? momentOwnerId;
 
+  // Field for shared post
+  final int? postId;
+
   const MessageModel({
+    this.id = 0,
     required this.text,
     required this.isMe,
     this.type = MessageType.text,
@@ -33,6 +38,7 @@ class MessageModel {
     this.momentImageUrl,
     this.momentOwnerName,
     this.momentOwnerId,
+    this.postId,
   });
 }
 
@@ -87,6 +93,8 @@ String getLastMessageText(String userName) {
       return '😊 Sticker';
     case MessageType.momentReply:
       return '💬 Đã trả lời khoảnh khắc';
+    case MessageType.sharedPost:
+      return '📎 Đã chia sẻ một bài viết';
     case MessageType.text:
       return last.text;
   }

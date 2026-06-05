@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../app/routes/app_routes.dart';
 import '../../../../core/services/auth_service.dart';
+import '../../../users/data/block_service.dart';
 
 class TrangCaiDatHoatDongPage extends StatefulWidget {
   const TrangCaiDatHoatDongPage({super.key});
@@ -13,8 +14,18 @@ class TrangCaiDatHoatDongPage extends StatefulWidget {
 
 class _TrangCaiDatHoatDongPageState extends State<TrangCaiDatHoatDongPage> {
   final AuthService _authService = AuthService();
+  final BlockService _blockService = BlockService();
 
   bool _loggingOut = false;
+  int _blockedCount = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _blockService.countBlocked().then((c) {
+      if (mounted) setState(() => _blockedCount = c);
+    });
+  }
 
   Future<void> _showChangePasswordSheet() async {
     final result = await showModalBottomSheet<bool>(
@@ -187,16 +198,10 @@ class _TrangCaiDatHoatDongPageState extends State<TrangCaiDatHoatDongPage> {
               onTap: _loggingOut
                   ? null
                   : () async {
-                      final changed = await Navigator.pushNamed(
-                        context,
-                        AppRoutes.archive,
-                      );
-
+                      final nav = Navigator.of(context);
+                      final changed = await nav.pushNamed(AppRoutes.archive);
                       if (!mounted) return;
-
-                      if (changed == true) {
-                        Navigator.pop(context, true);
-                      }
+                      if (changed == true) nav.pop(true);
                     },
             ),
             _item(
@@ -232,8 +237,15 @@ class _TrangCaiDatHoatDongPageState extends State<TrangCaiDatHoatDongPage> {
             _item(
               icon: Icons.block_rounded,
               title: 'Đã chặn',
-              trailingText: '0',
-              onTap: () => _comingSoon('Đã chặn'),
+              trailingText: _blockedCount > 0 ? '$_blockedCount' : null,
+              onTap: () async {
+                await Navigator.pushNamed(context, AppRoutes.blockedUsers);
+                // Cập nhật lại số đếm sau khi bỏ chặn
+                if (mounted) {
+                  final c = await _blockService.countBlocked();
+                  if (mounted) setState(() => _blockedCount = c);
+                }
+              },
             ),
             _item(
               icon: Icons.location_on_outlined,

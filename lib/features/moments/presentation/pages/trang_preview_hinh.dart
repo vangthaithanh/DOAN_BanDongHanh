@@ -26,6 +26,7 @@ class _TrangPreviewHinhState extends State<TrangPreviewHinh> {
   double? longitudeDaChon;
 
   String? duongDanAnh;
+  bool _dangGui = false;
 
   @override
   void initState() {
@@ -44,24 +45,37 @@ class _TrangPreviewHinhState extends State<TrangPreviewHinh> {
 
   // 🚀 GỬI LÊN SUPABASE
   Future<void> _guiAnh(BuildContext context) async {
-    if (duongDanAnh == null || duongDanAnh!.isEmpty) return;
+    if (duongDanAnh == null || duongDanAnh!.isEmpty || _dangGui) return;
 
     final supabase = Supabase.instance.client;
     final user = supabase.auth.currentUser;
+    if (user == null) return;
+
+    setState(() => _dangGui = true);
 
     try {
-      // LƯU Ý: Ở đây đúng ra phải upload lên Storage trước.
-      // Tạm thời fix để lưu được text path:
-      await supabase.from('moments').insert({
-        'profile_id': user?.id,
-        'image_url': duongDanAnh, // Đang lưu path cục bộ
-        'nearby_place_name': viTriDaChon,
+      // 1. Upload ảnh lên Storage
+      final localPath = duongDanAnh!.replaceFirst('file://', '');
+      final file = File(localPath);
+      if (!file.existsSync()) throw Exception('Không tìm thấy file ảnh');
 
-        // NOTE SỬA: lưu GPS thật vào bảng moments
+      final ext = localPath.split('.').last.toLowerCase();
+      final storagePath =
+          '${user.id}/${DateTime.now().millisecondsSinceEpoch}.$ext';
+
+      await supabase.storage.from('moment-media').upload(storagePath, file);
+      final imageUrl =
+          supabase.storage.from('moment-media').getPublicUrl(storagePath);
+
+      // 2. Lưu record vào bảng moments
+      await supabase.from('moments').insert({
+        'profile_id': user.id,
+        'image_url': imageUrl,
+        'nearby_place_name': viTriDaChon,
         'latitude': latitudeDaChon,
         'longitude': longitudeDaChon,
-
-        'created_at': DateTime.now().toIso8601String(),
+        'created_at': DateTime.now().toUtc().toIso8601String(),
+        'expires_at': DateTime.now().toUtc().add(const Duration(hours: 24)).toIso8601String(),
         'status': 'active',
       });
 
@@ -73,9 +87,9 @@ class _TrangPreviewHinhState extends State<TrangPreviewHinh> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Lỗi: $e')));
+      setState(() => _dangGui = false);
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Lỗi: $e')));
     }
   }
 
@@ -220,14 +234,23 @@ class _TrangPreviewHinhState extends State<TrangPreviewHinh> {
           onPressed: () => Navigator.pop(context),
           icon: const Icon(LucideIcons.circleX, color: Colors.white, size: 30),
         ),
-        IconButton(
-          onPressed: () => _guiAnh(context),
-          icon: const Icon(
-            LucideIcons.sendHorizontal,
-            color: Colors.blue,
-            size: 50,
-          ),
-        ),
+        _dangGui
+            ? const SizedBox(
+                width: 50,
+                height: 50,
+                child: CircularProgressIndicator(
+                  color: Colors.blue,
+                  strokeWidth: 3,
+                ),
+              )
+            : IconButton(
+                onPressed: () => _guiAnh(context),
+                icon: const Icon(
+                  LucideIcons.sendHorizontal,
+                  color: Colors.blue,
+                  size: 50,
+                ),
+              ),
         IconButton(
           onPressed: () {},
           icon: const Icon(LucideIcons.download, color: Colors.white, size: 30),

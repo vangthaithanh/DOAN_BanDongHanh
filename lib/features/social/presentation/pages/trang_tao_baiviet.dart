@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
@@ -73,6 +74,7 @@ class _TrangTaoBaiVietState extends State<TrangTaoBaiViet> {
         imagePath: _duongDanAnh,
         locationName: _viTri,
         hashtags: List.from(_danhSachHashTag),
+        taggedNicknames: List.from(_danhSachBanBe),
       );
 
       if (!mounted) {
@@ -809,11 +811,28 @@ class TrangDoiTuongBaiViet extends StatefulWidget {
 class _TrangDoiTuongBaiVietState extends State<TrangDoiTuongBaiViet> {
   static const Color _mauXanh = Color(0xFF4AA8FF);
   late DoiTuongBaiViet _duocChon;
+  int? _followerCount;
 
   @override
   void initState() {
     super.initState();
     _duocChon = widget.doiTuongHienTai;
+    _loadFollowerCount();
+  }
+
+  Future<void> _loadFollowerCount() async {
+    final client = Supabase.instance.client;
+    final user = client.auth.currentUser;
+    if (user == null) return;
+    try {
+      final rows = await client
+          .from('follows')
+          .select('id')
+          .eq('following_id', user.id)
+          .eq('status', 'active');
+      if (!mounted) return;
+      setState(() => _followerCount = (rows as List).length);
+    } catch (_) {}
   }
 
   @override
@@ -891,7 +910,7 @@ class _TrangDoiTuongBaiVietState extends State<TrangDoiTuongBaiViet> {
             _dongLuaChon(
               icon: LucideIcons.userRound,
               tieuDe: 'Người theo dõi',
-              moTa: '100 người',
+              moTa: _followerCount != null ? '${_followerCount} người theo dõi' : null,
               gia: DoiTuongBaiViet.nguoiTheoDoi,
             ),
             const Divider(color: Color(0xFF1E1E1E), height: 1, indent: 24),
@@ -1191,6 +1210,19 @@ class _BottomSheetHashTagState extends State<_BottomSheetHashTag> {
 
 // ─── Trang Gắn Thẻ Bạn Bè ────────────────────────────────────────────────────
 
+class _TagFriend {
+  final String id;
+  final String nickname;
+  final String fullName;
+  final String? avatarUrl;
+  const _TagFriend({
+    required this.id,
+    required this.nickname,
+    required this.fullName,
+    this.avatarUrl,
+  });
+}
+
 class TrangGanTheBanBe extends StatefulWidget {
   final List<String> danhSachDaChon;
 
@@ -1203,11 +1235,8 @@ class TrangGanTheBanBe extends StatefulWidget {
 class _TrangGanTheBanBeState extends State<TrangGanTheBanBe> {
   static const Color _mauXanh = Color(0xFF4AA8FF);
 
-  static const List<Map<String, String>> _tatCaBanBe = [
-    {'ten': 'thuwwww', 'hoten': 'Thư thư'},
-    {'ten': 'thuwwww2', 'hoten': 'Thư thư'},
-    {'ten': 'BietDanh', 'hoten': 'Họ Tên'},
-  ];
+  List<_TagFriend> _allFriends = [];
+  bool _loading = true;
 
   final TextEditingController _timKiemCtrl = TextEditingController();
   String _tuKhoa = '';
@@ -1217,6 +1246,7 @@ class _TrangGanTheBanBeState extends State<TrangGanTheBanBe> {
   void initState() {
     super.initState();
     _danhSachDaChon = List.from(widget.danhSachDaChon);
+    _loadFriends();
   }
 
   @override
@@ -1225,14 +1255,72 @@ class _TrangGanTheBanBeState extends State<TrangGanTheBanBe> {
     super.dispose();
   }
 
-  List<Map<String, String>> get _locDanhSach {
-    if (_tuKhoa.isEmpty) return _tatCaBanBe;
-    return _tatCaBanBe
-        .where(
-          (b) =>
-              b['ten']!.toLowerCase().contains(_tuKhoa.toLowerCase()) ||
-              b['hoten']!.toLowerCase().contains(_tuKhoa.toLowerCase()),
-        )
+  Future<void> _loadFriends() async {
+    final client = Supabase.instance.client;
+    final user = client.auth.currentUser;
+    if (user == null) {
+      setState(() => _loading = false);
+      return;
+    }
+    try {
+      final followingRows = await client
+          .from('follows')
+          .select('following_id')
+          .eq('follower_id', user.id)
+          .eq('status', 'active');
+      final followingIds = (followingRows as List)
+          .map((r) => (r as Map)['following_id']?.toString() ?? '')
+          .where((id) => id.isNotEmpty)
+          .toList();
+      if (followingIds.isEmpty) {
+        if (mounted) setState(() => _loading = false);
+        return;
+      }
+      final mutualRows = await client
+          .from('follows')
+          .select('follower_id')
+          .inFilter('follower_id', followingIds)
+          .eq('following_id', user.id)
+          .eq('status', 'active');
+      final mutualIds = (mutualRows as List)
+          .map((r) => (r as Map)['follower_id']?.toString() ?? '')
+          .where((id) => id.isNotEmpty)
+          .toSet()
+          .toList();
+      if (mutualIds.isEmpty) {
+        if (mounted) setState(() => _loading = false);
+        return;
+      }
+      final profileRows = await client
+          .from('profiles')
+          .select('id, nickname, full_name, avatar_url')
+          .inFilter('id', mutualIds);
+      final friends = (profileRows as List).map((p) {
+        final m = p as Map<String, dynamic>;
+        return _TagFriend(
+          id: m['id']?.toString() ?? '',
+          nickname: m['nickname']?.toString() ?? 'Người dùng',
+          fullName: m['full_name']?.toString() ?? '',
+          avatarUrl: m['avatar_url']?.toString(),
+        );
+      }).where((f) => f.id.isNotEmpty).toList();
+      friends.sort((a, b) => a.nickname.compareTo(b.nickname));
+      if (!mounted) return;
+      setState(() {
+        _allFriends = friends;
+        _loading = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  List<_TagFriend> get _locDanhSach {
+    if (_tuKhoa.isEmpty) return _allFriends;
+    return _allFriends
+        .where((f) =>
+            f.nickname.toLowerCase().contains(_tuKhoa.toLowerCase()) ||
+            f.fullName.toLowerCase().contains(_tuKhoa.toLowerCase()))
         .toList();
   }
 
@@ -1430,18 +1518,28 @@ class _TrangGanTheBanBeState extends State<TrangGanTheBanBe> {
 
             // Danh sách bạn bè
             Expanded(
-              child: ListView.builder(
+              child: _loading
+                  ? const Center(child: CircularProgressIndicator(color: _mauXanh))
+                  : _allFriends.isEmpty
+                      ? const Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(24),
+                            child: Text(
+                              'Không có bạn bè nào',
+                              style: TextStyle(color: Colors.white54),
+                            ),
+                          ),
+                        )
+                      : ListView.builder(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 physics: const BouncingScrollPhysics(),
                 itemCount: _locDanhSach.length,
                 itemBuilder: (context, index) {
-                  final banBe = _locDanhSach[index];
-                  final ten = banBe['ten']!;
-                  final hoten = banBe['hoten']!;
-                  final daDuocChon = _danhSachDaChon.contains(ten);
-
+                  final f = _locDanhSach[index];
+                  final daDuocChon = _danhSachDaChon.contains(f.nickname);
+                  final hasAvatar = f.avatarUrl?.trim().isNotEmpty == true;
                   return InkWell(
-                    onTap: () => _toggleChon(ten),
+                    onTap: () => _toggleChon(f.nickname),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(vertical: 10),
                       child: Row(
@@ -1449,14 +1547,17 @@ class _TrangGanTheBanBeState extends State<TrangGanTheBanBe> {
                           CircleAvatar(
                             radius: 22,
                             backgroundColor: _mauXanh,
-                            child: Text(
-                              ten[0].toUpperCase(),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 16,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
+                            backgroundImage: hasAvatar ? NetworkImage(f.avatarUrl!) : null,
+                            child: hasAvatar
+                                ? null
+                                : Text(
+                                    f.nickname.isEmpty ? '?' : f.nickname[0].toUpperCase(),
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
                           ),
                           const SizedBox(width: 14),
                           Expanded(
@@ -1464,25 +1565,25 @@ class _TrangGanTheBanBeState extends State<TrangGanTheBanBe> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  ten,
+                                  f.nickname,
                                   style: const TextStyle(
                                     color: Colors.white,
                                     fontSize: 15,
                                     fontWeight: FontWeight.w800,
                                   ),
                                 ),
-                                Text(
-                                  hoten,
-                                  style: const TextStyle(
-                                    color: Colors.white54,
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w500,
+                                if (f.fullName.isNotEmpty)
+                                  Text(
+                                    f.fullName,
+                                    style: const TextStyle(
+                                      color: Colors.white54,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w500,
+                                    ),
                                   ),
-                                ),
                               ],
                             ),
                           ),
-                          // Checkbox circle
                           Container(
                             width: 24,
                             height: 24,
@@ -1495,11 +1596,7 @@ class _TrangGanTheBanBeState extends State<TrangGanTheBanBe> {
                               ),
                             ),
                             child: daDuocChon
-                                ? const Icon(
-                                    Icons.check,
-                                    color: Colors.white,
-                                    size: 14,
-                                  )
+                                ? const Icon(Icons.check, color: Colors.white, size: 14)
                                 : null,
                           ),
                         ],

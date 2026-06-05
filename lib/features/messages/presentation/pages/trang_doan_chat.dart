@@ -8,6 +8,8 @@ import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../../app/routes/app_routes.dart';
+import '../../../social/data/services/post_service.dart';
 import '../../data/message_service.dart';
 import '../../data/mock/mock_messages.dart';
 import 'trang_tinnhan_caidat.dart';
@@ -44,6 +46,8 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
   int? _subscribedConversationId;
   RealtimeChannel? _messagesChannel;
   bool _loadingMessages = true;
+  DateTime? _otherLastReadAt;
+  DateTime? _lastSentAt;
   bool get _usesRealConversation =>
       _conversationId != null || widget.otherProfileId?.isNotEmpty == true;
 
@@ -140,6 +144,7 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
 
         setState(() {
           _currentMessages.add(_toUiMessage(message));
+          _lastSentAt = message.createdAt ?? DateTime.now();
         });
         Future.delayed(const Duration(milliseconds: 50), _scrollToBottom);
       } catch (e) {
@@ -183,13 +188,17 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
       _subscribeToConversation(conversationId);
 
       final messages = await _messageService.loadMessages(conversationId);
+      final otherRead = await _messageService.getOtherMemberLastRead(conversationId);
 
       if (!mounted) {
         return;
       }
 
+      final myMessages = messages.where((m) => m.isMe).toList();
       setState(() {
         _currentMessages = messages.map(_toUiMessage).toList();
+        _otherLastReadAt = otherRead;
+        _lastSentAt = myMessages.isNotEmpty ? myMessages.last.createdAt : null;
         _loadingMessages = false;
       });
       WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
@@ -266,41 +275,58 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
       case RealMessageType.location:
       case RealMessageType.place:
         return MessageModel(
+          id: message.id,
           text: message.text.isEmpty ? 'Vị trí' : message.text,
           isMe: message.isMe,
           type: MessageType.location,
         );
       case RealMessageType.image:
         return MessageModel(
+          id: message.id,
           text: message.text,
           isMe: message.isMe,
           type: MessageType.image,
         );
       case RealMessageType.video:
         return MessageModel(
+          id: message.id,
           text: message.text,
           isMe: message.isMe,
           type: MessageType.video,
         );
       case RealMessageType.audio:
         return MessageModel(
+          id: message.id,
           text: message.text,
           isMe: message.isMe,
           type: MessageType.audio,
         );
       case RealMessageType.sticker:
         return MessageModel(
+          id: message.id,
           text: message.text,
           isMe: message.isMe,
           type: MessageType.sticker,
         );
       case RealMessageType.post:
         return MessageModel(
-          text: message.text.isEmpty ? 'Bài viết' : message.text,
+          id: message.id,
+          text: message.text,
           isMe: message.isMe,
+          type: MessageType.sharedPost,
+          postId: message.postId,
+        );
+      case RealMessageType.momentReply:
+        return MessageModel(
+          id: message.id,
+          text: message.text,
+          isMe: message.isMe,
+          type: MessageType.momentReply,
+          momentImageUrl: message.mediaUrl,
+          momentId: message.momentId?.toString(),
         );
       case RealMessageType.text:
-        return MessageModel(text: message.text, isMe: message.isMe);
+        return MessageModel(id: message.id, text: message.text, isMe: message.isMe);
     }
   }
 
@@ -747,6 +773,8 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
                 builder: (_) => TrangTinNhanCaiDatPage(
                   name: widget.name,
                   isWaiting: widget.isWaiting,
+                  otherProfileId: widget.otherProfileId,
+                  conversationId: _conversationId,
                 ),
               ),
             );
@@ -777,23 +805,27 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
               ),
               const SizedBox(width: 10),
 
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    nicknames[widget.name] ?? widget.name,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      nicknames[widget.name] ?? widget.name,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
-                  ),
-                  const Text(
-                    'Họ tên',
-                    style: TextStyle(color: Colors.white54, fontSize: 12),
-                  ),
-                ],
+                    const Text(
+                      'Họ tên',
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: Colors.white54, fontSize: 12),
+                    ),
+                  ],
+                ),
               ),
 
               const SizedBox(width: 4),
@@ -847,16 +879,33 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
                   itemCount: _currentMessages.length + 1,
                   itemBuilder: (context, index) {
                     if (index == _currentMessages.length) {
-                      return const Padding(
-                        padding: EdgeInsets.only(top: 6, bottom: 12, right: 12),
+                      // Chỉ hiện status sau tin nhắn cuối của mình
+                      final hasMyMessages = _currentMessages.any((m) => m.isMe);
+                      if (!hasMyMessages) return const SizedBox.shrink();
+
+                      final lastMyReal = _lastSentAt;
+                      final daXem = _otherLastReadAt != null &&
+                          lastMyReal != null &&
+                          !_otherLastReadAt!.isBefore(lastMyReal);
+
+                      return Padding(
+                        padding: const EdgeInsets.only(
+                            top: 4, bottom: 12, right: 12),
                         child: Text(
-                          'Đã xem',
+                          daXem ? 'Đã xem' : 'Đã gửi',
                           textAlign: TextAlign.end,
-                          style: TextStyle(color: Colors.white38, fontSize: 12),
+                          style: const TextStyle(
+                              color: Colors.white38, fontSize: 12),
                         ),
                       );
                     }
-                    return _buildChatBubble(_currentMessages[index]);
+                    final msg = _currentMessages[index];
+                    return GestureDetector(
+                      onLongPress: msg.isMe && msg.id != 0
+                          ? () => _showDeleteMessageSheet(msg)
+                          : null,
+                      child: _buildChatBubble(msg),
+                    );
                   },
                 ),
               ),
@@ -885,10 +934,60 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
     );
   }
 
+  void _showDeleteMessageSheet(MessageModel msg) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1C1C1E),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            Container(
+              width: 36, height: 4,
+              decoration: BoxDecoration(
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 8),
+            ListTile(
+              leading: const Icon(Icons.delete_outline, color: Colors.redAccent),
+              title: const Text('Xóa tin nhắn',
+                  style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.w600)),
+              onTap: () async {
+                Navigator.pop(ctx);
+                try {
+                  await _messageService.deleteMessage(msg.id);
+                  if (mounted) {
+                    setState(() => _currentMessages.remove(msg));
+                  }
+                } catch (_) {}
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.close, color: Colors.white),
+              title: const Text('Hủy', style: TextStyle(color: Colors.white)),
+              onTap: () => Navigator.pop(ctx),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
   // Bubbles
 
   Widget _buildChatBubble(MessageModel message) {
     switch (message.type) {
+      case MessageType.momentReply:
+        return _momentReplyBubble(message);
+      case MessageType.sharedPost:
+        return _sharedPostBubble(message);
       case MessageType.image:
         return _imageBubble(message);
       case MessageType.video:
@@ -925,19 +1024,24 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
 
   Widget _textBubble(MessageModel msg) => _bubbleRow(
     isMe: msg.isMe,
-    child: Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.black,
-        border: Border.all(color: const Color(0xFF2C2C2E), width: 1.5),
-        borderRadius: BorderRadius.circular(20),
+    child: ConstrainedBox(
+      constraints: BoxConstraints(
+        maxWidth: MediaQuery.of(context).size.width * 0.72,
       ),
-      child: Text(
-        msg.text,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 14,
-          fontWeight: FontWeight.w500,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.black,
+          border: Border.all(color: const Color(0xFF2C2C2E), width: 1.5),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(
+          msg.text,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+          ),
         ),
       ),
     ),
@@ -968,6 +1072,156 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
           const Icon(LucideIcons.mapPin, color: Colors.white, size: 16),
         ],
       ),
+    ),
+  );
+
+  Widget _momentReplyBubble(MessageModel msg) => _bubbleRow(
+    isMe: msg.isMe,
+    child: Container(
+      width: 220,
+      decoration: BoxDecoration(
+        color: const Color(0xFF2C2C2E),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white12),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (msg.momentImageUrl != null && msg.momentImageUrl!.isNotEmpty)
+            SizedBox(
+              height: 140,
+              width: double.infinity,
+              child: Image.network(
+                msg.momentImageUrl!,
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) => Container(
+                  color: Colors.grey.shade900,
+                  child: const Icon(Icons.broken_image,
+                      color: Colors.white38, size: 32),
+                ),
+              ),
+            ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 6, 12, 2),
+            child: const Text(
+              'Đã trả lời khoảnh khắc',
+              style: TextStyle(color: Colors.white38, fontSize: 11),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+            child: Text(
+              msg.text,
+              style: const TextStyle(color: Colors.white, fontSize: 14),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+
+  Widget _sharedPostBubble(MessageModel msg) {
+    final postId = msg.postId ?? 0;
+    return _bubbleRow(
+      isMe: msg.isMe,
+      child: GestureDetector(
+        onTap: () async {
+          if (postId == 0) {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text('Bài viết này hiện không còn khả dụng.'),
+            ));
+            return;
+          }
+          try {
+            // Kiểm tra bài viết trước khi điều hướng (UC5, UC6)
+            await PostService().loadPostById(postId);
+            if (!mounted) return;
+            Navigator.pushNamed(context, AppRoutes.trangBinhLuan, arguments: postId);
+          } catch (e) {
+            if (!mounted) return;
+            final msg = e.toString().contains('quyền')
+                ? 'Bạn không có quyền xem bài viết này.'
+                : 'Bài viết này hiện không còn khả dụng.';
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+          }
+        },
+        child: Container(
+          width: 230,
+          decoration: BoxDecoration(
+            color: const Color(0xFF1C1C1E),
+            border: Border.all(color: const Color(0xFF2C2C2E), width: 1.5),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: postId == 0
+              ? _postUnavailable()
+              : FutureBuilder(
+                  future: PostService().loadPostById(postId),
+                  builder: (context, snap) {
+                    if (snap.connectionState == ConnectionState.waiting) {
+                      return const SizedBox(
+                        height: 80,
+                        child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                      );
+                    }
+                    if (snap.hasError || snap.data == null) return _postUnavailable();
+                    final post = snap.data!;
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (post.danhSachAnh.isNotEmpty)
+                          ClipRRect(
+                            borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
+                            child: Image.network(
+                              post.danhSachAnh.first,
+                              height: 120,
+                              width: double.infinity,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, _, _) => const SizedBox(height: 0),
+                            ),
+                          ),
+                        Padding(
+                          padding: const EdgeInsets.all(10),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                post.tenNguoiDang,
+                                style: const TextStyle(
+                                  color: Color(0xFF4AA8FF),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                post.caption ?? '',
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(color: Colors.white, fontSize: 13),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                post.thoiGian,
+                                style: const TextStyle(color: Colors.white38, fontSize: 11),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+        ),
+      ),
+    );
+  }
+
+  Widget _postUnavailable() => const Padding(
+    padding: EdgeInsets.all(14),
+    child: Text(
+      'Bài viết này hiện không còn khả dụng.',
+      style: TextStyle(color: Colors.white54, fontSize: 13),
     ),
   );
 
@@ -1205,6 +1459,8 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
                     setState(() => _showStickerPanel = false);
                   }
                 },
+                maxLines: null,
+                keyboardType: TextInputType.multiline,
                 decoration: const InputDecoration(
                   hintText: 'Nhắn tin...',
                   hintStyle: TextStyle(color: Colors.white54, fontSize: 16),

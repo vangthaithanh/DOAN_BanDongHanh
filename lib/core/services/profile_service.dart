@@ -164,18 +164,12 @@ class ProfileService {
     final plans = await _loadPlans(profileId);
 
     bool isFollowing = false;
-    bool mutual = false;
     if (currentUserId != null && currentUserId != profileId) {
       isFollowing = await _checkIsFollowing(currentUserId, profileId);
-
-      // Kiểm tra xem người đó có theo dõi lại mình không để xác định mutual follow
-      final theyFollowMe = await _checkIsFollowing(profileId, currentUserId);
-      mutual = isFollowing && theyFollowMe;
-    } else if (currentUserId == profileId) {
-      mutual = true; // Mình xem mình thì coi như mutual để thấy hết
     }
 
-    final posts = await _loadUserPosts(profileId, profile, mutual);
+    // Truyền isFollowing: người xem đang follow profile owner = là follower của họ
+    final posts = await _loadUserPosts(profileId, profile, isFollowing);
 
     return ProfilePageData(
       profile: profile,
@@ -355,7 +349,7 @@ class ProfileService {
           .from('posts')
           .select('id')
           .eq('profile_id', userId)
-          .neq('status', 'deleted');
+          .eq('status', 'active');
 
       return (rows as List).length;
     } catch (_) {
@@ -650,13 +644,14 @@ class ProfileService {
       // Lọc bài viết theo quyền riêng tư nếu không phải chính mình xem
       if (userId != currentUserId) {
         if (mutualFollow) {
-          // Nếu mutual follow, thấy được public và follower
+          // Follower (người đang follow profile owner) thấy public + follower
           query = query.inFilter('visibility', ['public', 'follower']);
         } else {
-          // Nếu không, chỉ thấy public
+          // Người chưa follow chỉ thấy public
           query = query.eq('visibility', 'public');
         }
       }
+      // Chính mình → không lọc, thấy tất cả kể cả private
 
       final rows = await query.order('created_at', ascending: false).limit(20);
 
@@ -665,6 +660,7 @@ class ProfileService {
           .map((r) => (r as Map<String, dynamic>)['id'] as int)
           .toList();
       final hashtagMap = await _loadHashtagsForPosts(postIds);
+      final tagMap = await _loadTagsForPosts(postIds);
 
       return Future.wait(
         postList.map((raw) async {
@@ -705,6 +701,7 @@ class ProfileService {
             danhSachAnh: firstMediaUrl != null ? [firstMediaUrl] : const [],
             viTri: _emptyToNull(map['location_name']),
             danhSachHashTag: hashtagMap[postId] ?? const [],
+            danhSachBanBeDuocTag: tagMap[postId] ?? const [],
             soLuotThich: (map['like_count'] as int?) ?? 0,
             soLuotBinhLuan: (map['comment_count'] as int?) ?? 0,
             daThich: currentUserId != null
@@ -753,6 +750,29 @@ class ProfileService {
         if (name != null && name.isNotEmpty) {
           result.putIfAbsent(postId, () => []).add(name);
         }
+      }
+      return result;
+    } catch (_) {
+      return {};
+    }
+  }
+
+  Future<Map<int, List<String>>> _loadTagsForPosts(List<int> postIds) async {
+    if (postIds.isEmpty) return {};
+    try {
+      final rows = await _client
+          .from('post_tags')
+          .select('post_id, profiles(nickname)')
+          .inFilter('post_id', postIds);
+      final result = <int, List<String>>{};
+      for (final r in rows as List) {
+        final m = r as Map<String, dynamic>;
+        final postId = (m['post_id'] as num?)?.toInt() ?? 0;
+        if (postId == 0) continue;
+        final p = m['profiles'];
+        final nick = p is Map ? p['nickname']?.toString().trim() ?? '' : '';
+        if (nick.isEmpty) continue;
+        result.putIfAbsent(postId, () => []).add(nick);
       }
       return result;
     } catch (_) {

@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../../../app/routes/app_routes.dart';
+import '../../data/message_service.dart';
 import '../../data/mock/mock_messages.dart';
 import '../../../users/presentation/pages/trang_hoso_nguoidung.dart';
 
@@ -10,10 +12,14 @@ class TrangTinNhanCaiDatPage extends StatefulWidget {
 
   final String name;
   final bool isWaiting;
+  final String? otherProfileId;
+  final int? conversationId;
   const TrangTinNhanCaiDatPage({
     super.key,
     required this.name,
     required this.isWaiting,
+    this.otherProfileId,
+    this.conversationId,
   });
 
   @override
@@ -218,6 +224,14 @@ class _TrangTinNhanCaiDatPageState
                   icon: LucideIcons.user,
                   label: 'Trang cá nhân',
                   onTap: () {
+                    if (widget.otherProfileId != null) {
+                      Navigator.pushNamed(
+                        context,
+                        AppRoutes.profile,
+                        arguments: widget.otherProfileId,
+                      );
+                      return;
+                    }
                     Navigator.push(
                       context,
                       PageRouteBuilder(
@@ -276,6 +290,12 @@ class _TrangTinNhanCaiDatPageState
                     icon: LucideIcons.shieldAlert,
                     title: 'Báo cáo',
                     onTap: () {},
+                  ),
+                  _menuItem(
+                    icon: Icons.delete_outline,
+                    title: 'Xóa đoạn chat',
+                    color: Colors.redAccent,
+                    onTap: () => _xoaDoanChat(context),
                   ),
                 ],
               ),
@@ -357,11 +377,42 @@ class _TrangTinNhanCaiDatPageState
     );
   }
 
+  Future<void> _xoaDoanChat(BuildContext context) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1C1C1E),
+        title: const Text('Xóa đoạn chat',
+            style: TextStyle(color: Colors.white)),
+        content: const Text('Đoạn chat sẽ bị xóa khỏi danh sách của bạn.',
+            style: TextStyle(color: Colors.white70)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Hủy'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Xóa', style: TextStyle(color: Colors.redAccent)),
+          ),
+        ],
+      ),
+    );
+    if (confirm == true && widget.conversationId != null) {
+      await MessageService().deleteConversation(widget.conversationId!);
+      if (context.mounted) {
+        Navigator.of(context).popUntil((r) => r.isFirst);
+      }
+    }
+  }
+
   Widget _menuItem({
     required IconData icon,
     required String title,
     required VoidCallback onTap,
+    Color? color,
   }) {
+    final c = color ?? Colors.white;
     return InkWell(
       onTap: onTap,
       child: Padding(
@@ -370,25 +421,15 @@ class _TrangTinNhanCaiDatPageState
         ),
         child: Row(
           children: [
-            Icon(
-              icon,
-              color: Colors.white,
-            ),
+            Icon(icon, color: c),
             const SizedBox(width: 16),
             Expanded(
               child: Text(
                 title,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 15,
-                ),
+                style: TextStyle(color: c, fontSize: 15),
               ),
             ),
-            const Icon(
-              LucideIcons.chevronRight,
-              color: Colors.white54,
-              size: 18,
-            ),
+            Icon(LucideIcons.chevronRight, color: c.withValues(alpha: 0.5), size: 18),
           ],
         ),
       ),
