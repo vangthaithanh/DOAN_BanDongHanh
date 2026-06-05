@@ -4,9 +4,11 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../../app/routes/app_routes.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/services/profile_service.dart';
+import '../../../../features/notifications/data/notification_service.dart';
 import '../../../../shared/navigation/app_bottom_nav.dart';
 import '../../../../shared/navigation/main_tab.dart';
 import '../../../../shared/widgets/gomate_logo.dart';
+import '../../../../shared/widgets/unread_badge.dart';
 import '../../data/services/home_feed_service.dart';
 import '../../../social/data/models/post_model.dart';
 import '../../../social/presentation/widgets/post_card.dart';
@@ -25,6 +27,7 @@ class TrangChuPage extends StatefulWidget {
 class _TrangChuPageState extends State<TrangChuPage> {
   final ProfileService _profileService = ProfileService();
   final HomeFeedService _feedService = HomeFeedService();
+  final NotificationService _notificationService = NotificationService();
 
   MyProfile? _profile;
   bool _loadingProfile = true;
@@ -179,7 +182,6 @@ class _TrangChuPageState extends State<TrangChuPage> {
               onPostModified: () {
                 _refreshFeed();
               },
-
             ),
           );
         },
@@ -257,7 +259,14 @@ class _TrangChuPageState extends State<TrangChuPage> {
           const Expanded(child: GoMateLogo()),
           InkWell(
             onTap: () => Navigator.pushNamed(context, AppRoutes.notifications),
-            child: const Icon(LucideIcons.bell, color: Colors.white, size: 23),
+            child: AsyncUnreadBadge(
+              loadCount: _notificationService.countUnreadMine,
+              child: const Icon(
+                LucideIcons.bell,
+                color: Colors.white,
+                size: 23,
+              ),
+            ),
           ),
         ],
       ),

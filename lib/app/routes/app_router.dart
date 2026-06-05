@@ -163,7 +163,13 @@ class AppRouter {
             ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
         final name = args?['name'] as String? ?? 'Người dùng';
         final isWaiting = args?['isWaiting'] as bool? ?? false;
-        return TrangDoanChatPage(name: name, isWaiting: isWaiting);
+        return TrangDoanChatPage(
+          name: name,
+          isWaiting: isWaiting,
+          conversationId: args?['conversationId'] as int?,
+          otherProfileId: args?['otherProfileId'] as String?,
+          avatarUrl: args?['avatarUrl'] as String?,
+        );
       },
     };
   }

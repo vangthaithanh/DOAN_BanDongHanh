@@ -3,6 +3,8 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../app/routes/app_routes.dart';
 import '../../core/constants/app_colors.dart';
+import '../../features/messages/data/message_service.dart';
+import '../widgets/unread_badge.dart';
 import 'main_tab.dart';
 
 class AppBottomNav extends StatelessWidget {
@@ -42,6 +44,7 @@ class AppBottomNav extends StatelessWidget {
               icon: LucideIcons.messagesSquare,
               active: activeTab == MainTab.messages,
               onTap: () => _go(context, AppRoutes.messages),
+              loadBadgeCount: MessageService().countUnreadAll,
             ),
             _NavIcon(
               icon: LucideIcons.userRound,
@@ -65,11 +68,13 @@ class _NavIcon extends StatelessWidget {
   final IconData icon;
   final bool active;
   final VoidCallback onTap;
+  final Future<int> Function()? loadBadgeCount;
 
   const _NavIcon({
     required this.icon,
     required this.active,
     required this.onTap,
+    this.loadBadgeCount,
   });
 
   @override
@@ -79,12 +84,18 @@ class _NavIcon extends StatelessWidget {
       onTap: onTap,
       child: Padding(
         padding: const EdgeInsets.all(12),
-        child: Icon(
-          icon,
-          color: active ? AppColors.primaryDark : Colors.white,
-          size: 24,
-        ),
+        child: loadBadgeCount == null
+            ? _icon()
+            : AsyncUnreadBadge(loadCount: loadBadgeCount!, child: _icon()),
       ),
+    );
+  }
+
+  Widget _icon() {
+    return Icon(
+      icon,
+      color: active ? AppColors.primaryDark : Colors.white,
+      size: 24,
     );
   }
 }

@@ -463,7 +463,12 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
                     Navigator.pushNamed(
                       context,
                       AppRoutes.chatDetail,
-                      arguments: {'name': data.profile.displayName},
+                      arguments: {
+                        'name': data.profile.displayName,
+                        'otherProfileId': data.profile.id,
+                        'avatarUrl': data.profile.avatarUrl,
+                        'isWaiting': !data.isFollowing,
+                      },
                     );
                   },
                 ),

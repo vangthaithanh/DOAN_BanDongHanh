@@ -7,16 +7,24 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:path_provider/path_provider.dart';
+import '../../data/message_service.dart';
 import '../../data/mock/mock_messages.dart';
 import 'trang_tinnhan_caidat.dart';
+
 class TrangDoanChatPage extends StatefulWidget {
   final String name;
   final bool isWaiting;
+  final int? conversationId;
+  final String? otherProfileId;
+  final String? avatarUrl;
 
   const TrangDoanChatPage({
     super.key,
     required this.name,
     required this.isWaiting,
+    this.conversationId,
+    this.otherProfileId,
+    this.avatarUrl,
   });
 
   @override
@@ -30,6 +38,11 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final FocusNode _focusNode = FocusNode();
+  final MessageService _messageService = MessageService();
+  int? _conversationId;
+  bool _loadingMessages = true;
+  bool get _usesRealConversation =>
+      _conversationId != null || widget.otherProfileId?.isNotEmpty == true;
 
   // Ghi âm
   final AudioRecorder _recorder = AudioRecorder();
@@ -47,7 +60,8 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
   void initState() {
     super.initState();
     _showWaitingActions = widget.isWaiting;
-    _currentMessages = allChatsData[widget.name] ?? [];
+    _conversationId = widget.conversationId;
+    _currentMessages = [];
 
     _textController.addListener(() {
       setState(() {
@@ -60,7 +74,13 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
       duration: const Duration(milliseconds: 700),
     )..repeat(reverse: true);
 
-    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+    if (_usesRealConversation) {
+      _loadRealMessages();
+    } else {
+      _currentMessages = allChatsData[widget.name] ?? [];
+      _loadingMessages = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+    }
   }
 
   @override
@@ -88,34 +108,153 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
 
   // Gửi tin nhắn văn bản
 
-  void _sendMessage() {
+  Future<void> _sendMessage() async {
     final text = _textController.text.trim();
     if (text.isEmpty) return;
+
+    if (_usesRealConversation) {
+      final conversationId = _conversationId;
+
+      if (conversationId == null) {
+        return;
+      }
+
+      _textController.clear();
+
+      try {
+        final message = await _messageService.sendText(
+          conversationId: conversationId,
+          content: text,
+        );
+
+        if (!mounted) {
+          return;
+        }
+
+        setState(() {
+          _currentMessages.add(_toUiMessage(message));
+        });
+        Future.delayed(const Duration(milliseconds: 50), _scrollToBottom);
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(e.toString().replaceFirst('Exception: ', '')),
+              backgroundColor: Colors.redAccent,
+            ),
+          );
+        }
+      }
+      return;
+    }
+
     setState(() {
       _currentMessages.add(
-        MessageModel(
-          text: text,
-          isMe: true,
-          type: MessageType.text,
-        ),
+        MessageModel(text: text, isMe: true, type: MessageType.text),
       );
       _updateChatPreview();
       _textController.clear();
     });
     Future.delayed(const Duration(milliseconds: 50), _scrollToBottom);
   }
+
+  Future<void> _loadRealMessages() async {
+    try {
+      var conversationId = _conversationId;
+
+      if (conversationId == null && widget.otherProfileId != null) {
+        conversationId = await _messageService.openPrivateConversation(
+          widget.otherProfileId!,
+        );
+        _conversationId = conversationId;
+      }
+
+      if (conversationId == null) {
+        throw Exception('Không tìm thấy cuộc trò chuyện');
+      }
+
+      final messages = await _messageService.loadMessages(conversationId);
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _currentMessages = messages.map(_toUiMessage).toList();
+        _loadingMessages = false;
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _loadingMessages = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    }
+  }
+
+  MessageModel _toUiMessage(RealMessage message) {
+    switch (message.type) {
+      case RealMessageType.location:
+      case RealMessageType.place:
+        return MessageModel(
+          text: message.text.isEmpty ? 'Vị trí' : message.text,
+          isMe: message.isMe,
+          type: MessageType.location,
+        );
+      case RealMessageType.image:
+        return MessageModel(
+          text: message.text,
+          isMe: message.isMe,
+          type: MessageType.image,
+        );
+      case RealMessageType.video:
+        return MessageModel(
+          text: message.text,
+          isMe: message.isMe,
+          type: MessageType.video,
+        );
+      case RealMessageType.audio:
+        return MessageModel(
+          text: message.text,
+          isMe: message.isMe,
+          type: MessageType.audio,
+        );
+      case RealMessageType.sticker:
+        return MessageModel(
+          text: message.text,
+          isMe: message.isMe,
+          type: MessageType.sticker,
+        );
+      case RealMessageType.post:
+        return MessageModel(
+          text: message.text.isEmpty ? 'Bài viết' : message.text,
+          isMe: message.isMe,
+        );
+      case RealMessageType.text:
+        return MessageModel(text: message.text, isMe: message.isMe);
+    }
+  }
+
   void _updateChatPreview() {
-    final index = normalMessages.indexWhere(
-          (e) => e.name == widget.name,
-    );
+    final index = normalMessages.indexWhere((e) => e.name == widget.name);
 
     if (index != -1) {
-      normalMessages[index].lastMessage =
-          getLastMessageText(widget.name);
+      normalMessages[index].lastMessage = getLastMessageText(widget.name);
 
       normalMessages[index].isUnread = false;
     }
   }
+
   // Máy ảnh (chụp ảnh / quay video trực tiếp)
   Future<void> _openCamera() async {
     final camStatus = await Permission.camera.request();
@@ -129,27 +268,37 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
       context: context,
       backgroundColor: const Color(0xFF1F1F1F),
       shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
       builder: (_) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             const SizedBox(height: 8),
             Container(
-              width: 36, height: 4,
+              width: 36,
+              height: 4,
               decoration: BoxDecoration(
-                  color: Colors.white24,
-                  borderRadius: BorderRadius.circular(2)),
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(2),
+              ),
             ),
             const SizedBox(height: 8),
             ListTile(
-              leading: const Icon(LucideIcons.camera, color: Colors.white, size: 22),
-              title: const Text('Chụp ảnh',
-                  style: TextStyle(color: Colors.white, fontSize: 15)),
+              leading: const Icon(
+                LucideIcons.camera,
+                color: Colors.white,
+                size: 22,
+              ),
+              title: const Text(
+                'Chụp ảnh',
+                style: TextStyle(color: Colors.white, fontSize: 15),
+              ),
               onTap: () async {
                 Navigator.pop(context);
-                final xFile =
-                await ImagePicker().pickImage(source: ImageSource.camera);
+                final xFile = await ImagePicker().pickImage(
+                  source: ImageSource.camera,
+                );
                 if (xFile != null && mounted) {
                   setState(() {
                     _currentMessages.add(
@@ -170,16 +319,27 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
               },
             ),
             ListTile(
-              leading: const Icon(LucideIcons.video, color: Colors.white, size: 22),
-              title: const Text('Quay video',
-                  style: TextStyle(color: Colors.white, fontSize: 15)),
+              leading: const Icon(
+                LucideIcons.video,
+                color: Colors.white,
+                size: 22,
+              ),
+              title: const Text(
+                'Quay video',
+                style: TextStyle(color: Colors.white, fontSize: 15),
+              ),
               onTap: () async {
                 Navigator.pop(context);
-                final xFile =
-                await ImagePicker().pickVideo(source: ImageSource.camera);
+                final xFile = await ImagePicker().pickVideo(
+                  source: ImageSource.camera,
+                );
                 if (xFile != null && mounted) {
-                  setState(() { _currentMessages.add(
-                      MessageModel( text: xFile.path, isMe: true, type: MessageType.video,
+                  setState(() {
+                    _currentMessages.add(
+                      MessageModel(
+                        text: xFile.path,
+                        isMe: true,
+                        type: MessageType.video,
                       ),
                     );
                     _updateChatPreview();
@@ -208,50 +368,85 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
       context: context,
       backgroundColor: const Color(0xFF1F1F1F),
       shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
       builder: (_) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             const SizedBox(height: 8),
             Container(
-              width: 36, height: 4,
+              width: 36,
+              height: 4,
               decoration: BoxDecoration(
-                  color: Colors.white24,
-                  borderRadius: BorderRadius.circular(2)),
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(2),
+              ),
             ),
             const SizedBox(height: 8),
             ListTile(
-              leading: const Icon(LucideIcons.image, color: Colors.white, size: 22),
-              title: const Text('Gửi ảnh',
-                  style: TextStyle(color: Colors.white, fontSize: 15)),
+              leading: const Icon(
+                LucideIcons.image,
+                color: Colors.white,
+                size: 22,
+              ),
+              title: const Text(
+                'Gửi ảnh',
+                style: TextStyle(color: Colors.white, fontSize: 15),
+              ),
               onTap: () async {
                 Navigator.pop(context);
-                final xFile =
-                await ImagePicker().pickImage(source: ImageSource.gallery);
+                final xFile = await ImagePicker().pickImage(
+                  source: ImageSource.gallery,
+                );
                 if (xFile != null && mounted) {
-                  setState(() { _currentMessages.add(MessageModel(
-                      text: xFile.path, isMe: true, type: MessageType.image));
-                  _updateChatPreview();
+                  setState(() {
+                    _currentMessages.add(
+                      MessageModel(
+                        text: xFile.path,
+                        isMe: true,
+                        type: MessageType.image,
+                      ),
+                    );
+                    _updateChatPreview();
                   });
-                  Future.delayed(const Duration(milliseconds: 50), _scrollToBottom);
+                  Future.delayed(
+                    const Duration(milliseconds: 50),
+                    _scrollToBottom,
+                  );
                 }
               },
             ),
             ListTile(
-              leading: const Icon(LucideIcons.film, color: Colors.white, size: 22),
-              title: const Text('Gửi video',
-                  style: TextStyle(color: Colors.white, fontSize: 15)),
+              leading: const Icon(
+                LucideIcons.film,
+                color: Colors.white,
+                size: 22,
+              ),
+              title: const Text(
+                'Gửi video',
+                style: TextStyle(color: Colors.white, fontSize: 15),
+              ),
               onTap: () async {
                 Navigator.pop(context);
-                final xFile =
-                await ImagePicker().pickVideo(source: ImageSource.gallery);
+                final xFile = await ImagePicker().pickVideo(
+                  source: ImageSource.gallery,
+                );
                 if (xFile != null && mounted) {
-                  setState(() {_currentMessages.add(MessageModel(
-                      text: xFile.path, isMe: true, type: MessageType.video));
-                  _updateChatPreview();
+                  setState(() {
+                    _currentMessages.add(
+                      MessageModel(
+                        text: xFile.path,
+                        isMe: true,
+                        type: MessageType.video,
+                      ),
+                    );
+                    _updateChatPreview();
                   });
-                  Future.delayed(const Duration(milliseconds: 50), _scrollToBottom);
+                  Future.delayed(
+                    const Duration(milliseconds: 50),
+                    _scrollToBottom,
+                  );
                 }
               },
             ),
@@ -302,9 +497,11 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
     final path = await _recorder.stop();
     setState(() => _isRecording = false);
     if (path != null && mounted) {
-      setState(() { _currentMessages.add(
-          MessageModel(text: path, isMe: true, type: MessageType.audio));
-      _updateChatPreview();
+      setState(() {
+        _currentMessages.add(
+          MessageModel(text: path, isMe: true, type: MessageType.audio),
+        );
+        _updateChatPreview();
       });
       Future.delayed(const Duration(milliseconds: 50), _scrollToBottom);
     }
@@ -331,25 +528,28 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
     }
     try {
       final pos = await Geolocator.getCurrentPosition(
-        locationSettings:
-        const LocationSettings(accuracy: LocationAccuracy.high),
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
       );
       if (!mounted) return;
       setState(() {
-        _currentMessages.add(MessageModel(
-          text:
-          'Vị trí: ${pos.latitude.toStringAsFixed(5)}, ${pos.longitude
-              .toStringAsFixed(5)}',
-          isMe: true,
-          type: MessageType.location,
-        ));
+        _currentMessages.add(
+          MessageModel(
+            text:
+                'Vị trí: ${pos.latitude.toStringAsFixed(5)}, ${pos.longitude.toStringAsFixed(5)}',
+            isMe: true,
+            type: MessageType.location,
+          ),
+        );
         _updateChatPreview();
       });
       Future.delayed(const Duration(milliseconds: 50), _scrollToBottom);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Không lấy được vị trí: $e')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Không lấy được vị trí: $e')));
       }
     }
   }
@@ -366,7 +566,8 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
   void _sendSticker(String emoji) {
     setState(() {
       _currentMessages.add(
-          MessageModel(text: emoji, isMe: true, type: MessageType.sticker));
+        MessageModel(text: emoji, isMe: true, type: MessageType.sticker),
+      );
       _showStickerPanel = false;
       _updateChatPreview();
     });
@@ -380,8 +581,10 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
       context: context,
       builder: (_) => AlertDialog(
         backgroundColor: const Color(0xFF2C2C2E),
-        title: Text('Cần quyền $feature',
-            style: const TextStyle(color: Colors.white)),
+        title: Text(
+          'Cần quyền $feature',
+          style: const TextStyle(color: Colors.white),
+        ),
         content: Text(
           'Vui lòng cấp quyền $feature trong Cài đặt để dùng tính năng này.',
           style: const TextStyle(color: Colors.white60, fontSize: 13),
@@ -389,16 +592,17 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Hủy',
-                style: TextStyle(color: Colors.white54)),
+            child: const Text('Hủy', style: TextStyle(color: Colors.white54)),
           ),
           TextButton(
             onPressed: () {
               Navigator.pop(context);
               openAppSettings();
             },
-            child: const Text('Mở Cài đặt',
-                style: TextStyle(color: Color(0xFF4AA8FF))),
+            child: const Text(
+              'Mở Cài đặt',
+              style: TextStyle(color: Color(0xFF4AA8FF)),
+            ),
           ),
         ],
       ),
@@ -406,31 +610,54 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
   }
 
   //  Logic chờ / chấp nhận
-  void _handleAccept() {
-    final existInWaiting =
-    waitingMessages.any((e) => e.name == widget.name);
-    if (existInWaiting) {
-      final targetChat =
-      waitingMessages.firstWhere((e) => e.name == widget.name);
-      normalMessages.add(ChatData(
-        name: targetChat.name,
-        lastMessage: getLastMessageText(
-          widget.name,
+  Future<void> _handleAccept() async {
+    if (_usesRealConversation && widget.otherProfileId != null) {
+      await _messageService.acceptWaitingConversation(widget.otherProfileId!);
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() => _showWaitingActions = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Đã chấp nhận cuộc trò chuyện!'),
+          duration: Duration(seconds: 1),
         ),
-        time: targetChat.time,
-        isUnread: false,
-      ));
+      );
+      return;
+    }
+
+    final existInWaiting = waitingMessages.any((e) => e.name == widget.name);
+    if (existInWaiting) {
+      final targetChat = waitingMessages.firstWhere(
+        (e) => e.name == widget.name,
+      );
+      normalMessages.add(
+        ChatData(
+          name: targetChat.name,
+          lastMessage: getLastMessageText(widget.name),
+          time: targetChat.time,
+          isUnread: false,
+        ),
+      );
       waitingMessages.remove(targetChat);
     }
     setState(() => _showWaitingActions = false);
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-          content: Text('Đã chấp nhận cuộc trò chuyện!'),
-          duration: Duration(seconds: 1)),
+        content: Text('Đã chấp nhận cuộc trò chuyện!'),
+        duration: Duration(seconds: 1),
+      ),
     );
   }
 
   void _handleBlockOrDelete(String action) {
+    if (_usesRealConversation) {
+      Navigator.pop(context);
+      return;
+    }
+
     waitingMessages.removeWhere((e) => e.name == widget.name);
     Navigator.pop(context);
   }
@@ -445,8 +672,11 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
         backgroundColor: const Color(0xFF1F1F1F),
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(LucideIcons.chevronLeft,
-              color: Colors.white, size: 28),
+          icon: const Icon(
+            LucideIcons.chevronLeft,
+            color: Colors.white,
+            size: 28,
+          ),
           onPressed: () => Navigator.pop(context),
         ),
         title: InkWell(
@@ -461,15 +691,30 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
                 ),
               ),
             );
-        if (mounted) {
-        setState(() {});
-        }
+            if (mounted) {
+              setState(() {});
+            }
           },
           child: Row(
             children: [
-              const CircleAvatar(
+              CircleAvatar(
                 radius: 18,
                 backgroundColor: Color(0xFF4AA8FF),
+                backgroundImage: widget.avatarUrl?.trim().isNotEmpty == true
+                    ? NetworkImage(widget.avatarUrl!)
+                    : null,
+                child: widget.avatarUrl?.trim().isNotEmpty == true
+                    ? null
+                    : Text(
+                        widget.name.isEmpty
+                            ? '?'
+                            : widget.name[0].toUpperCase(),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
               ),
               const SizedBox(width: 10),
 
@@ -478,8 +723,7 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
-                    nicknames[widget.name] ??
-                        widget.name,
+                    nicknames[widget.name] ?? widget.name,
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 16,
@@ -488,10 +732,7 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
                   ),
                   const Text(
                     'Họ tên',
-                    style: TextStyle(
-                      color: Colors.white54,
-                      fontSize: 12,
-                    ),
+                    style: TextStyle(color: Colors.white54, fontSize: 12),
                   ),
                 ],
               ),
@@ -508,11 +749,13 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
         ),
         actions: [
           IconButton(
-              icon: const Icon(LucideIcons.phone, color: Colors.white),
-              onPressed: () {}),
+            icon: const Icon(LucideIcons.phone, color: Colors.white),
+            onPressed: () {},
+          ),
           IconButton(
-              icon: const Icon(LucideIcons.video, color: Colors.white),
-              onPressed: () {}),
+            icon: const Icon(LucideIcons.video, color: Colors.white),
+            onPressed: () {},
+          ),
         ],
       ),
       body: Column(
@@ -521,41 +764,44 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
           const Text(
             '18:20, TH 5',
             style: TextStyle(
-                color: Colors.white38,
-                fontSize: 12,
-                fontWeight: FontWeight.w600),
+              color: Colors.white38,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
           ),
           const SizedBox(height: 16),
 
-          // Danh sách tin nhắn
-          Expanded(
-            child: GestureDetector(
-              onTap: () {
-                _focusNode.unfocus();
-                if (_showStickerPanel) setState(() => _showStickerPanel = false);
-              },
-              child: ListView.builder(
-                controller: _scrollController,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                itemCount: _currentMessages.length + 1,
-                itemBuilder: (context, index) {
-                  if (index == _currentMessages.length) {
-                    return const Padding(
-                      padding:
-                      EdgeInsets.only(top: 6, bottom: 12, right: 12),
-                      child: Text(
-                        'Đã xem vào Thứ Năm',
-                        textAlign: TextAlign.end,
-                        style: TextStyle(
-                            color: Colors.white38, fontSize: 12),
-                      ),
-                    );
+          if (_loadingMessages)
+            const Expanded(child: Center(child: CircularProgressIndicator()))
+          else
+            Expanded(
+              child: GestureDetector(
+                onTap: () {
+                  _focusNode.unfocus();
+                  if (_showStickerPanel) {
+                    setState(() => _showStickerPanel = false);
                   }
-                  return _buildChatBubble(_currentMessages[index]);
                 },
+                child: ListView.builder(
+                  controller: _scrollController,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  itemCount: _currentMessages.length + 1,
+                  itemBuilder: (context, index) {
+                    if (index == _currentMessages.length) {
+                      return const Padding(
+                        padding: EdgeInsets.only(top: 6, bottom: 12, right: 12),
+                        child: Text(
+                          'Đã xem',
+                          textAlign: TextAlign.end,
+                          style: TextStyle(color: Colors.white38, fontSize: 12),
+                        ),
+                      );
+                    }
+                    return _buildChatBubble(_currentMessages[index]);
+                  },
+                ),
               ),
             ),
-          ),
 
           // Thanh ghi âm đang chạy
           if (_isRecording) _buildRecordingBar(),
@@ -603,13 +849,13 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Row(
-        mainAxisAlignment:
-        isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+        mainAxisAlignment: isMe
+            ? MainAxisAlignment.end
+            : MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           if (!isMe) ...[
-            const CircleAvatar(
-                radius: 14, backgroundColor: Color(0xFF4AA8FF)),
+            const CircleAvatar(radius: 14, backgroundColor: Color(0xFF4AA8FF)),
             const SizedBox(width: 8),
           ],
           child,
@@ -627,11 +873,14 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
         border: Border.all(color: const Color(0xFF2C2C2E), width: 1.5),
         borderRadius: BorderRadius.circular(20),
       ),
-      child: Text(msg.text,
-          style: const TextStyle(
-              color: Colors.white,
-              fontSize: 14,
-              fontWeight: FontWeight.w500)),
+      child: Text(
+        msg.text,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 14,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
     ),
   );
 
@@ -647,11 +896,14 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
         mainAxisSize: MainAxisSize.min,
         children: [
           Flexible(
-            child: Text(msg.text,
-                style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold)),
+            child: Text(
+              msg.text,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
           const SizedBox(width: 6),
           const Icon(LucideIcons.mapPin, color: Colors.white, size: 16),
@@ -666,9 +918,10 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
       borderRadius: BorderRadius.circular(16),
       child: Image.file(
         File(msg.text),
-        width: 200, height: 200,
+        width: 200,
+        height: 200,
         fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => _mediaErrorBox(),
+        errorBuilder: (context, error, stackTrace) => _mediaErrorBox(),
       ),
     ),
   );
@@ -676,13 +929,15 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
   Widget _videoBubble(MessageModel msg) => _bubbleRow(
     isMe: msg.isMe,
     child: Container(
-      width: 200, height: 130,
+      width: 200,
+      height: 130,
       decoration: BoxDecoration(
         color: const Color(0xFF2C2C2E),
         borderRadius: BorderRadius.circular(16),
       ),
       child: const Center(
-          child: Icon(LucideIcons.play, color: Colors.white, size: 44)),
+        child: Icon(LucideIcons.play, color: Colors.white, size: 44),
+      ),
     ),
   );
 
@@ -699,14 +954,19 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
         children: [
           GestureDetector(
             onTap: () => _audioPlayer.play(DeviceFileSource(msg.text)),
-            child: const Icon(LucideIcons.play,
-                color: Color(0xFF4AA8FF), size: 28),
+            child: const Icon(
+              LucideIcons.play,
+              color: Color(0xFF4AA8FF),
+              size: 28,
+            ),
           ),
           const SizedBox(width: 10),
           const Icon(LucideIcons.mic, color: Colors.white54, size: 16),
           const SizedBox(width: 4),
-          const Text('Tin nhắn thoại',
-              style: TextStyle(color: Colors.white70, fontSize: 13)),
+          const Text(
+            'Tin nhắn thoại',
+            style: TextStyle(color: Colors.white70, fontSize: 13),
+          ),
         ],
       ),
     ),
@@ -718,13 +978,15 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
   );
 
   Widget _mediaErrorBox() => Container(
-    width: 200, height: 100,
+    width: 200,
+    height: 100,
     decoration: BoxDecoration(
       color: const Color(0xFF2C2C2E),
       borderRadius: BorderRadius.circular(16),
     ),
     child: const Center(
-        child: Icon(LucideIcons.imageOff, color: Colors.white38, size: 32)),
+      child: Icon(LucideIcons.imageOff, color: Colors.white38, size: 32),
+    ),
   );
 
   // ── Recording bar ─────────────────────────────────────────
@@ -738,33 +1000,44 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
           FadeTransition(
             opacity: _micBlinkAnim,
             child: Container(
-              width: 10, height: 10,
+              width: 10,
+              height: 10,
               decoration: const BoxDecoration(
-                  color: Colors.redAccent, shape: BoxShape.circle),
+                color: Colors.redAccent,
+                shape: BoxShape.circle,
+              ),
             ),
           ),
           const SizedBox(width: 10),
-          Text('Đang ghi âm  ${_formatDuration(_recordDuration)}',
-              style: const TextStyle(color: Colors.white, fontSize: 14)),
+          Text(
+            'Đang ghi âm  ${_formatDuration(_recordDuration)}',
+            style: const TextStyle(color: Colors.white, fontSize: 14),
+          ),
           const Spacer(),
           IconButton(
-            icon: const Icon(LucideIcons.trash2,
-                color: Colors.redAccent, size: 20),
+            icon: const Icon(
+              LucideIcons.trash2,
+              color: Colors.redAccent,
+              size: 20,
+            ),
             onPressed: _cancelRecording,
             tooltip: 'Hủy',
           ),
           GestureDetector(
             onTap: _stopRecording,
             child: Container(
-              padding:
-              const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               decoration: BoxDecoration(
                 color: const Color(0xFF4AA8FF),
                 borderRadius: BorderRadius.circular(20),
               ),
-              child: const Text('Gửi',
-                  style: TextStyle(
-                      color: Colors.white, fontWeight: FontWeight.bold)),
+              child: const Text(
+                'Gửi',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
           ),
         ],
@@ -780,8 +1053,7 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
       padding: const EdgeInsets.fromLTRB(20, 24, 20, 34),
       decoration: const BoxDecoration(
         color: Colors.black,
-        border:
-        Border(top: BorderSide(color: Color(0xFF222222), width: 0.5)),
+        border: Border(top: BorderSide(color: Color(0xFF222222), width: 0.5)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -790,29 +1062,43 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
             'Chấp nhận tin nhắn đang chờ của\n${widget.name} (họ tên)?',
             textAlign: TextAlign.center,
             style: const TextStyle(
-                color: Colors.white,
-                fontSize: 15,
-                fontWeight: FontWeight.bold,
-                height: 1.3),
+              color: Colors.white,
+              fontSize: 15,
+              fontWeight: FontWeight.bold,
+              height: 1.3,
+            ),
           ),
           const SizedBox(height: 8),
           const Text(
             'Nếu bạn chấp nhận, họ có thể gọi cho bạn, xem được trạng thái hoạt động và thời điểm bạn đọc tin nhắn',
             textAlign: TextAlign.center,
-            style: TextStyle(
-                color: Colors.white60, fontSize: 12, height: 1.4),
+            style: TextStyle(color: Colors.white60, fontSize: 12, height: 1.4),
           ),
           const SizedBox(height: 24),
           Row(
             children: [
-              _buildActionButton('Chặn', const Color(0xFF2C2C2E),
-                  Colors.white, () => _handleBlockOrDelete('Chặn')),
+              _buildActionButton(
+                'Chặn',
+                const Color(0xFF2C2C2E),
+                Colors.white,
+                () => _handleBlockOrDelete('Chặn'),
+              ),
               const SizedBox(width: 10),
-              _buildActionButton('Xóa', const Color(0xFF2C2C2E),
-                  Colors.white, () => _handleBlockOrDelete('Xóa')),
+              _buildActionButton(
+                'Xóa',
+                const Color(0xFF2C2C2E),
+                Colors.white,
+                () => _handleBlockOrDelete('Xóa'),
+              ),
               const SizedBox(width: 10),
-              _buildActionButton('Chấp nhận',
-                  const Color(0xFF2481CC), Colors.white, _handleAccept),
+              _buildActionButton(
+                'Chấp nhận',
+                const Color(0xFF2481CC),
+                Colors.white,
+                () {
+                  _handleAccept();
+                },
+              ),
             ],
           ),
         ],
@@ -827,8 +1113,7 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
 
     return Container(
       key: const ValueKey('chat_input_bar'),
-      padding:
-      EdgeInsets.fromLTRB(12, 8, 12, bottomInset > 0 ? 8 : 24),
+      padding: EdgeInsets.fromLTRB(12, 8, 12, bottomInset > 0 ? 8 : 24),
       color: Colors.black,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -840,8 +1125,11 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
           children: [
             // 1. Máy ảnh
             IconButton(
-              icon: const Icon(LucideIcons.camera,
-                  color: Colors.white, size: 24),
+              icon: const Icon(
+                LucideIcons.camera,
+                color: Colors.white,
+                size: 24,
+              ),
               onPressed: _openCamera,
             ),
 
@@ -872,62 +1160,73 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
               transitionBuilder: (child, animation) =>
                   ScaleTransition(scale: animation, child: child),
               child: _hasText
-              // Nút gửi text
+                  // Nút gửi text
                   ? IconButton(
-                key: const ValueKey('send_btn'),
-                icon: const Icon(LucideIcons.sendHorizontal,
-                    color: Color(0xFF4AA8FF), size: 24),
-                onPressed: _sendMessage,
-              )
-              // 3-4-5-6: Mic / Gallery / Sticker / Vị trí
+                      key: const ValueKey('send_btn'),
+                      icon: const Icon(
+                        LucideIcons.sendHorizontal,
+                        color: Color(0xFF4AA8FF),
+                        size: 24,
+                      ),
+                      onPressed: () {
+                        _sendMessage();
+                      },
+                    )
+                  // 3-4-5-6: Mic / Gallery / Sticker / Vị trí
                   : Row(
-                key: const ValueKey('actions_icons'),
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // 3. Ghi âm
-                  IconButton(
-                    constraints: const BoxConstraints(),
-                    padding: const EdgeInsets.all(6),
-                    icon: Icon(
-                      LucideIcons.mic,
-                      color: _isRecording
-                          ? Colors.redAccent
-                          : Colors.white,
-                      size: 24,
+                      key: const ValueKey('actions_icons'),
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // 3. Ghi âm
+                        IconButton(
+                          constraints: const BoxConstraints(),
+                          padding: const EdgeInsets.all(6),
+                          icon: Icon(
+                            LucideIcons.mic,
+                            color: _isRecording
+                                ? Colors.redAccent
+                                : Colors.white,
+                            size: 24,
+                          ),
+                          onPressed: _toggleRecording,
+                        ),
+                        // 4. Gallery
+                        IconButton(
+                          constraints: const BoxConstraints(),
+                          padding: const EdgeInsets.all(6),
+                          icon: const Icon(
+                            LucideIcons.image,
+                            color: Colors.white,
+                            size: 24,
+                          ),
+                          onPressed: _openGallery,
+                        ),
+                        // 5. Nhãn dán
+                        IconButton(
+                          constraints: const BoxConstraints(),
+                          padding: const EdgeInsets.all(6),
+                          icon: Icon(
+                            LucideIcons.smile,
+                            color: _showStickerPanel
+                                ? const Color(0xFF4AA8FF)
+                                : Colors.white,
+                            size: 24,
+                          ),
+                          onPressed: _toggleStickerPanel,
+                        ),
+                        // 6. Vị trí
+                        IconButton(
+                          constraints: const BoxConstraints(),
+                          padding: const EdgeInsets.all(6),
+                          icon: const Icon(
+                            LucideIcons.mapPin,
+                            color: Colors.white,
+                            size: 24,
+                          ),
+                          onPressed: _sendGpsLocation,
+                        ),
+                      ],
                     ),
-                    onPressed: _toggleRecording,
-                  ),
-                  // 4. Gallery
-                  IconButton(
-                    constraints: const BoxConstraints(),
-                    padding: const EdgeInsets.all(6),
-                    icon: const Icon(LucideIcons.image,
-                        color: Colors.white, size: 24),
-                    onPressed: _openGallery,
-                  ),
-                  // 5. Nhãn dán
-                  IconButton(
-                    constraints: const BoxConstraints(),
-                    padding: const EdgeInsets.all(6),
-                    icon: Icon(
-                      LucideIcons.smile,
-                      color: _showStickerPanel
-                          ? const Color(0xFF4AA8FF)
-                          : Colors.white,
-                      size: 24,
-                    ),
-                    onPressed: _toggleStickerPanel,
-                  ),
-                  // 6. Vị trí
-                  IconButton(
-                    constraints: const BoxConstraints(),
-                    padding: const EdgeInsets.all(6),
-                    icon: const Icon(LucideIcons.mapPin,
-                        color: Colors.white, size: 24),
-                    onPressed: _sendGpsLocation,
-                  ),
-                ],
-              ),
             ),
           ],
         ),
@@ -939,10 +1238,30 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
 
   Widget _buildStickerPanel() {
     const stickers = [
-      '😂', '❤️', '👍', '🎉', '😍', '🔥',
-      '😢', '😎', '🥰', '🤣', '😡', '👋',
-      '🐶', '🐱', '🦊', '🐸', '🐼', '🦋',
-      '🍕', '🍦', '🎂', '🍜', '🌮', '🧋',
+      '😂',
+      '❤️',
+      '👍',
+      '🎉',
+      '😍',
+      '🔥',
+      '😢',
+      '😎',
+      '🥰',
+      '🤣',
+      '😡',
+      '👋',
+      '🐶',
+      '🐱',
+      '🦊',
+      '🐸',
+      '🐼',
+      '🦋',
+      '🍕',
+      '🍦',
+      '🎂',
+      '🍜',
+      '🌮',
+      '🧋',
     ];
 
     return Container(
@@ -959,8 +1278,8 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
         itemBuilder: (_, i) => GestureDetector(
           onTap: () => _sendSticker(stickers[i]),
           child: Center(
-              child: Text(stickers[i],
-                  style: const TextStyle(fontSize: 30))),
+            child: Text(stickers[i], style: const TextStyle(fontSize: 30)),
+          ),
         ),
       ),
     );
@@ -969,7 +1288,11 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
   // ── Action button (giữ nguyên) ────────────────────────────
 
   Widget _buildActionButton(
-      String label, Color bgColor, Color textColor, VoidCallback onPressed) {
+    String label,
+    Color bgColor,
+    Color textColor,
+    VoidCallback onPressed,
+  ) {
     return Expanded(
       child: SizedBox(
         height: 44,
@@ -980,9 +1303,12 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
             foregroundColor: textColor,
             elevation: 0,
             shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12)),
+              borderRadius: BorderRadius.circular(12),
+            ),
             textStyle: const TextStyle(
-                fontSize: 14, fontWeight: FontWeight.bold),
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+            ),
           ),
           child: Text(label),
         ),
