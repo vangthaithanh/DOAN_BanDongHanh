@@ -8,20 +8,10 @@ import '../../../../shared/navigation/app_bottom_nav.dart';
 import '../../../../shared/navigation/main_tab.dart';
 import '../../../social/presentation/widgets/post_card.dart';
 
-/// NOTE SỬA:
-/// Trang cá nhân đã bỏ dữ liệu fix cứng.
-/// Dữ liệu lấy từ Supabase qua ProfileService:
-/// - profiles: avatar, nickname, full_name, bio, facebook_url
-/// - follows: follower count
-/// - friends: friend count
-/// - posts: post count
-/// - itineraries + itinerary_items: plan/lịch trình
-///
-/// NOTE RESPONSIVE:
-/// - Không fix cứng theo Pixel Emulator.
-/// - Dùng MediaQuery/LayoutBuilder để tự co theo màn hình.
 class TrangCaNhanPage extends StatefulWidget {
-  const TrangCaNhanPage({super.key});
+  final String? userId;
+
+  const TrangCaNhanPage({super.key, this.userId});
 
   @override
   State<TrangCaNhanPage> createState() => _TrangCaNhanPageState();
@@ -36,6 +26,7 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
   final ProfileService _service = ProfileService();
 
   late Future<ProfilePageData> _future;
+  bool _isActionLoading = false;
 
   int selectedTab = 0;
   int selectedPlanIndex = 0;
@@ -44,14 +35,46 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
   @override
   void initState() {
     super.initState();
+    _loadData();
+  }
 
-    _future = _service.loadMine();
+  void _loadData() {
+    if (widget.userId != null && widget.userId!.isNotEmpty) {
+      _future = _service.loadProfile(widget.userId!);
+    } else {
+      _future = _service.loadMine();
+    }
   }
 
   void _reloadProfile() {
     setState(() {
-      _future = _service.loadMine();
+      _loadData();
     });
+  }
+
+  Future<void> _handleFollow(String targetId) async {
+    if (_isActionLoading) return;
+
+    setState(() {
+      _isActionLoading = true;
+    });
+
+    try {
+      await _service.toggleFollow(targetId);
+      _reloadProfile();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Lỗi: ${e.toString()}')));
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isActionLoading = false;
+        });
+      }
+    }
   }
 
   TextStyle _textStyle({
@@ -104,11 +127,62 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
     );
   }
 
+  /// NOTE SỬA:
+  /// Mở danh sách người theo dõi hoặc bạn bè của profile đang xem.
+  /// type:
+  /// - followers: người theo dõi
+  /// - friends: bạn bè follow 2 chiều
+  void _openProfileConnections({
+    required String targetUserId,
+    required String type,
+  }) {
+    Navigator.pushNamed(
+      context,
+      AppRoutes.profileConnections,
+      arguments: {'targetUserId': targetUserId, 'type': type},
+    );
+  }
+
+  /// NOTE SỬA:
+  /// Text thống kê có thể bấm được.
+  /// Dùng cho Người theo dõi và Bạn bè.
+  Widget _profileStatText({required String text, VoidCallback? onTap}) {
+    final content = Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Text(text, style: _textStyle(size: 12, weight: FontWeight.w600)),
+    );
+
+    if (onTap == null) {
+      return content;
+    }
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: content,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      bottomNavigationBar: const AppBottomNav(activeTab: MainTab.profile),
+      bottomNavigationBar: widget.userId == null
+          ? const AppBottomNav(activeTab: MainTab.profile)
+          : null,
+      appBar: widget.userId != null
+          ? AppBar(
+              backgroundColor: Colors.black,
+              leading: IconButton(
+                icon: const Icon(Icons.arrow_back, color: Colors.white),
+                onPressed: () => Navigator.pop(context),
+              ),
+              title: Text(
+                'Hồ sơ',
+                style: _textStyle(size: 18, weight: FontWeight.w700),
+              ),
+            )
+          : null,
       body: SafeArea(
         child: FutureBuilder<ProfilePageData>(
           future: _future,
@@ -116,7 +190,7 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return Column(
                 children: [
-                  _topBar(context, null),
+                  if (widget.userId == null) _topBar(context, null),
                   const Expanded(
                     child: Center(child: CircularProgressIndicator()),
                   ),
@@ -127,7 +201,7 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
             if (snapshot.hasError) {
               return Column(
                 children: [
-                  _topBar(context, null),
+                  if (widget.userId == null) _topBar(context, null),
                   Expanded(
                     child: Center(
                       child: Padding(
@@ -162,9 +236,21 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
 
             final data = snapshot.data!;
 
+            // NOTE SỬA LƯU TRỮ:
+            // Phòng trường hợp service profile vẫn trả về bài archived,
+            // UI sẽ tự ẩn bài archived/deleted khỏi trang cá nhân.
+            final postsHienThi = data.posts
+                .where(
+                  (post) =>
+                      post.status != 'archived' &&
+                      post.status != 'deleted' &&
+                      !post.isArchived,
+                )
+                .toList();
+
             return Column(
               children: [
-                _topBar(context, data),
+                if (widget.userId == null) _topBar(context, data),
                 Expanded(
                   child: ListView(
                     padding: EdgeInsets.zero,
@@ -180,11 +266,11 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
                       ),
                       _tabButtons(context),
                       if (selectedTab == 0) ...[
-                        _shareBox(context, data),
-                        if (data.posts.isEmpty)
+                        if (data.isMe) _shareBox(context, data),
+                        if (postsHienThi.isEmpty)
                           _emptyPostBox(context, data)
                         else
-                          ...data.posts.map(
+                          ...postsHienThi.map(
                             (post) => PostCard(
                               post: post,
                               onComment: () async {
@@ -230,9 +316,6 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
       ),
       child: Row(
         children: [
-          // NOTE SỬA:
-          // Nút bên trái là dấu + để tạo bài viết/khoảnh khắc/lịch trình.
-          // Trước đó bạn để menu ở đây nên bị nhầm.
           InkWell(
             onTap: () => _showCreateSheet(context),
             borderRadius: BorderRadius.circular(20),
@@ -242,7 +325,6 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
               child: Icon(Icons.add, color: Colors.white, size: 26),
             ),
           ),
-
           Expanded(
             child: Text(
               data?.profile.displayName ?? 'Hồ sơ',
@@ -252,13 +334,21 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
               style: _textStyle(size: 20, weight: FontWeight.w700),
             ),
           ),
-
-          // NOTE SỬA:
-          // Nút bên phải mới là nút 3 gạch mở Cài đặt và hoạt động.
-          // Trước đó onTap để rỗng nên bấm không có gì xảy ra.
           InkWell(
-            onTap: () {
-              Navigator.pushNamed(context, AppRoutes.settings);
+            // NOTE SỬA LƯU TRỮ:
+            // Khi từ Cài đặt -> Kho lưu trữ khôi phục bài xong,
+            // route sẽ trả về true để trang cá nhân load lại ngay.
+            onTap: () async {
+              final changed = await Navigator.pushNamed(
+                context,
+                AppRoutes.settings,
+              );
+
+              if (!mounted) return;
+
+              if (changed == true) {
+                _reloadProfile();
+              }
             },
             borderRadius: BorderRadius.circular(20),
             child: const SizedBox(
@@ -290,8 +380,6 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    /// NOTE SỬA:
-                    /// Tên không fix cứng nữa, lấy từ Supabase.
                     Text(
                       data.profile.displayName,
                       maxLines: 1,
@@ -301,22 +389,33 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
                     const SizedBox(height: 8),
 
                     /// NOTE SỬA:
-                    /// Follower/Friend/Post lấy từ Supabase.
+                    /// Người theo dõi và Bạn bè bấm được.
+                    /// Bài viết giữ nguyên chỉ hiển thị số lượng.
                     Wrap(
                       spacing: 14,
                       runSpacing: 6,
                       children: [
-                        Text(
-                          '${data.followerCount} Người theo dõi',
-                          style: _textStyle(size: 12, weight: FontWeight.w600),
+                        _profileStatText(
+                          text: '${data.followerCount} Người theo dõi',
+                          onTap: () {
+                            _openProfileConnections(
+                              targetUserId: data.profile.id,
+                              type: 'followers',
+                            );
+                          },
                         ),
-                        Text(
-                          '${data.friendCount} Bạn bè',
-                          style: _textStyle(size: 12, weight: FontWeight.w600),
+                        _profileStatText(
+                          text: '${data.friendCount} Bạn bè',
+                          onTap: () {
+                            _openProfileConnections(
+                              targetUserId: data.profile.id,
+                              type: 'friends',
+                            );
+                          },
                         ),
-                        Text(
-                          '${data.postCount} Bài viết',
-                          style: _textStyle(size: 12, weight: FontWeight.w600),
+                        _profileStatText(
+                          text:
+                              '${data.posts.where((post) => post.status != 'archived' && post.status != 'deleted' && !post.isArchived).length} Bài viết',
                         ),
                       ],
                     ),
@@ -327,16 +426,10 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
           ],
         ),
         const SizedBox(height: 14),
-
-        /// NOTE SỬA:
-        /// Tiểu sử lấy từ profiles.bio.
         Text(
           data.profile.bio.isNotEmpty ? data.profile.bio : 'Chưa có tiểu sử',
           style: _textStyle(size: 13, weight: FontWeight.w500),
         ),
-
-        /// NOTE SỬA:
-        /// Link Facebook lấy từ profiles.facebook_url.
         if (data.profile.facebookUrl.isNotEmpty) ...[
           const SizedBox(height: 6),
           Text(
@@ -346,42 +439,92 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
             style: _textStyle(size: 13, weight: FontWeight.w600, color: blue),
           ),
         ],
-
         const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: _grayButton(
-                'Chỉnh sửa',
-                onTap: () async {
-                  /// NOTE SỬA:
-                  /// Mở màn chỉnh sửa thật, truyền profile hiện tại qua.
-                  final updated = await Navigator.pushNamed(
-                    context,
-                    AppRoutes.editProfile,
-                    arguments: data.profile,
-                  );
+        if (data.isMe)
+          Row(
+            children: [
+              Expanded(
+                child: _grayButton(
+                  'Chỉnh sửa',
+                  onTap: () async {
+                    final updated = await Navigator.pushNamed(
+                      context,
+                      AppRoutes.editProfile,
+                      arguments: data.profile,
+                    );
 
-                  if (updated == true) {
-                    _reloadProfile();
-                  }
-                },
+                    if (updated == true) {
+                      _reloadProfile();
+                    }
+                  },
+                ),
               ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _grayButton(
-                'Lịch trình',
-                onTap: () {
-                  setState(() {
-                    selectedTab = 1;
-                    isPlanPickerOpen = false;
-                  });
-                },
+              const SizedBox(width: 12),
+              Expanded(
+                child: _grayButton(
+                  'Lịch trình',
+                  onTap: () {
+                    setState(() {
+                      selectedTab = 1;
+                      isPlanPickerOpen = false;
+                    });
+                  },
+                ),
               ),
-            ),
-          ],
-        ),
+            ],
+          )
+        else
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () => _handleFollow(data.profile.id),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: data.isFollowing ? softGrey : blue,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  child: _isActionLoading
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : Text(
+                          data.isFollowing ? 'Đang theo dõi' : 'Theo dõi',
+                          style: _textStyle(
+                            weight: FontWeight.w700,
+                            color: data.isFollowing
+                                ? Colors.white70
+                                : Colors.white,
+                          ),
+                        ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _grayButton(
+                  'Nhắn tin',
+                  onTap: () {
+                    Navigator.pushNamed(
+                      context,
+                      AppRoutes.chatDetail,
+                      arguments: {
+                        'name': data.profile.displayName,
+                        'otherProfileId': data.profile.id,
+                        'avatarUrl': data.profile.avatarUrl,
+                        'isWaiting': !data.isFollowing,
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
         const SizedBox(height: 10),
       ],
     );

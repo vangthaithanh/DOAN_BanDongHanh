@@ -2,20 +2,17 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../app/routes/app_routes.dart';
 import '../../../../shared/navigation/app_bottom_nav.dart';
 import '../../../../shared/navigation/main_tab.dart';
-import '../../data/mock/mock_khoanhkhac.dart';
 import '../widgets/thanh_tren_khoanhkhac.dart';
 
 class TrangPreviewHinh extends StatefulWidget {
   final String? duongDanAnh;
 
-  const TrangPreviewHinh({
-    super.key,
-    this.duongDanAnh,
-  });
+  const TrangPreviewHinh({super.key, this.duongDanAnh});
 
   @override
   State<TrangPreviewHinh> createState() => _TrangPreviewHinhState();
@@ -24,62 +21,97 @@ class TrangPreviewHinh extends StatefulWidget {
 class _TrangPreviewHinhState extends State<TrangPreviewHinh> {
   String? viTriDaChon;
 
-  String? get duongDanAnh => widget.duongDanAnh;
+  // NOTE SỬA: thêm 2 biến lưu GPS
+  double? latitudeDaChon;
+  double? longitudeDaChon;
 
-  void _guiAnh(BuildContext context) {
-    if (duongDanAnh != null && duongDanAnh!.trim().isNotEmpty) {
-      KhoLuuKhoanhKhacTam.themAnh(
-        duongDanAnh: duongDanAnh!,
-        viTri: viTriDaChon,
+  String? duongDanAnh;
+
+  @override
+  void initState() {
+    super.initState();
+    duongDanAnh = widget.duongDanAnh;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final args = ModalRoute.of(context)?.settings.arguments;
+      if (args is String) {
+        setState(() => duongDanAnh = args);
+      } else if (args is Map && args['duongDanAnh'] != null) {
+        setState(() => duongDanAnh = args['duongDanAnh']);
+      }
+    });
+  }
+
+  // 🚀 GỬI LÊN SUPABASE
+  Future<void> _guiAnh(BuildContext context) async {
+    if (duongDanAnh == null || duongDanAnh!.isEmpty) return;
+
+    final supabase = Supabase.instance.client;
+    final user = supabase.auth.currentUser;
+
+    try {
+      // LƯU Ý: Ở đây đúng ra phải upload lên Storage trước.
+      // Tạm thời fix để lưu được text path:
+      await supabase.from('moments').insert({
+        'profile_id': user?.id,
+        'image_url': duongDanAnh, // Đang lưu path cục bộ
+        'nearby_place_name': viTriDaChon,
+
+        // NOTE SỬA: lưu GPS thật vào bảng moments
+        'latitude': latitudeDaChon,
+        'longitude': longitudeDaChon,
+
+        'created_at': DateTime.now().toIso8601String(),
+        'status': 'active',
+      });
+
+      if (!mounted) return;
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        AppRoutes.trangGalleryKhoanhKhac,
+        (route) => false,
       );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Lỗi: $e')));
     }
+  }
 
-    Navigator.pushNamedAndRemoveUntil(
-      context,
-      AppRoutes.trangGalleryKhoanhKhac,
-          (route) => false,
-    );
+  double? _toDouble(dynamic value) {
+    if (value == null) return null;
+
+    if (value is double) return value;
+
+    if (value is int) return value.toDouble();
+
+    return double.tryParse(value.toString());
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      bottomNavigationBar: const AppBottomNav(
-        activeTab: MainTab.moments,
-      ),
+      bottomNavigationBar: const AppBottomNav(activeTab: MainTab.moments),
       body: SafeArea(
         child: Column(
           children: [
             const ThanhTrenKhoanhKhac(),
-
             Expanded(
               child: LayoutBuilder(
                 builder: (context, constraints) {
-                  final chieuCaoKhung =
-                      constraints.maxHeight * 0.58;
-
-                  final chieuCaoHopLy =
-                  chieuCaoKhung.clamp(300.0, 405.0);
-
+                  final chieuCao = (constraints.maxHeight * 0.58).clamp(
+                    300.0,
+                    405.0,
+                  );
                   return Column(
                     children: [
-                      SizedBox(
-                        height: constraints.maxHeight * 0.035,
-                      ),
-
-                      _khungAnh(
-                        context,
-                        chieuCaoHopLy,
-                      ),
-
+                      const SizedBox(height: 20),
+                      _khungAnh(chieuCao),
                       const Spacer(),
-
-                      _hangNutDuoi(context),
-
-                      SizedBox(
-                        height: constraints.maxHeight * 0.04,
-                      ),
+                      _hangNutDuoi(),
+                      const SizedBox(height: 30),
                     ],
                   );
                 },
@@ -91,10 +123,7 @@ class _TrangPreviewHinhState extends State<TrangPreviewHinh> {
     );
   }
 
-  Widget _khungAnh(
-      BuildContext context,
-      double chieuCao,
-      ) {
+  Widget _khungAnh(double chieuCao) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 29),
       child: Container(
@@ -103,25 +132,17 @@ class _TrangPreviewHinhState extends State<TrangPreviewHinh> {
         decoration: BoxDecoration(
           color: const Color(0xFF111111),
           borderRadius: BorderRadius.circular(31),
-          border: Border.all(
-            color: const Color(0xFF2B2B2B),
-            width: 1,
-          ),
+          border: Border.all(color: const Color(0xFF2B2B2B)),
         ),
         clipBehavior: Clip.antiAlias,
         child: Stack(
           children: [
-            Positioned.fill(
-              child: _hienThiAnh(),
-            ),
-
+            Positioned.fill(child: _hienThiAnh()),
             Positioned(
               left: 0,
               right: 0,
               bottom: 14,
-              child: Center(
-                child: _nutThemViTri(context),
-              ),
+              child: Center(child: _nutThemViTri()),
             ),
           ],
         ),
@@ -130,136 +151,88 @@ class _TrangPreviewHinhState extends State<TrangPreviewHinh> {
   }
 
   Widget _hienThiAnh() {
-    if (duongDanAnh != null &&
-        duongDanAnh!.startsWith('/') &&
-        File(duongDanAnh!).existsSync()) {
-      return Image.file(
-        File(duongDanAnh!),
-        fit: BoxFit.cover,
+    final path = duongDanAnh ?? '';
+    if (path.isEmpty) {
+      return const Center(
+        child: Text('Không có ảnh', style: TextStyle(color: Colors.white)),
       );
     }
 
+    if (path.startsWith('http')) {
+      return Image.network(path, fit: BoxFit.cover);
+    }
+
+    final file = File(path.replaceFirst('file://', ''));
+    if (file.existsSync()) {
+      return Image.file(file, fit: BoxFit.cover);
+    }
+
     return const Center(
-      child: Text(
-        'Ảnh',
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: 13,
-          fontWeight: FontWeight.w800,
-        ),
-      ),
+      child: Icon(Icons.broken_image, color: Colors.white54, size: 50),
     );
   }
 
-  Widget _nutThemViTri(BuildContext context) {
+  Widget _nutThemViTri() {
     return InkWell(
       onTap: () async {
-        final ketQua = await Navigator.pushNamed(
-          context,
-          AppRoutes.trangViTri,
-        );
+        final res = await Navigator.pushNamed(context, AppRoutes.trangViTri);
 
-        if (ketQua != null) {
+        if (res == null) return;
+
+        // NOTE SỬA: TrangViTri giờ trả về Map gồm tên địa điểm + GPS
+        if (res is Map) {
           setState(() {
-            viTriDaChon = ketQua.toString();
+            viTriDaChon = res['nearby_place_name']?.toString();
+            latitudeDaChon = _toDouble(res['latitude']);
+            longitudeDaChon = _toDouble(res['longitude']);
+          });
+        } else {
+          // NOTE: nếu route cũ còn trả String thì vẫn không lỗi
+          setState(() {
+            viTriDaChon = res.toString();
+            latitudeDaChon = null;
+            longitudeDaChon = null;
           });
         }
       },
-      borderRadius: BorderRadius.circular(20),
       child: Container(
-        height: 36,
-        padding: const EdgeInsets.symmetric(horizontal: 19),
+        constraints: const BoxConstraints(maxWidth: 260),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: const Color(0xFF292929),
+          color: Colors.black54,
           borderRadius: BorderRadius.circular(20),
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              LucideIcons.mapPin,
-              color: Colors.white,
-              size: 22,
-            ),
-
-            const SizedBox(width: 8),
-
-            Text(
-              viTriDaChon ?? 'Thêm vị trí',
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 14,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ],
+        child: Text(
+          viTriDaChon ?? 'Thêm vị trí',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(color: Colors.white),
         ),
       ),
     );
   }
 
-  Widget _hangNutDuoi(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 67),
-      child: Row(
-        mainAxisAlignment:
-        MainAxisAlignment.spaceBetween,
-        children: [
-          InkWell(
-            onTap: () {
-              Navigator.pop(context);
-            },
-            borderRadius: BorderRadius.circular(28),
-            child: const SizedBox(
-              width: 54,
-              height: 54,
-              child: Icon(
-                LucideIcons.circleX,
-                color: Colors.white,
-                size: 31,
-              ),
-            ),
+  Widget _hangNutDuoi() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: [
+        IconButton(
+          onPressed: () => Navigator.pop(context),
+          icon: const Icon(LucideIcons.circleX, color: Colors.white, size: 30),
+        ),
+        IconButton(
+          onPressed: () => _guiAnh(context),
+          icon: const Icon(
+            LucideIcons.sendHorizontal,
+            color: Colors.blue,
+            size: 50,
           ),
-
-          InkWell(
-            onTap: () {
-              _guiAnh(context);
-            },
-            borderRadius: BorderRadius.circular(42),
-            child: Container(
-              width: 82,
-              height: 82,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: const Color(0xFF4AA8FF),
-                  width: 4,
-                ),
-              ),
-              child: const Icon(
-                LucideIcons.sendHorizontal,
-                color: Colors.white,
-                size: 45,
-              ),
-            ),
-          ),
-
-          InkWell(
-            onTap: () {},
-            borderRadius: BorderRadius.circular(28),
-            child: const SizedBox(
-              width: 54,
-              height: 54,
-              child: Icon(
-                LucideIcons.download,
-                color: Colors.white,
-                size: 34,
-              ),
-            ),
-          ),
-        ],
-      ),
+        ),
+        IconButton(
+          onPressed: () {},
+          icon: const Icon(LucideIcons.download, color: Colors.white, size: 30),
+        ),
+      ],
     );
   }
 }

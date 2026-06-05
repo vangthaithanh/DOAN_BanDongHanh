@@ -6,7 +6,7 @@ import '../../features/social/data/models/post_model.dart';
 /// Service này dùng cho trang cá nhân.
 /// Query khớp RLS/database hiện tại:
 /// follows: follower_id, following_id
-/// friends: profile_id1, profile_id2
+/// friends: không dùng để đếm bạn bè nữa
 /// posts: profile_id
 /// itineraries: profile_id
 /// itinerary_items: itinerary_id
@@ -95,6 +95,8 @@ class ProfilePageData {
   final int postCount;
   final List<ProfilePlanGroupData> plans;
   final List<PostModel> posts;
+  final bool isMe;
+  final bool isFollowing;
 
   const ProfilePageData({
     required this.profile,
@@ -103,6 +105,8 @@ class ProfilePageData {
     required this.postCount,
     required this.plans,
     required this.posts,
+    this.isMe = false,
+    this.isFollowing = false,
   });
 }
 
@@ -113,15 +117,19 @@ class ProfileService {
 
   Future<ProfilePageData> loadMine() async {
     final user = _currentUser;
-
     if (user == null) {
       throw Exception('Chưa đăng nhập');
     }
+    return loadProfile(user.id);
+  }
+
+  Future<ProfilePageData> loadProfile(String profileId) async {
+    final currentUserId = _client.auth.currentUser?.id;
 
     final profileMap = await _client
         .from('profiles')
         .select('id, nickname, email, full_name, avatar_url, bio, facebook_url')
-        .eq('id', user.id)
+        .eq('id', profileId)
         .maybeSingle();
 
     if (profileMap == null) {
@@ -130,11 +138,24 @@ class ProfileService {
 
     final profile = MyProfile.fromMap(profileMap);
 
-    final followerCount = await _countFollowers(user.id);
-    final friendCount = await _countFriends(user.id);
-    final postCount = await _countPosts(user.id);
-    final plans = await _loadPlans(user.id);
-    final posts = await _loadMyPosts(user.id, profile);
+    final followerCount = await _countFollowers(profileId);
+    final friendCount = await _countFriends(profileId);
+    final postCount = await _countPosts(profileId);
+    final plans = await _loadPlans(profileId);
+
+    bool isFollowing = false;
+    bool mutual = false;
+    if (currentUserId != null && currentUserId != profileId) {
+      isFollowing = await _checkIsFollowing(currentUserId, profileId);
+
+      // Kiểm tra xem người đó có theo dõi lại mình không để xác định mutual follow
+      final theyFollowMe = await _checkIsFollowing(profileId, currentUserId);
+      mutual = isFollowing && theyFollowMe;
+    } else if (currentUserId == profileId) {
+      mutual = true; // Mình xem mình thì coi như mutual để thấy hết
+    }
+
+    final posts = await _loadUserPosts(profileId, profile, mutual);
 
     return ProfilePageData(
       profile: profile,
@@ -143,7 +164,48 @@ class ProfileService {
       postCount: postCount,
       plans: plans,
       posts: posts,
+      isMe: profileId == currentUserId,
+      isFollowing: isFollowing,
     );
+  }
+
+  Future<bool> _checkIsFollowing(String followerId, String followingId) async {
+    try {
+      final row = await _client
+          .from('follows')
+          .select('id')
+          .eq('follower_id', followerId)
+          .eq('following_id', followingId)
+          .eq('status', 'active')
+          .maybeSingle();
+      return row != null;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> toggleFollow(String targetProfileId) async {
+    final user = _currentUser;
+    if (user == null) throw Exception('Chưa đăng nhập');
+    if (user.id == targetProfileId) return;
+
+    final isFollowing = await _checkIsFollowing(user.id, targetProfileId);
+
+    if (isFollowing) {
+      // Unfollow: Xóa hoặc cập nhật status
+      await _client
+          .from('follows')
+          .delete()
+          .eq('follower_id', user.id)
+          .eq('following_id', targetProfileId);
+    } else {
+      // Follow: Thêm mới
+      await _client.from('follows').insert({
+        'follower_id': user.id,
+        'following_id': targetProfileId,
+        'status': 'active',
+      });
+    }
   }
 
   Future<void> updateProfile({
@@ -164,9 +226,6 @@ class ProfileService {
       throw Exception('Biệt danh tối thiểu 3 ký tự');
     }
 
-    /// NOTE SỬA:
-    /// Check nickname bằng RPC nếu có.
-    /// Nếu RPC chưa có thì bỏ qua để tránh app chết.
     try {
       final isTaken = await _client.rpc(
         'is_nickname_taken',
@@ -193,9 +252,6 @@ class ProfileService {
       }
     }
 
-    /// NOTE SỬA:
-    /// Chỉ update những cột user được sửa.
-    /// Không update role/status/email vì trigger Supabase sẽ chặn.
     await _client
         .from('profiles')
         .update({
@@ -222,21 +278,52 @@ class ProfileService {
     }
   }
 
+  /// NOTE SỬA:
+  /// Bạn bè = 2 người theo dõi nhau trong bảng follows.
+  ///
+  /// Ví dụ:
+  /// A theo dõi B: follows.follower_id = A, follows.following_id = B
+  /// B theo dõi A: follows.follower_id = B, follows.following_id = A
+  ///
+  /// Khi có đủ 2 chiều active thì tính là 1 bạn bè.
   Future<int> _countFriends(String userId) async {
     try {
-      final rows1 = await _client
-          .from('friends')
-          .select('id')
-          .eq('profile_id1', userId)
+      final followingRows = await _client
+          .from('follows')
+          .select('following_id')
+          .eq('follower_id', userId)
+          .eq('status', 'active')
+          .neq('following_id', userId);
+
+      final followingIds = (followingRows as List)
+          .map((row) {
+            final map = row as Map<String, dynamic>;
+            return map['following_id']?.toString() ?? '';
+          })
+          .where((id) => id.isNotEmpty)
+          .toSet()
+          .toList();
+
+      if (followingIds.isEmpty) {
+        return 0;
+      }
+
+      final mutualRows = await _client
+          .from('follows')
+          .select('follower_id')
+          .inFilter('follower_id', followingIds)
+          .eq('following_id', userId)
           .eq('status', 'active');
 
-      final rows2 = await _client
-          .from('friends')
-          .select('id')
-          .eq('profile_id2', userId)
-          .eq('status', 'active');
+      final mutualIds = (mutualRows as List)
+          .map((row) {
+            final map = row as Map<String, dynamic>;
+            return map['follower_id']?.toString() ?? '';
+          })
+          .where((id) => id.isNotEmpty)
+          .toSet();
 
-      return (rows1 as List).length + (rows2 as List).length;
+      return mutualIds.length;
     } catch (_) {
       return 0;
     }
@@ -375,21 +462,43 @@ class ProfileService {
     return text == 'active' || text == 'current' || text == 'ongoing';
   }
 
-  Future<List<PostModel>> _loadMyPosts(String userId, MyProfile profile) async {
+  Future<List<PostModel>> _loadUserPosts(
+    String userId,
+    MyProfile profile,
+    bool mutualFollow,
+  ) async {
+    final currentUserId = _client.auth.currentUser?.id;
     try {
-      final rows = await _client
+      var query = _client
           .from('posts')
           .select(
             'id, content, title, visibility, like_count, comment_count, created_at, location_name,'
             'post_media(url, display_order)',
           )
           .eq('profile_id', userId)
-          .eq('status', 'active')
-          .order('created_at', ascending: false)
-          .limit(20);
+          .eq('status', 'active');
+
+      // Lọc bài viết theo quyền riêng tư nếu không phải chính mình xem
+      if (userId != currentUserId) {
+        if (mutualFollow) {
+          // Nếu mutual follow, thấy được public và follower
+          query = query.inFilter('visibility', ['public', 'follower']);
+        } else {
+          // Nếu không, chỉ thấy public
+          query = query.eq('visibility', 'public');
+        }
+      }
+
+      final rows = await query.order('created_at', ascending: false).limit(20);
+
+      final postList = rows as List;
+      final postIds = postList
+          .map((r) => (r as Map<String, dynamic>)['id'] as int)
+          .toList();
+      final hashtagMap = await _loadHashtagsForPosts(postIds);
 
       return Future.wait(
-        (rows as List).map((raw) async {
+        postList.map((raw) async {
           final map = raw as Map<String, dynamic>;
           final postId = (map['id'] as int?) ?? 0;
 
@@ -415,6 +524,7 @@ class ProfileService {
 
           return PostModel(
             id: postId,
+            authorId: userId,
             tenNguoiDang: profile.displayName,
             anhDaiDienNguoiDang: profile.avatarUrl.isNotEmpty
                 ? profile.avatarUrl
@@ -425,16 +535,13 @@ class ProfileService {
                 : (title.isNotEmpty ? title : null),
             danhSachAnh: firstMediaUrl != null ? [firstMediaUrl] : const [],
             viTri: _emptyToNull(map['location_name']),
+            danhSachHashTag: hashtagMap[postId] ?? const [],
             soLuotThich: (map['like_count'] as int?) ?? 0,
             soLuotBinhLuan: (map['comment_count'] as int?) ?? 0,
-
-            // Phần của bạn: giữ trạng thái đã thích thật
-            daThich: await _isPostLikedByMe(postId, userId),
-
-            // Phần chung
-            laBaiVietCuaToi: true,
-
-            // Phần của bạn bạn: giữ thời gian realtime và quyền riêng tư
+            daThich: currentUserId != null
+                ? await _isPostLikedByMe(postId, currentUserId)
+                : false,
+            laBaiVietCuaToi: userId == currentUserId,
             createdAt: DateTime.tryParse(createdAtRaw)?.toLocal(),
             visibility: map['visibility']?.toString(),
           );
@@ -442,6 +549,45 @@ class ProfileService {
       );
     } catch (_) {
       return [];
+    }
+  }
+
+  Future<Map<int, List<String>>> _loadHashtagsForPosts(
+    List<int> postIds,
+  ) async {
+    if (postIds.isEmpty) return {};
+    try {
+      final phRows = await _client
+          .from('post_hashtags')
+          .select('post_id, hashtag_id')
+          .inFilter('post_id', postIds);
+
+      if ((phRows as List).isEmpty) return {};
+
+      final hashtagIds = phRows.map((r) => r['hashtag_id']).toSet().toList();
+
+      final hRows = await _client
+          .from('hashtags')
+          .select('id, name')
+          .inFilter('id', hashtagIds);
+
+      final nameById = <int, String>{};
+      for (final Map<String, dynamic> h in hRows as List) {
+        nameById[(h['id'] as num).toInt()] = h['name']?.toString() ?? '';
+      }
+
+      final result = <int, List<String>>{};
+      for (final Map<String, dynamic> ph in phRows) {
+        final postId = (ph['post_id'] as num).toInt();
+        final hashtagId = (ph['hashtag_id'] as num).toInt();
+        final name = nameById[hashtagId];
+        if (name != null && name.isNotEmpty) {
+          result.putIfAbsent(postId, () => []).add(name);
+        }
+      }
+      return result;
+    } catch (_) {
+      return {};
     }
   }
 
@@ -470,8 +616,8 @@ class ProfileService {
       final dt = DateTime.parse(raw).toLocal();
       final diff = DateTime.now().difference(dt);
       if (diff.inMinutes < 1) return 'Vừa xong';
-      if (diff.inHours < 1) return '${diff.inMinutes} phút trước';
-      if (diff.inDays < 1) return '${diff.inHours} giờ trước';
+      if (diff.inMinutes < 60) return '${diff.inMinutes} phút trước';
+      if (diff.inHours < 24) return '${diff.inHours} giờ trước';
       if (diff.inDays < 7) return '${diff.inDays} ngày trước';
       return '${dt.day}/${dt.month}/${dt.year}';
     } catch (_) {

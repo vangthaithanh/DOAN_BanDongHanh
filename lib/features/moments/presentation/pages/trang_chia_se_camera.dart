@@ -32,18 +32,15 @@ class _TrangChiaSeCameraState extends State<TrangChiaSeCamera> {
 
       if (_danhSachCamera.isEmpty) {
         if (!mounted) return;
-        setState(() {
-          _dangKhoiTao = false;
-        });
+        setState(() => _dangKhoiTao = false);
         return;
       }
 
+      _cameraDangChon = 0;
       await _moCamera(_cameraDangChon);
     } catch (_) {
       if (!mounted) return;
-      setState(() {
-        _dangKhoiTao = false;
-      });
+      setState(() => _dangKhoiTao = false);
     }
   }
 
@@ -64,9 +61,7 @@ class _TrangChiaSeCameraState extends State<TrangChiaSeCamera> {
 
     if (!mounted) return;
 
-    setState(() {
-      _dangKhoiTao = false;
-    });
+    setState(() => _dangKhoiTao = false);
   }
 
   Future<void> _doiCamera() async {
@@ -74,29 +69,39 @@ class _TrangChiaSeCameraState extends State<TrangChiaSeCamera> {
 
     setState(() {
       _dangKhoiTao = true;
-      _cameraDangChon = (_cameraDangChon + 1) % _danhSachCamera.length;
+      _cameraDangChon =
+          (_cameraDangChon + 1) % _danhSachCamera.length;
     });
 
     await _moCamera(_cameraDangChon);
   }
 
+  // ✅ FIX CHÍNH: chụp + truyền path + handle lỗi
   Future<void> _chupAnh() async {
     final controller = _cameraController;
 
     if (controller == null || !controller.value.isInitialized) {
-      Navigator.pushNamed(context, AppRoutes.trangPreviewHinh);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Camera chưa sẵn sàng')),
+      );
       return;
     }
 
-    final anh = await controller.takePicture();
+    try {
+      final anh = await controller.takePicture();
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    Navigator.pushNamed(
-      context,
-      AppRoutes.trangPreviewHinh,
-      arguments: anh.path,
-    );
+      Navigator.pushNamed(
+        context,
+        AppRoutes.trangPreviewHinh,
+        arguments: anh.path,
+      );
+    } catch (_) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Chụp ảnh thất bại')),
+      );
+    }
   }
 
   @override
@@ -109,7 +114,8 @@ class _TrangChiaSeCameraState extends State<TrangChiaSeCamera> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      bottomNavigationBar: const AppBottomNav(activeTab: MainTab.moments),
+      bottomNavigationBar:
+      const AppBottomNav(activeTab: MainTab.moments),
       body: SafeArea(
         child: Column(
           children: [
@@ -117,19 +123,21 @@ class _TrangChiaSeCameraState extends State<TrangChiaSeCamera> {
             Expanded(
               child: LayoutBuilder(
                 builder: (context, constraints) {
-                  final chieuCaoKhung = constraints.maxHeight * 0.55;
-                  final chieuCaoHopLy = chieuCaoKhung.clamp(270.0, 360.0);
+                  final chieuCaoKhung =
+                      constraints.maxHeight * 0.55;
+                  final chieuCaoHopLy =
+                  chieuCaoKhung.clamp(270.0, 360.0);
 
                   return Column(
                     children: [
-                      SizedBox(height: constraints.maxHeight * 0.035),
-
+                      SizedBox(
+                        height: constraints.maxHeight * 0.035,
+                      ),
                       _khungCamera(chieuCaoHopLy),
-
-                      SizedBox(height: constraints.maxHeight * 0.075),
-
+                      SizedBox(
+                        height: constraints.maxHeight * 0.075,
+                      ),
                       _hangDieuKhien(),
-
                       const Spacer(),
                     ],
                   );
@@ -151,10 +159,7 @@ class _TrangChiaSeCameraState extends State<TrangChiaSeCamera> {
         decoration: BoxDecoration(
           color: Colors.black,
           borderRadius: BorderRadius.circular(34),
-          border: Border.all(
-            color: const Color(0xFF2B2B2B),
-            width: 1,
-          ),
+          border: Border.all(color: const Color(0xFF2B2B2B)),
         ),
         clipBehavior: Clip.antiAlias,
         child: _noiDungCamera(),
@@ -167,13 +172,9 @@ class _TrangChiaSeCameraState extends State<TrangChiaSeCamera> {
 
     if (_dangKhoiTao) {
       return const Center(
-        child: SizedBox(
-          width: 22,
-          height: 22,
-          child: CircularProgressIndicator(
-            strokeWidth: 2,
-            color: Color(0xFF4AA8FF),
-          ),
+        child: CircularProgressIndicator(
+          strokeWidth: 2,
+          color: Color(0xFF4AA8FF),
         ),
       );
     }
@@ -184,31 +185,16 @@ class _TrangChiaSeCameraState extends State<TrangChiaSeCamera> {
           'Camera',
           style: TextStyle(
             color: Colors.white,
-            fontSize: 13,
             fontWeight: FontWeight.w800,
           ),
         ),
       );
     }
 
-    final previewSize = controller.value.previewSize;
-
-    if (previewSize == null) {
-      return CameraPreview(controller);
-    }
-
-    return SizedBox.expand(
-      child: FittedBox(
-        fit: BoxFit.cover,
-        child: SizedBox(
-          width: previewSize.height,
-          height: previewSize.width,
-          child: CameraPreview(controller),
-        ),
-      ),
-    );
+    return CameraPreview(controller);
   }
 
+  // UI giữ nguyên
   Widget _hangDieuKhien() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 50),
@@ -217,29 +203,21 @@ class _TrangChiaSeCameraState extends State<TrangChiaSeCamera> {
         children: [
           InkWell(
             onTap: () {
-              Navigator.pushNamed(context, AppRoutes.trangGalleryKhoanhKhac);
+              Navigator.pushNamed(
+                context,
+                AppRoutes.trangGalleryKhoanhKhac,
+              );
             },
-            borderRadius: BorderRadius.circular(28),
             child: const SizedBox(
               width: 64,
               height: 64,
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(
-                    LucideIcons.chevronDown,
-                    color: Colors.white,
-                    size: 24,
-                  ),
-                  SizedBox(height: 2),
-                  Text(
-                    'Lịch sử',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
+                  Icon(LucideIcons.chevronDown,
+                      color: Colors.white),
+                  Text('Lịch sử',
+                      style: TextStyle(color: Colors.white)),
                 ],
               ),
             ),
@@ -250,17 +228,12 @@ class _TrangChiaSeCameraState extends State<TrangChiaSeCamera> {
             child: Container(
               width: 72,
               height: 72,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 shape: BoxShape.circle,
-                border: Border.all(
-                  color: const Color(0xFF4AA8FF),
-                  width: 3,
-                ),
+                color: Colors.transparent,
               ),
               child: Container(
-                width: 58,
-                height: 58,
+                margin: const EdgeInsets.all(6),
                 decoration: const BoxDecoration(
                   color: Colors.white,
                   shape: BoxShape.circle,
@@ -271,15 +244,11 @@ class _TrangChiaSeCameraState extends State<TrangChiaSeCamera> {
 
           InkWell(
             onTap: _doiCamera,
-            borderRadius: BorderRadius.circular(28),
             child: const SizedBox(
               width: 64,
               height: 64,
-              child: Icon(
-                LucideIcons.refreshCw,
-                color: Colors.white,
-                size: 30,
-              ),
+              child: Icon(LucideIcons.refreshCw,
+                  color: Colors.white),
             ),
           ),
         ],

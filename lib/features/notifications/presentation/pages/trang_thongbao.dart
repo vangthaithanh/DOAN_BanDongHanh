@@ -1,109 +1,38 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
-import 'trang_thongbao_nguoitheodoi.dart';
-import '../../../messages/presentation/pages/trang_tinnhan.dart';
-import 'package:do_an/app/routes/app_routes.dart';
 
-class ActionNotifData {
-  final String type;
-  final bool isGoMateLogo;
-  final String boldText1;
-  final String normalText;
-  final String boldText2;
-  final String subtitle;
+import '../../../../app/routes/app_routes.dart';
+import '../../data/notification_service.dart';
 
-  const ActionNotifData({
-    required this.type,
-    this.isGoMateLogo = false,
-    required this.boldText1,
-    required this.normalText,
-    this.boldText2 = '',
-    required this.subtitle,
-  });
-}
-
-class RecentNotifData {
-  final bool isGoMateLogo;
-  final String name;
-  final String action;
-  final String target;
-  final int trailingType;
-  final String? avatarPath;
-
-  const RecentNotifData({
-    this.isGoMateLogo = false,
-    required this.name,
-    required this.action,
-    required this.target,
-    required this.trailingType,
-    this.avatarPath,
-  });
-}
-
-const List<ActionNotifData> mockActionNotifs = [
-  ActionNotifData(
-    type: 'follow',
-    boldText1: 'thuw + 5 người khác ',
-    normalText: 'đã theo dõi bạn và ',
-    boldText2: '5 gợi ý kết bạn',
-    subtitle: '',
-  ),
-  ActionNotifData(
-    type: 'message', // Giờ bấm cái này sẽ nhảy qua Tin Nhắn
-    boldText1: 'thuw + 5 người khác ',
-    normalText: 'đã gửi cho bạn tin nhắn',
-    subtitle: '',
-  ),
-  ActionNotifData(
-    type: 'itinerary',
-    boldText1: 'Lịch trình kế tiếp',
-    normalText: '',
-    subtitle: 'Biển sơn trà - 15:00',
-  ),
-  ActionNotifData(
-    type: 'suggestion',
-    isGoMateLogo: true,
-    boldText1: 'Bạn có muốn đến những địa điểm này không.',
-    normalText: '',
-    subtitle: '',
-  ),
-];
-
-const List<RecentNotifData> mockRecentNotifs = [
-  RecentNotifData(
-    name: 'thuw ',
-    action: 'đã bình luận bài viết: ',
-    target: '"AAAAA"',
-    trailingType: 0,
-    avatarPath: 'assets/images/anh1.jpg',
-  ),
-  RecentNotifData(
-    name: 'thuw ',
-    action: 'đã thả cảm xúc với khoảnh khắc',
-    target: '',
-    trailingType: 0,
-    avatarPath: 'assets/images/anh2.jpg',
-  ),
-  RecentNotifData(
-    name: 'thuwwwww ',
-    action: 'đã theo dõi bạn',
-    target: '',
-    trailingType: 1,
-  ),
-  RecentNotifData(
-    isGoMateLogo: true,
-    name: 'Bạn muốn đến ',
-    action: '',
-    target: 'Bán đảo sơn trà không',
-    trailingType: 2,
-  ),
-];
-
-class TrangThongBaoPage extends StatelessWidget {
+class TrangThongBaoPage extends StatefulWidget {
   const TrangThongBaoPage({super.key});
 
+  @override
+  State<TrangThongBaoPage> createState() => _TrangThongBaoPageState();
+}
+
+class _TrangThongBaoPageState extends State<TrangThongBaoPage> {
   static const Color blue = Color(0xFF4AA8FF);
   static const String fontFamily = 'Inter';
+
+  final NotificationService _service = NotificationService();
+  late Future<List<NotificationItem>> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = _service.loadMine();
+  }
+
+  Future<void> _reload() async {
+    final future = _service.loadMine();
+
+    setState(() {
+      _future = future;
+    });
+
+    await future;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -115,29 +44,68 @@ class TrangThongBaoPage extends StatelessWidget {
           children: [
             _topBar(context),
             Expanded(
-              child: SingleChildScrollView(
-                physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SizedBox(height: 10),
-                    ...mockActionNotifs.map((item) => _actionPill(context, item)).toList(),
-                    const SizedBox(height: 24),
-                    const Text(
-                      'Một tuần qua',
-                      style: TextStyle(
-                        fontFamily: fontFamily,
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
+              child: FutureBuilder<List<NotificationItem>>(
+                future: _future,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+
+                  if (snapshot.hasError) {
+                    return _messageState(
+                      title: 'Không tải được thông báo',
+                      message: snapshot.error.toString().replaceFirst(
+                        'Exception: ',
+                        '',
                       ),
+                      actionText: 'Tải lại',
+                      onAction: _reload,
+                    );
+                  }
+
+                  final notifications = snapshot.data ?? const [];
+
+                  if (notifications.isEmpty) {
+                    return _messageState(
+                      title: 'Chưa có thông báo',
+                      message:
+                          'Khi có người theo dõi bạn, thông báo sẽ hiện ở đây.',
+                      actionText: 'Tải lại',
+                      onAction: _reload,
+                    );
+                  }
+
+                  return RefreshIndicator(
+                    color: blue,
+                    backgroundColor: const Color(0xFF1C1C1E),
+                    onRefresh: _reload,
+                    child: ListView.builder(
+                      physics: const AlwaysScrollableScrollPhysics(
+                        parent: BouncingScrollPhysics(),
+                      ),
+                      padding: const EdgeInsets.fromLTRB(16, 10, 16, 20),
+                      itemCount: notifications.length + 1,
+                      itemBuilder: (context, index) {
+                        if (index == 0) {
+                          return const Padding(
+                            padding: EdgeInsets.only(bottom: 16),
+                            child: Text(
+                              'Gần đây',
+                              style: TextStyle(
+                                fontFamily: fontFamily,
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          );
+                        }
+
+                        return _notificationItem(notifications[index - 1]);
+                      },
                     ),
-                    const SizedBox(height: 16),
-                    ...mockRecentNotifs.map((item) => _recentItem(item)).toList(),
-                    const SizedBox(height: 20),
-                  ],
-                ),
+                  );
+                },
               ),
             ),
           ],
@@ -152,22 +120,30 @@ class TrangThongBaoPage extends StatelessWidget {
       child: Row(
         children: [
           InkWell(
-            // === ĐÃ SỬA: BẤM < LÀ VỀ THẲNG TRANG CHỦ ===
             onTap: () {
-              Navigator.pushNamedAndRemoveUntil(context, AppRoutes.home, (route) => false);
+              Navigator.pushNamedAndRemoveUntil(
+                context,
+                AppRoutes.home,
+                (route) => false,
+              );
             },
+            borderRadius: BorderRadius.circular(20),
             child: Container(
               padding: const EdgeInsets.all(6),
               decoration: const BoxDecoration(
                 color: Color(0xFF2A2A2A),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(LucideIcons.chevronLeft, color: Colors.white, size: 24),
+              child: const Icon(
+                LucideIcons.chevronLeft,
+                color: Colors.white,
+                size: 24,
+              ),
             ),
           ),
           const Expanded(
             child: Text(
-              'Xuthu',
+              'Thông báo',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontFamily: fontFamily,
@@ -183,111 +159,124 @@ class TrangThongBaoPage extends StatelessWidget {
     );
   }
 
-  Widget _actionPill(BuildContext context, ActionNotifData data) {
+  Widget _notificationItem(NotificationItem data) {
+    final isUnread = !data.isRead;
+
     return InkWell(
-      onTap: () {
-        if (data.type == 'follow') {
-          Navigator.push(context, MaterialPageRoute(builder: (context) => const TrangNguoiTheoDoiPage()));
-        }
-        // === ĐÃ MỞ LẠI: BẤM TYPE MESSAGE SẼ QUA TRANG TIN NHẮN ===
-        else if (data.type == 'message') {
-          Navigator.push(context, MaterialPageRoute(builder: (context) => const TrangTinNhanPage()));
+      onTap: () async {
+        await _service.markAsRead(data.id);
+
+        if (mounted) {
+          _reload();
         }
       },
-      borderRadius: BorderRadius.circular(40),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(
-          color: Colors.black,
-          border: Border.all(color: const Color(0xFF333333), width: 1.5),
-          borderRadius: BorderRadius.circular(40),
-        ),
+      borderRadius: BorderRadius.circular(14),
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 18),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            _leadingAvatar(data.isGoMateLogo),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text.rich(
-                    TextSpan(
-                      style: const TextStyle(fontFamily: fontFamily, fontSize: 14, color: Colors.white, height: 1.3),
-                      children: [
-                        TextSpan(text: data.boldText1, style: const TextStyle(fontWeight: FontWeight.w700)),
-                        TextSpan(text: data.normalText),
-                        if (data.boldText2.isNotEmpty)
-                          TextSpan(text: data.boldText2, style: const TextStyle(fontWeight: FontWeight.w700)),
-                      ],
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                const CircleAvatar(radius: 20, backgroundColor: blue),
+                if (data.type == 'follow')
+                  const Positioned(
+                    right: -2,
+                    bottom: -2,
+                    child: CircleAvatar(
+                      radius: 9,
+                      backgroundColor: Colors.black,
+                      child: Icon(LucideIcons.userPlus, color: blue, size: 12),
                     ),
                   ),
-                  if (data.subtitle.isNotEmpty) ...[
-                    const SizedBox(height: 2),
-                    Text(data.subtitle, style: const TextStyle(fontFamily: fontFamily, fontSize: 13, color: Colors.white70)),
-                  ]
-                ],
+              ],
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text.rich(
+                TextSpan(
+                  style: const TextStyle(
+                    fontFamily: fontFamily,
+                    fontSize: 14,
+                    color: Colors.white70,
+                    height: 1.3,
+                  ),
+                  children: [
+                    TextSpan(
+                      text: data.title.isEmpty ? 'Người dùng' : data.title,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    TextSpan(text: ' ${data.content}'),
+                    if (data.timeText.isNotEmpty)
+                      TextSpan(
+                        text: '  ${data.timeText}',
+                        style: const TextStyle(
+                          color: Colors.white54,
+                          fontSize: 12,
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
-            const Icon(LucideIcons.chevronRight, color: Colors.white54, size: 20),
+            if (isUnread) ...[
+              const SizedBox(width: 10),
+              Container(
+                width: 8,
+                height: 8,
+                decoration: const BoxDecoration(
+                  color: blue,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ],
           ],
         ),
       ),
     );
   }
 
-  Widget _recentItem(RecentNotifData data) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 20),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
+  Widget _messageState({
+    required String title,
+    required String message,
+    required String actionText,
+    required VoidCallback onAction,
+  }) {
+    return RefreshIndicator(
+      color: blue,
+      backgroundColor: const Color(0xFF1C1C1E),
+      onRefresh: _reload,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(24, 80, 24, 20),
         children: [
-          _leadingAvatar(data.isGoMateLogo),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text.rich(
-              TextSpan(
-                style: const TextStyle(fontFamily: fontFamily, fontSize: 14, color: Colors.white, height: 1.3),
-                children: [
-                  TextSpan(text: data.name, style: const TextStyle(fontWeight: FontWeight.w700)),
-                  TextSpan(text: data.action),
-                  if (data.target.isNotEmpty)
-                    TextSpan(text: data.target, style: const TextStyle(fontWeight: FontWeight.w700)),
-                ],
-              ),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
             ),
           ),
-          const SizedBox(width: 10),
-          _buildTrailing(data),
+          const SizedBox(height: 8),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Colors.white60,
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 14),
+          TextButton(onPressed: onAction, child: Text(actionText)),
         ],
       ),
     );
-  }
-
-  Widget _leadingAvatar(bool isGoMate) {
-    if (isGoMate) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: Image.asset('assets/images/logo.png', width: 40, height: 40, fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) {
-            return const CircleAvatar(radius: 20, backgroundColor: Colors.grey, child: Icon(Icons.broken_image, color: Colors.white, size: 20));
-          },
-        ),
-      );
-    }
-    return const CircleAvatar(radius: 20, backgroundColor: blue);
-  }
-
-  Widget _buildTrailing(RecentNotifData data) {
-    if (data.trailingType == 0 && data.avatarPath != null) {
-      return ClipRRect(borderRadius: BorderRadius.circular(20), child: Image.asset(data.avatarPath!, width: 40, height: 40, fit: BoxFit.cover));
-    } else if (data.trailingType == 1 || data.trailingType == 2) {
-      return Container(
-        width: 115, alignment: Alignment.center, padding: const EdgeInsets.symmetric(vertical: 8),
-        decoration: BoxDecoration(color: blue, borderRadius: BorderRadius.circular(20)),
-        child: Text(data.trailingType == 1 ? 'Theo dõi lại' : 'Xem điểm đến', style: const TextStyle(fontFamily: fontFamily, color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700)),
-      );
-    }
-    return const SizedBox.shrink();
   }
 }

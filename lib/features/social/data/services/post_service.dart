@@ -243,6 +243,7 @@ class PostService {
     String? content,
     String? visibility,
     List<String>? hashtags,
+    String? locationName,
   }) async {
     final user = _client.auth.currentUser;
     if (user == null) throw Exception('Chưa đăng nhập');
@@ -252,6 +253,9 @@ class PostService {
     };
     if (content != null) fields['content'] = content.trim();
     if (visibility != null) fields['visibility'] = visibility;
+    if (locationName != null) {
+      fields['location_name'] = locationName.trim().isEmpty ? null : locationName.trim();
+    }
 
     await _wrapSupabaseError(() {
       return _client
@@ -285,6 +289,13 @@ class PostService {
           }, onConflict: 'post_id,hashtag_id');
         });
       }
+    }
+
+    if (locationName != null) {
+      await _wrapSupabaseError(() {
+        return _client.from('post_place_tags').delete().eq('post_id', postId);
+      });
+      await _saveLocationTag(postId, locationName);
     }
   }
 

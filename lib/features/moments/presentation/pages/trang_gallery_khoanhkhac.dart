@@ -1,12 +1,13 @@
 import 'dart:io';
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
-import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-import '../../../../app/routes/app_routes.dart';
 import '../../../../shared/navigation/app_bottom_nav.dart';
 import '../../../../shared/navigation/main_tab.dart';
-import '../../data/mock/mock_khoanhkhac.dart';
+import '../../data/khoanh_khac_service.dart';
+import '../../data/model/khoanh_khac_mau.dart';
+import '../pages/trang_hinh_anh_chi_tiet.dart';
 import '../widgets/menu_nguoi_xem.dart';
 import '../widgets/thanh_tren_khoanhkhac.dart';
 
@@ -19,22 +20,63 @@ class TrangGalleryKhoanhKhac extends StatefulWidget {
 
 class _TrangGalleryKhoanhKhacState extends State<TrangGalleryKhoanhKhac> {
   bool _hienMenuNguoiXem = false;
+  Map<String, dynamic>? _selectedProfile;
+  List<Map<String, dynamic>> _danhSachProfiles = [];
 
-  void _doiTrangThaiMenu() {
+  final KhoanhKhacService _service = KhoanhKhacService();
+  late Future<List<KhoanhKhacMau>> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfiles();
+    _loadData();
+  }
+
+  Future<void> _loadProfiles() async {
+    try {
+      final profiles = await _service.getTatCaProfiles();
+      setState(() {
+        _danhSachProfiles = profiles;
+      });
+    } catch (e) {
+      debugPrint("Lỗi tải profiles: $e");
+    }
+  }
+
+  void _loadData() {
     setState(() {
-      _hienMenuNguoiXem = !_hienMenuNguoiXem;
+      _future = _service.getKhoanhKhac(
+        profileId: _selectedProfile?['id']?.toString(),
+      );
     });
   }
 
+  void _doiTrangThaiMenu() {
+    setState(() => _hienMenuNguoiXem = !_hienMenuNguoiXem);
+  }
+
   void _tatMenu() {
+    setState(() => _hienMenuNguoiXem = false);
+  }
+
+  void _onProfileSelected(Map<String, dynamic>? profile) {
     setState(() {
+      _selectedProfile = profile;
       _hienMenuNguoiXem = false;
     });
+    _loadData();
   }
 
   @override
   Widget build(BuildContext context) {
-    final danhSach = layDanhSachKhoanhKhacHienThi();
+    String tenHienTai = 'Mọi người';
+    if (_selectedProfile != null) {
+      tenHienTai =
+          _selectedProfile!['nickname'] ??
+          _selectedProfile!['full_name'] ??
+          'Người dùng';
+    }
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -45,26 +87,41 @@ class _TrangGalleryKhoanhKhacState extends State<TrangGalleryKhoanhKhac> {
             Column(
               children: [
                 const ThanhTrenKhoanhKhac(),
-
                 NutChonNguoiXem(
                   onTap: _doiTrangThaiMenu,
+                  tenHienTai: tenHienTai,
                 ),
-
                 const SizedBox(height: 16),
-
                 Expanded(
-                  child: _luoiKhoanhKhac(danhSach),
+                  child: FutureBuilder<List<KhoanhKhacMau>>(
+                    future: _future,
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+                      if (snapshot.hasError) {
+                        return Center(
+                          child: Text(
+                            "Lỗi tải dữ liệu: ${snapshot.error}",
+                            style: const TextStyle(color: Colors.white),
+                          ),
+                        );
+                      }
+                      final danhSach = snapshot.data;
+                      if (danhSach == null || danhSach.isEmpty) {
+                        return const Center(
+                          child: Text(
+                            "Chưa có khoảnh khắc nào",
+                            style: TextStyle(color: Colors.white),
+                          ),
+                        );
+                      }
+                      return _luoiKhoanhKhac(danhSach);
+                    },
+                  ),
                 ),
               ],
             ),
-
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 13,
-              child: _thanhCongCuNoi(),
-            ),
-
             if (_hienMenuNguoiXem) _lopMenuNguoiXem(),
           ],
         ),
@@ -74,145 +131,58 @@ class _TrangGalleryKhoanhKhacState extends State<TrangGalleryKhoanhKhac> {
 
   Widget _luoiKhoanhKhac(List<KhoanhKhacMau> danhSach) {
     return GridView.builder(
-      padding: EdgeInsets.zero,
-      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.all(8),
       itemCount: danhSach.length,
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 3,
-        mainAxisSpacing: 1,
-        crossAxisSpacing: 1,
+        crossAxisSpacing: 4,
+        mainAxisSpacing: 4,
+        childAspectRatio: 0.75,
       ),
       itemBuilder: (context, index) {
-        final khoanhKhac = danhSach[index];
-
-        return InkWell(
-          onTap: () {
-            Navigator.pushNamed(
+        final item = danhSach[index];
+        return GestureDetector(
+          onTap: () async {
+            final result = await Navigator.push(
               context,
-              AppRoutes.trangHinhAnhChiTiet,
-              arguments: {
-                'duongDanAnh': khoanhKhac.duongDanAnh,
-                'viTri': khoanhKhac.viTri,
-              },
+              MaterialPageRoute(
+                builder: (_) => TrangHinhAnhChiTiet(
+                  danhSachMoments: danhSach,
+                  indexBatDau: index,
+                ),
+              ),
             );
+            if (result == true) {
+              _loadData();
+            }
           },
-          child: _anhKhoanhKhac(khoanhKhac),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: _buildImage(item.duongDanAnh),
+          ),
         );
       },
     );
   }
 
-  Widget _anhKhoanhKhac(KhoanhKhacMau khoanhKhac) {
-    if (khoanhKhac.laAnhMay &&
-        khoanhKhac.duongDanAnh.startsWith('/') &&
-        File(khoanhKhac.duongDanAnh).existsSync()) {
-      return Image.file(
-        File(khoanhKhac.duongDanAnh),
+  Widget _buildImage(String duongDanAnh) {
+    if (duongDanAnh.startsWith('http')) {
+      return Image.network(
+        duongDanAnh,
         fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => Container(
+          color: Colors.grey.shade900,
+          child: const Icon(Icons.broken_image, color: Colors.white),
+        ),
       );
     }
-
-    return Image.asset(
-      khoanhKhac.duongDanAnh,
+    final path = duongDanAnh.replaceFirst('file://', '');
+    return Image.file(
+      File(path),
       fit: BoxFit.cover,
-      errorBuilder: (context, error, stackTrace) {
-        return Container(
-          color: Colors.white,
-          alignment: Alignment.center,
-          child: const Icon(
-            LucideIcons.image,
-            color: Colors.black54,
-            size: 26,
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _thanhCongCuNoi() {
-    return Center(
-      child: Container(
-        height: 36,
-        width: 132,
-        decoration: BoxDecoration(
-          color: const Color(0xFF242424).withOpacity(0.92),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: [
-            _bieuTuongLuoi(
-              onTap: () {},
-            ),
-
-            InkWell(
-              onTap: () {
-                Navigator.pushNamedAndRemoveUntil(
-                  context,
-                  AppRoutes.momentCamera,
-                      (route) => false,
-                );
-              },
-              borderRadius: BorderRadius.circular(16),
-              child: Container(
-                width: 19,
-                height: 19,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF4AA8FF),
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white, width: 2),
-                ),
-              ),
-            ),
-
-            InkWell(
-              onTap: () {},
-              borderRadius: BorderRadius.circular(16),
-              child: const SizedBox(
-                width: 26,
-                height: 26,
-                child: Icon(
-                  LucideIcons.download,
-                  color: Colors.white70,
-                  size: 20,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _bieuTuongLuoi({
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: SizedBox(
-        width: 27,
-        height: 27,
-        child: Center(
-          child: SizedBox(
-            width: 18,
-            height: 18,
-            child: Wrap(
-              spacing: 3,
-              runSpacing: 3,
-              children: List.generate(4, (index) {
-                return Container(
-                  width: 7,
-                  height: 7,
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Colors.white70, width: 1.5),
-                    borderRadius: BorderRadius.circular(1),
-                  ),
-                );
-              }),
-            ),
-          ),
-        ),
+      errorBuilder: (_, __, ___) => Container(
+        color: Colors.grey.shade900,
+        child: const Icon(Icons.broken_image, color: Colors.white),
       ),
     );
   }
@@ -224,13 +194,80 @@ class _TrangGalleryKhoanhKhacState extends State<TrangGalleryKhoanhKhac> {
         child: Container(
           color: Colors.black.withOpacity(0.55),
           child: Stack(
-            children: const [
+            children: [
               Positioned(
                 top: 72,
                 left: 0,
                 right: 0,
                 child: Center(
-                  child: MenuNguoiXem(),
+                  child: MenuNguoiXem(
+                    danhSachProfiles: _danhSachProfiles,
+                    onProfileSelected: _onProfileSelected,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _dongViTriDep(String? diaChi) {
+    final text = diaChi?.trim();
+
+    if (text == null || text.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(18),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 310),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.black.withOpacity(0.48),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: Colors.white.withOpacity(0.15)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.25),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 24,
+                height: 24,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.16),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.location_on_rounded,
+                  color: Colors.white,
+                  size: 16,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  text,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    height: 1.25,
+                    shadows: [Shadow(color: Colors.black54, blurRadius: 4)],
+                  ),
                 ),
               ),
             ],

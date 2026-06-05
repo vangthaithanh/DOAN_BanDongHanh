@@ -1,236 +1,379 @@
 import 'dart:io';
+import 'dart:ui';
 
+import 'package:device_info_plus/device_info_plus.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:gal/gal.dart'; // Thư viện mới để lưu ảnh
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../app/routes/app_routes.dart';
 import '../../../../shared/navigation/app_bottom_nav.dart';
 import '../../../../shared/navigation/main_tab.dart';
+import '../../data/khoanh_khac_service.dart';
+import '../../data/model/khoanh_khac_mau.dart';
 import '../widgets/menu_nguoi_xem.dart';
 import '../widgets/thanh_tren_khoanhkhac.dart';
 
 class TrangHinhAnhChiTiet extends StatefulWidget {
-  final String? duongDanAnh;
-  final String? viTri;
-  final String tenNguoiDang;
-  final String thoiGian;
+  final List<KhoanhKhacMau> danhSachMoments;
+  final int indexBatDau;
 
   const TrangHinhAnhChiTiet({
     super.key,
-    this.duongDanAnh,
-    this.viTri,
-    this.tenNguoiDang = 'BongAnhHung',
-    this.thoiGian = '3 tiếng trước',
+    required this.danhSachMoments,
+    required this.indexBatDau,
   });
 
   @override
-  State<TrangHinhAnhChiTiet> createState() =>
-      _TrangHinhAnhChiTietState();
+  State<TrangHinhAnhChiTiet> createState() => _TrangHinhAnhChiTietState();
 }
 
-class _TrangHinhAnhChiTietState
-    extends State<TrangHinhAnhChiTiet> {
-  final TextEditingController _tinNhanController =
-  TextEditingController();
+class _TrangHinhAnhChiTietState extends State<TrangHinhAnhChiTiet> {
+  late PageController _pageController;
+  late int _currentIndex;
+  late List<KhoanhKhacMau> _hienThiMoments;
 
+  final TextEditingController _tinNhanController = TextEditingController();
+  final KhoanhKhacService _service = KhoanhKhacService();
+
+  List<Map<String, dynamic>> _danhSachProfiles = [];
+  Map<String, dynamic>? _selectedProfile;
   bool _hienMenuNguoiXem = false;
 
-  bool _daThich = false;
-
-  String get _anhDangXem {
-    return widget.duongDanAnh ??
-        'assets/images/anh1.jpg';
-  }
-
-  void _doiTrangThaiMenu() {
-    setState(() {
-      _hienMenuNguoiXem =
-      !_hienMenuNguoiXem;
-    });
-  }
-
-  void _tatMenu() {
-    setState(() {
-      _hienMenuNguoiXem = false;
-    });
-  }
-
-  void _guiTinNhan() {
-    final noiDung =
-    _tinNhanController.text.trim();
-
-    if (noiDung.isEmpty) return;
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Đã gửi: $noiDung',
-        ),
-        backgroundColor:
-        const Color(0xFF4AA8FF),
-      ),
-    );
-
-    _tinNhanController.clear();
-  }
-
-  void _doiTrangThaiThich() {
-    setState(() {
-      _daThich = !_daThich;
-    });
+  @override
+  void initState() {
+    super.initState();
+    _currentIndex = widget.indexBatDau;
+    _hienThiMoments = widget.danhSachMoments;
+    _pageController = PageController(initialPage: widget.indexBatDau);
+    _loadProfiles();
   }
 
   @override
   void dispose() {
+    _pageController.dispose();
     _tinNhanController.dispose();
     super.dispose();
   }
 
+  Future<void> _loadProfiles() async {
+    try {
+      final profiles = await _service.getTatCaProfiles();
+      setState(() => _danhSachProfiles = profiles);
+    } catch (e) {
+      debugPrint("Lỗi tải profiles: $e");
+    }
+  }
+
+  void _doiTrangThaiMenu() =>
+      setState(() => _hienMenuNguoiXem = !_hienMenuNguoiXem);
+  void _tatMenu() => setState(() => _hienMenuNguoiXem = false);
+
+  void _onProfileSelected(Map<String, dynamic>? profile) async {
+    setState(() {
+      _selectedProfile = profile;
+      _hienMenuNguoiXem = false;
+    });
+
+    try {
+      final newList = await _service.getKhoanhKhac(
+        profileId: profile?['id']?.toString(),
+      );
+      setState(() {
+        _hienThiMoments = newList;
+        _currentIndex = 0;
+        if (_pageController.hasClients) {
+          _pageController.jumpToPage(0);
+        }
+      });
+    } catch (e) {
+      debugPrint("Lỗi lọc moments: $e");
+    }
+  }
+
+  void _guiTinNhan() {
+    final noiDung = _tinNhanController.text.trim();
+    if (noiDung.isEmpty) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Đã gửi: $noiDung'),
+        backgroundColor: const Color(0xFF4AA8FF),
+      ),
+    );
+    _tinNhanController.clear();
+  }
+
+  // 📥 HÀM TẢI ẢNH VỀ MÁY (SỬ DỤNG GAL & XỬ LÝ QUYỀN CHÍNH XÁC)
+  Future<void> _taiAnh() async {
+    if (_hienThiMoments.isEmpty) return;
+    final duongDan = _hienThiMoments[_currentIndex].duongDanAnh;
+
+    try {
+      if (Platform.isAndroid) {
+        final androidInfo = await DeviceInfoPlugin().androidInfo;
+        PermissionStatus status;
+
+        if (androidInfo.version.sdkInt >= 33) {
+          // Android 13+ (Samsung A23) cần quyền photos
+          status = await Permission.photos.request();
+        } else {
+          // Android cũ cần storage
+          status = await Permission.storage.request();
+        }
+
+        if (!status.isGranted && !status.isLimited) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text(
+                'Ứng dụng cần quyền truy cập ảnh để tải xuống',
+              ),
+              action: SnackBarAction(
+                label: 'Cài đặt',
+                onPressed: openAppSettings,
+              ),
+            ),
+          );
+          return;
+        }
+      }
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Đang tải ảnh xuống...'),
+          duration: Duration(milliseconds: 800),
+        ),
+      );
+
+      String localPath;
+      if (duongDan.startsWith('http')) {
+        final tempDir = await getTemporaryDirectory();
+        localPath =
+            "${tempDir.path}/temp_moment_${DateTime.now().millisecondsSinceEpoch}.jpg";
+        await Dio().download(duongDan, localPath);
+      } else {
+        localPath = duongDan.replaceFirst('file://', '');
+      }
+
+      // Lưu vào Album bằng Gal
+      if (await File(localPath).exists()) {
+        await Gal.putImage(localPath);
+
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Đã lưu ảnh vào Album thành công!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        throw Exception("Không tìm thấy tệp ảnh");
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Tải ảnh thất bại: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  String? get _currentUserId => Supabase.instance.client.auth.currentUser?.id;
+
+  void _moMenuTuyChon() {
+    if (_hienThiMoments.isEmpty) return;
+    final momentHienTai = _hienThiMoments[_currentIndex];
+    final isOwner = _currentUserId == momentHienTai.profileId;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1A1A1A),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 8),
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.white24,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 10),
+
+              if (isOwner)
+                ListTile(
+                  leading: const Icon(Icons.delete_outline, color: Colors.red),
+                  title: const Text(
+                    'Xóa ảnh này',
+                    style: TextStyle(
+                      color: Colors.red,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _xacNhanXoa(momentHienTai.id, momentHienTai.profileId);
+                  },
+                ),
+
+              ListTile(
+                leading: const Icon(Icons.close, color: Colors.white),
+                title: const Text('Hủy', style: TextStyle(color: Colors.white)),
+                onTap: () => Navigator.pop(context),
+              ),
+              const SizedBox(height: 10),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _xacNhanXoa(int id, String? profileId) async {
+    if (_currentUserId != profileId) return;
+
+    final xacNhan = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A1A),
+        title: const Text(
+          'Xác nhận xóa',
+          style: TextStyle(color: Colors.white),
+        ),
+        content: const Text(
+          'Bạn có chắc muốn xóa khoảnh khắc này không?',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Hủy'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Xóa', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (xacNhan == true) {
+      try {
+        await Supabase.instance.client.from('moments').delete().eq('id', id);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Đã xóa ảnh thành công')),
+          );
+          Navigator.pop(context, true);
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Lỗi khi xóa: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    String tenHienTai = 'Mọi người';
+    if (_selectedProfile != null) {
+      tenHienTai =
+          _selectedProfile!['nickname'] ??
+          _selectedProfile!['full_name'] ??
+          'Người dùng';
+    }
+
     return Scaffold(
       backgroundColor: Colors.black,
-
-      bottomNavigationBar: const AppBottomNav(
-        activeTab: MainTab.moments,
-      ),
-
+      bottomNavigationBar: const AppBottomNav(activeTab: MainTab.moments),
       body: SafeArea(
         child: Stack(
           children: [
             Column(
               children: [
                 const ThanhTrenKhoanhKhac(),
-
                 NutChonNguoiXem(
                   onTap: _doiTrangThaiMenu,
+                  tenHienTai: tenHienTai,
                 ),
-
                 Expanded(
-                  child: LayoutBuilder(
-                    builder: (
-                        context,
-                        constraints,
-                        ) {
-                      final chieuCaoKhung =
-                          constraints.maxHeight *
-                              0.52;
-
-                      final chieuCaoHopLy =
-                      chieuCaoKhung.clamp(
-                        270.0,
-                        360.0,
-                      );
-
-                      return Column(
-                        children: [
-                          SizedBox(
-                            height:
-                            constraints.maxHeight *
-                                0.04,
+                  child: _hienThiMoments.isEmpty
+                      ? const Center(
+                          child: Text(
+                            "Không có khoảnh khắc nào",
+                            style: TextStyle(color: Colors.white),
                           ),
-
-                          _khungAnhLon(
-                            chieuCaoHopLy,
-                          ),
-
-                          SizedBox(
-                            height:
-                            constraints.maxHeight *
-                                0.02,
-                          ),
-
-                          _thongTinNguoiDang(),
-
-                          const SizedBox(height: 14),
-
-                          _oGuiTinNhan(),
-
-                          const SizedBox(height: 16),
-
-                          _thanhCongCuNoi(),
-
-                          const Spacer(),
-                        ],
-                      );
-                    },
-                  ),
+                        )
+                      : PageView.builder(
+                          controller: _pageController,
+                          scrollDirection: Axis.vertical,
+                          itemCount: _hienThiMoments.length,
+                          onPageChanged: (index) =>
+                              setState(() => _currentIndex = index),
+                          itemBuilder: (context, index) {
+                            final moment = _hienThiMoments[index];
+                            return _buildTrangMoment(moment);
+                          },
+                        ),
                 ),
               ],
             ),
-
-            if (_hienMenuNguoiXem)
-              _lopMenuNguoiXem(),
+            if (_hienMenuNguoiXem) _lopMenuNguoiXem(),
           ],
         ),
       ),
     );
   }
 
-  Widget _khungAnhLon(double chieuCao) {
-    return Padding(
-      padding:
-      const EdgeInsets.symmetric(horizontal: 26),
-      child: Container(
-        height: chieuCao,
-        width: double.infinity,
-        decoration: BoxDecoration(
-          borderRadius:
-          BorderRadius.circular(30),
-          color: Colors.white,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(
-                0.25,
+  Widget _buildTrangMoment(KhoanhKhacMau moment) {
+    final isMyMoment = _currentUserId == moment.profileId;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: IntrinsicHeight(
+              child: Column(
+                children: [
+                  const SizedBox(height: 20),
+                  _khungAnhLon(350, moment),
+                  const SizedBox(height: 20),
+                  _thongTinNguoiDang(moment),
+
+                  if (!isMyMoment) ...[
+                    const SizedBox(height: 14),
+                    _oGuiTinNhan(),
+                  ],
+
+                  const Spacer(),
+
+                  const SizedBox(height: 16),
+                  _thanhCongCuNoi(),
+                  const SizedBox(height: 15),
+                ],
               ),
-              blurRadius: 14,
-              offset: const Offset(0, 8),
-            ),
-          ],
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Stack(
-          children: [
-            Positioned.fill(
-              child: _hienThiAnh(),
-            ),
-
-            Positioned(
-              top: 14,
-              right: 14,
-              child: _nutYeuThich(),
-            ),
-            _thongTinViTri(),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _hienThiAnh() {
-    if (_anhDangXem.startsWith('/') &&
-        File(_anhDangXem).existsSync()) {
-      return Image.file(
-        File(_anhDangXem),
-        fit: BoxFit.cover,
-      );
-    }
-
-    return Image.asset(
-      _anhDangXem,
-      fit: BoxFit.cover,
-      errorBuilder: (
-          context,
-          error,
-          stackTrace,
-          ) {
-        return const Center(
-          child: Text(
-            'Ảnh',
-            style: TextStyle(
-              color: Colors.black,
-              fontSize: 16,
-              fontWeight: FontWeight.w800,
             ),
           ),
         );
@@ -238,69 +381,84 @@ class _TrangHinhAnhChiTietState
     );
   }
 
-  Widget _nutYeuThich() {
-    return InkWell(
-      onTap: _doiTrangThaiThich,
-      borderRadius:
-      BorderRadius.circular(20),
+  Widget _hienThiAnh(String duongDan) {
+    if (duongDan.isEmpty)
+      return const Center(
+        child: Text('Không có ảnh', style: TextStyle(color: Colors.white)),
+      );
+    if (duongDan.startsWith('http')) {
+      return Image.network(
+        duongDan,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) =>
+            const Icon(Icons.broken_image, color: Colors.white54, size: 50),
+      );
+    }
+    final path = duongDan.replaceFirst('file://', '');
+    return Image.file(
+      File(path),
+      fit: BoxFit.cover,
+      errorBuilder: (_, __, ___) =>
+          const Icon(Icons.broken_image, color: Colors.white54, size: 50),
+    );
+  }
+
+  Widget _khungAnhLon(double chieuCao, KhoanhKhacMau moment) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 26),
       child: Container(
-        width: 42,
-        height: 42,
+        height: chieuCao,
+        width: double.infinity,
         decoration: BoxDecoration(
-          color:
-          Colors.black.withOpacity(0.45),
-          shape: BoxShape.circle,
+          borderRadius: BorderRadius.circular(30),
+          color: const Color(0xFF1A1A1A),
         ),
-        child: Icon(
-          _daThich
-              ? Icons.favorite
-              : Icons.favorite_border,
-          color: _daThich
-              ? Colors.red
-              : Colors.white,
-          size: 23,
+        clipBehavior: Clip.antiAlias,
+        child: Stack(
+          children: [
+            Positioned.fill(child: _hienThiAnh(moment.duongDanAnh)),
+            Positioned(
+              top: 14,
+              right: 14,
+              child: GestureDetector(
+                onTap: _moMenuTuyChon,
+                child: const CircleAvatar(
+                  backgroundColor: Colors.black54,
+                  child: Icon(Icons.more_vert, color: Colors.white),
+                ),
+              ),
+            ),
+            _thongTinViTri(moment.viTri),
+          ],
         ),
       ),
     );
   }
 
-  Widget _thongTinNguoiDang() {
+  Widget _thongTinNguoiDang(KhoanhKhacMau moment) {
+    final tg = moment.thoiGian;
+    final thoiGianHienThi = tg == null
+        ? 'Vừa xong'
+        : '${tg.day}/${tg.month}/${tg.year}';
+
     return Row(
-      mainAxisAlignment:
-      MainAxisAlignment.center,
+      mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        const CircleAvatar(
-          radius: 14,
-          backgroundColor:
-          Color(0xFF4AA8FF),
-        ),
-
+        const CircleAvatar(radius: 14, backgroundColor: Colors.grey),
         const SizedBox(width: 10),
-
         Column(
-          crossAxisAlignment:
-          CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              widget.tenNguoiDang,
+              moment.tenNguoiDang,
               style: const TextStyle(
                 color: Colors.white,
-                fontSize: 14,
-                fontWeight:
-                FontWeight.w800,
+                fontWeight: FontWeight.bold,
               ),
             ),
-
-            const SizedBox(height: 2),
-
             Text(
-              widget.thoiGian,
-              style: const TextStyle(
-                color: Colors.white70,
-                fontSize: 11,
-                fontWeight:
-                FontWeight.w500,
-              ),
+              thoiGianHienThi,
+              style: const TextStyle(color: Colors.white70, fontSize: 12),
             ),
           ],
         ),
@@ -308,55 +466,73 @@ class _TrangHinhAnhChiTietState
     );
   }
 
-  Widget _thongTinViTri() {
-    if (widget.viTri == null ||
-        widget.viTri!.trim().isEmpty) {
-      return const SizedBox();
+  Widget _thongTinViTri(String? viTri) {
+    final text = viTri?.trim();
+
+    if (text == null || text.isEmpty) {
+      return const SizedBox.shrink();
     }
 
     return Positioned(
+      left: 16,
+      right: 16,
       bottom: 16,
-      left: 0,
-      right: 0,
       child: Center(
-        child: Container(
-          height: 38,
-          padding:
-          const EdgeInsets.symmetric(
-            horizontal: 18,
-          ),
-          decoration: BoxDecoration(
-            color:
-            Colors.black.withOpacity(
-              0.55,
-            ),
-            borderRadius:
-            BorderRadius.circular(22),
-            border: Border.all(
-              color: Colors.white24,
-            ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(
-                LucideIcons.mapPin,
-                color: Colors.white,
-                size: 18,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(24),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 285),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.58),
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: Colors.white.withOpacity(0.16)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.28),
+                    blurRadius: 12,
+                    offset: const Offset(0, 5),
+                  ),
+                ],
               ),
-
-              const SizedBox(width: 7),
-
-              Text(
-                widget.viTri!,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 13,
-                  fontWeight:
-                  FontWeight.w700,
-                ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 27,
+                    height: 27,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.18),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.location_on_rounded,
+                      color: Colors.white,
+                      size: 17,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      text,
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        height: 1.2,
+                        shadows: [Shadow(color: Colors.black87, blurRadius: 4)],
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),
@@ -365,60 +541,29 @@ class _TrangHinhAnhChiTietState
 
   Widget _oGuiTinNhan() {
     return Padding(
-      padding:
-      const EdgeInsets.symmetric(horizontal: 28),
+      padding: const EdgeInsets.symmetric(horizontal: 28),
       child: Container(
-        height: 46,
-        padding: const EdgeInsets.only(
-          left: 18,
-          right: 8,
-        ),
+        padding: const EdgeInsets.symmetric(horizontal: 16),
         decoration: BoxDecoration(
-          color: const Color(0xFF2E2E2E),
-          borderRadius:
-          BorderRadius.circular(24),
+          color: const Color(0xFF1A1A1A),
+          borderRadius: BorderRadius.circular(25),
         ),
         child: Row(
           children: [
             Expanded(
               child: TextField(
-                controller:
-                _tinNhanController,
-                cursorColor: Colors.white,
-                textInputAction:
-                TextInputAction.send,
-                onSubmitted: (_) =>
-                    _guiTinNhan(),
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 14,
-                ),
-                decoration:
-                const InputDecoration(
+                controller: _tinNhanController,
+                style: const TextStyle(color: Colors.white),
+                decoration: const InputDecoration(
+                  hintText: 'Gửi tin nhắn...',
+                  hintStyle: TextStyle(color: Colors.white54),
                   border: InputBorder.none,
-                  hintText:
-                  'Gửi tin nhắn...',
-                  hintStyle: TextStyle(
-                    color: Colors.white54,
-                  ),
                 ),
               ),
             ),
-
-            InkWell(
-              onTap: _guiTinNhan,
-              borderRadius:
-              BorderRadius.circular(20),
-              child: Container(
-                width: 36,
-                height: 36,
-                alignment: Alignment.center,
-                child: const Icon(
-                  LucideIcons.send,
-                  color: Color(0xFF4AA8FF),
-                  size: 20,
-                ),
-              ),
+            IconButton(
+              onPressed: _guiTinNhan,
+              icon: const Icon(Icons.send, color: Colors.blue, size: 20),
             ),
           ],
         ),
@@ -427,80 +572,30 @@ class _TrangHinhAnhChiTietState
   }
 
   Widget _thanhCongCuNoi() {
-    return Center(
-      child: Container(
-        height: 46,
-        width: 165,
-        decoration: BoxDecoration(
-          color:
-          const Color(0xFF242424),
-          borderRadius:
-          BorderRadius.circular(24),
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: [
+        IconButton(
+          onPressed: () => Navigator.pushNamedAndRemoveUntil(
+            context,
+            AppRoutes.trangGalleryKhoanhKhac,
+            (r) => false,
+          ),
+          icon: const Icon(LucideIcons.grid2x2, color: Colors.white),
         ),
-        child: Row(
-          mainAxisAlignment:
-          MainAxisAlignment.spaceEvenly,
-          children: [
-            _iconButton(
-              icon: LucideIcons.grid2x2,
-              onTap: () {
-                Navigator.pushNamedAndRemoveUntil(
-                    context,
-                    AppRoutes.trangGalleryKhoanhKhac,
-                        (route) => false,
-                );
-              },
-            ),
-
-            _iconButton(
-              icon: LucideIcons.camera,
-              onTap: () {
-                Navigator
-                    .pushNamedAndRemoveUntil(
-                  context,
-                  AppRoutes.momentCamera,
-                      (route) => false,
-                );
-              },
-            ),
-
-            _iconButton(
-              icon: LucideIcons.download,
-              onTap: () {
-                ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      'Đã tải ảnh',
-                    ),
-                  ),
-                );
-              },
-            ),
-          ],
+        IconButton(
+          onPressed: () => Navigator.pushNamedAndRemoveUntil(
+            context,
+            AppRoutes.momentCamera,
+            (r) => false,
+          ),
+          icon: const Icon(LucideIcons.camera, color: Colors.white),
         ),
-      ),
-    );
-  }
-
-  Widget _iconButton({
-    required IconData icon,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius:
-      BorderRadius.circular(20),
-      child: SizedBox(
-        width: 42,
-        height: 42,
-        child: Icon(
-          icon,
-          color: Colors.white,
-          size: 20,
+        IconButton(
+          onPressed: _taiAnh,
+          icon: const Icon(LucideIcons.download, color: Colors.white),
         ),
-      ),
+      ],
     );
   }
 
@@ -509,19 +604,12 @@ class _TrangHinhAnhChiTietState
       child: GestureDetector(
         onTap: _tatMenu,
         child: Container(
-          color:
-          Colors.black.withOpacity(0.55),
-          child: Stack(
-            children: const [
-              Positioned(
-                top: 84,
-                left: 0,
-                right: 0,
-                child: Center(
-                  child: MenuNguoiXem(),
-                ),
-              ),
-            ],
+          color: Colors.black54,
+          child: Center(
+            child: MenuNguoiXem(
+              danhSachProfiles: _danhSachProfiles,
+              onProfileSelected: _onProfileSelected,
+            ),
           ),
         ),
       ),
