@@ -1,6 +1,8 @@
 import 'dart:io';
-import 'package:dio/dio.dart';
+import 'dart:ui';
+
 import 'package:device_info_plus/device_info_plus.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:gal/gal.dart'; // Thư viện mới để lưu ảnh
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -67,7 +69,8 @@ class _TrangHinhAnhChiTietState extends State<TrangHinhAnhChiTiet> {
     }
   }
 
-  void _doiTrangThaiMenu() => setState(() => _hienMenuNguoiXem = !_hienMenuNguoiXem);
+  void _doiTrangThaiMenu() =>
+      setState(() => _hienMenuNguoiXem = !_hienMenuNguoiXem);
   void _tatMenu() => setState(() => _hienMenuNguoiXem = false);
 
   void _onProfileSelected(Map<String, dynamic>? profile) async {
@@ -77,7 +80,9 @@ class _TrangHinhAnhChiTietState extends State<TrangHinhAnhChiTiet> {
     });
 
     try {
-      final newList = await _service.getKhoanhKhac(profileId: profile?['id']?.toString());
+      final newList = await _service.getKhoanhKhac(
+        profileId: profile?['id']?.toString(),
+      );
       setState(() {
         _hienThiMoments = newList;
         _currentIndex = 0;
@@ -125,8 +130,13 @@ class _TrangHinhAnhChiTietState extends State<TrangHinhAnhChiTiet> {
           if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: const Text('Ứng dụng cần quyền truy cập ảnh để tải xuống'),
-              action: SnackBarAction(label: 'Cài đặt', onPressed: openAppSettings),
+              content: const Text(
+                'Ứng dụng cần quyền truy cập ảnh để tải xuống',
+              ),
+              action: SnackBarAction(
+                label: 'Cài đặt',
+                onPressed: openAppSettings,
+              ),
             ),
           );
           return;
@@ -135,13 +145,17 @@ class _TrangHinhAnhChiTietState extends State<TrangHinhAnhChiTiet> {
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Đang tải ảnh xuống...'), duration: Duration(milliseconds: 800)),
+        const SnackBar(
+          content: Text('Đang tải ảnh xuống...'),
+          duration: Duration(milliseconds: 800),
+        ),
       );
 
       String localPath;
       if (duongDan.startsWith('http')) {
         final tempDir = await getTemporaryDirectory();
-        localPath = "${tempDir.path}/temp_moment_${DateTime.now().millisecondsSinceEpoch}.jpg";
+        localPath =
+            "${tempDir.path}/temp_moment_${DateTime.now().millisecondsSinceEpoch}.jpg";
         await Dio().download(duongDan, localPath);
       } else {
         localPath = duongDan.replaceFirst('file://', '');
@@ -150,10 +164,13 @@ class _TrangHinhAnhChiTietState extends State<TrangHinhAnhChiTiet> {
       // Lưu vào Album bằng Gal
       if (await File(localPath).exists()) {
         await Gal.putImage(localPath);
-        
+
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Đã lưu ảnh vào Album thành công!'), backgroundColor: Colors.green),
+          const SnackBar(
+            content: Text('Đã lưu ảnh vào Album thành công!'),
+            backgroundColor: Colors.green,
+          ),
         );
       } else {
         throw Exception("Không tìm thấy tệp ảnh");
@@ -161,7 +178,10 @@ class _TrangHinhAnhChiTietState extends State<TrangHinhAnhChiTiet> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Tải ảnh thất bại: $e'), backgroundColor: Colors.red),
+        SnackBar(
+          content: Text('Tải ảnh thất bại: $e'),
+          backgroundColor: Colors.red,
+        ),
       );
     }
   }
@@ -185,13 +205,26 @@ class _TrangHinhAnhChiTietState extends State<TrangHinhAnhChiTiet> {
             mainAxisSize: MainAxisSize.min,
             children: [
               const SizedBox(height: 8),
-              Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2))),
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.white24,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
               const SizedBox(height: 10),
 
               if (isOwner)
                 ListTile(
                   leading: const Icon(Icons.delete_outline, color: Colors.red),
-                  title: const Text('Xóa ảnh này', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                  title: const Text(
+                    'Xóa ảnh này',
+                    style: TextStyle(
+                      color: Colors.red,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                   onTap: () {
                     Navigator.pop(context);
                     _xacNhanXoa(momentHienTai.id, momentHienTai.profileId);
@@ -218,10 +251,19 @@ class _TrangHinhAnhChiTietState extends State<TrangHinhAnhChiTiet> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF1A1A1A),
-        title: const Text('Xác nhận xóa', style: TextStyle(color: Colors.white)),
-        content: const Text('Bạn có chắc muốn xóa khoảnh khắc này không?', style: TextStyle(color: Colors.white70)),
+        title: const Text(
+          'Xác nhận xóa',
+          style: TextStyle(color: Colors.white),
+        ),
+        content: const Text(
+          'Bạn có chắc muốn xóa khoảnh khắc này không?',
+          style: TextStyle(color: Colors.white70),
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Hủy')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Hủy'),
+          ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
             child: const Text('Xóa', style: TextStyle(color: Colors.red)),
@@ -234,12 +276,19 @@ class _TrangHinhAnhChiTietState extends State<TrangHinhAnhChiTiet> {
       try {
         await Supabase.instance.client.from('moments').delete().eq('id', id);
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Đã xóa ảnh thành công')));
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Đã xóa ảnh thành công')),
+          );
           Navigator.pop(context, true);
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Lỗi khi xóa: $e'), backgroundColor: Colors.red));
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Lỗi khi xóa: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
         }
       }
     }
@@ -249,7 +298,10 @@ class _TrangHinhAnhChiTietState extends State<TrangHinhAnhChiTiet> {
   Widget build(BuildContext context) {
     String tenHienTai = 'Mọi người';
     if (_selectedProfile != null) {
-      tenHienTai = _selectedProfile!['nickname'] ?? _selectedProfile!['full_name'] ?? 'Người dùng';
+      tenHienTai =
+          _selectedProfile!['nickname'] ??
+          _selectedProfile!['full_name'] ??
+          'Người dùng';
     }
 
     return Scaffold(
@@ -267,17 +319,23 @@ class _TrangHinhAnhChiTietState extends State<TrangHinhAnhChiTiet> {
                 ),
                 Expanded(
                   child: _hienThiMoments.isEmpty
-                      ? const Center(child: Text("Không có khoảnh khắc nào", style: TextStyle(color: Colors.white)))
+                      ? const Center(
+                          child: Text(
+                            "Không có khoảnh khắc nào",
+                            style: TextStyle(color: Colors.white),
+                          ),
+                        )
                       : PageView.builder(
-                    controller: _pageController,
-                    scrollDirection: Axis.vertical,
-                    itemCount: _hienThiMoments.length,
-                    onPageChanged: (index) => setState(() => _currentIndex = index),
-                    itemBuilder: (context, index) {
-                      final moment = _hienThiMoments[index];
-                      return _buildTrangMoment(moment);
-                    },
-                  ),
+                          controller: _pageController,
+                          scrollDirection: Axis.vertical,
+                          itemCount: _hienThiMoments.length,
+                          onPageChanged: (index) =>
+                              setState(() => _currentIndex = index),
+                          itemBuilder: (context, index) {
+                            final moment = _hienThiMoments[index];
+                            return _buildTrangMoment(moment);
+                          },
+                        ),
                 ),
               ],
             ),
@@ -324,12 +382,25 @@ class _TrangHinhAnhChiTietState extends State<TrangHinhAnhChiTiet> {
   }
 
   Widget _hienThiAnh(String duongDan) {
-    if (duongDan.isEmpty) return const Center(child: Text('Không có ảnh', style: TextStyle(color: Colors.white)));
+    if (duongDan.isEmpty)
+      return const Center(
+        child: Text('Không có ảnh', style: TextStyle(color: Colors.white)),
+      );
     if (duongDan.startsWith('http')) {
-      return Image.network(duongDan, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const Icon(Icons.broken_image, color: Colors.white54, size: 50));
+      return Image.network(
+        duongDan,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) =>
+            const Icon(Icons.broken_image, color: Colors.white54, size: 50),
+      );
     }
     final path = duongDan.replaceFirst('file://', '');
-    return Image.file(File(path), fit: BoxFit.cover, errorBuilder: (_, __, ___) => const Icon(Icons.broken_image, color: Colors.white54, size: 50));
+    return Image.file(
+      File(path),
+      fit: BoxFit.cover,
+      errorBuilder: (_, __, ___) =>
+          const Icon(Icons.broken_image, color: Colors.white54, size: 50),
+    );
   }
 
   Widget _khungAnhLon(double chieuCao, KhoanhKhacMau moment) {
@@ -338,13 +409,17 @@ class _TrangHinhAnhChiTietState extends State<TrangHinhAnhChiTiet> {
       child: Container(
         height: chieuCao,
         width: double.infinity,
-        decoration: BoxDecoration(borderRadius: BorderRadius.circular(30), color: const Color(0xFF1A1A1A)),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(30),
+          color: const Color(0xFF1A1A1A),
+        ),
         clipBehavior: Clip.antiAlias,
         child: Stack(
           children: [
             Positioned.fill(child: _hienThiAnh(moment.duongDanAnh)),
             Positioned(
-              top: 14, right: 14,
+              top: 14,
+              right: 14,
               child: GestureDetector(
                 onTap: _moMenuTuyChon,
                 child: const CircleAvatar(
@@ -362,7 +437,9 @@ class _TrangHinhAnhChiTietState extends State<TrangHinhAnhChiTiet> {
 
   Widget _thongTinNguoiDang(KhoanhKhacMau moment) {
     final tg = moment.thoiGian;
-    final thoiGianHienThi = tg == null ? 'Vừa xong' : '${tg.day}/${tg.month}/${tg.year}';
+    final thoiGianHienThi = tg == null
+        ? 'Vừa xong'
+        : '${tg.day}/${tg.month}/${tg.year}';
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -372,23 +449,91 @@ class _TrangHinhAnhChiTietState extends State<TrangHinhAnhChiTiet> {
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(moment.tenNguoiDang, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-            Text(thoiGianHienThi, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+            Text(
+              moment.tenNguoiDang,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            Text(
+              thoiGianHienThi,
+              style: const TextStyle(color: Colors.white70, fontSize: 12),
+            ),
           ],
-        )
+        ),
       ],
     );
   }
 
   Widget _thongTinViTri(String? viTri) {
-    if (viTri == null || viTri.isEmpty) return const SizedBox();
+    final text = viTri?.trim();
+
+    if (text == null || text.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
     return Positioned(
-      bottom: 16, left: 0, right: 0,
+      left: 16,
+      right: 16,
+      bottom: 16,
       child: Center(
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-          decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(20)),
-          child: Text(viTri, style: const TextStyle(color: Colors.white, fontSize: 12)),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(24),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 285),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.58),
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: Colors.white.withOpacity(0.16)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.28),
+                    blurRadius: 12,
+                    offset: const Offset(0, 5),
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 27,
+                    height: 27,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.18),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.location_on_rounded,
+                      color: Colors.white,
+                      size: 17,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      text,
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        height: 1.2,
+                        shadows: [Shadow(color: Colors.black87, blurRadius: 4)],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -399,11 +544,27 @@ class _TrangHinhAnhChiTietState extends State<TrangHinhAnhChiTiet> {
       padding: const EdgeInsets.symmetric(horizontal: 28),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16),
-        decoration: BoxDecoration(color: const Color(0xFF1A1A1A), borderRadius: BorderRadius.circular(25)),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1A1A1A),
+          borderRadius: BorderRadius.circular(25),
+        ),
         child: Row(
           children: [
-            Expanded(child: TextField(controller: _tinNhanController, style: const TextStyle(color: Colors.white), decoration: const InputDecoration(hintText: 'Gửi tin nhắn...', hintStyle: TextStyle(color: Colors.white54), border: InputBorder.none))),
-            IconButton(onPressed: _guiTinNhan, icon: const Icon(Icons.send, color: Colors.blue, size: 20)),
+            Expanded(
+              child: TextField(
+                controller: _tinNhanController,
+                style: const TextStyle(color: Colors.white),
+                decoration: const InputDecoration(
+                  hintText: 'Gửi tin nhắn...',
+                  hintStyle: TextStyle(color: Colors.white54),
+                  border: InputBorder.none,
+                ),
+              ),
+            ),
+            IconButton(
+              onPressed: _guiTinNhan,
+              icon: const Icon(Icons.send, color: Colors.blue, size: 20),
+            ),
           ],
         ),
       ),
@@ -415,12 +576,20 @@ class _TrangHinhAnhChiTietState extends State<TrangHinhAnhChiTiet> {
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
         IconButton(
-            onPressed: () => Navigator.pushNamedAndRemoveUntil(context, AppRoutes.trangGalleryKhoanhKhac, (r) => false),
-            icon: const Icon(LucideIcons.grid2x2, color: Colors.white)
+          onPressed: () => Navigator.pushNamedAndRemoveUntil(
+            context,
+            AppRoutes.trangGalleryKhoanhKhac,
+            (r) => false,
+          ),
+          icon: const Icon(LucideIcons.grid2x2, color: Colors.white),
         ),
         IconButton(
-            onPressed: () => Navigator.pushNamedAndRemoveUntil(context, AppRoutes.momentCamera, (r) => false),
-            icon: const Icon(LucideIcons.camera, color: Colors.white)
+          onPressed: () => Navigator.pushNamedAndRemoveUntil(
+            context,
+            AppRoutes.momentCamera,
+            (r) => false,
+          ),
+          icon: const Icon(LucideIcons.camera, color: Colors.white),
         ),
         IconButton(
           onPressed: _taiAnh,
@@ -435,13 +604,13 @@ class _TrangHinhAnhChiTietState extends State<TrangHinhAnhChiTiet> {
       child: GestureDetector(
         onTap: _tatMenu,
         child: Container(
-            color: Colors.black54,
-            child: Center(
-                child: MenuNguoiXem(
-                  danhSachProfiles: _danhSachProfiles,
-                  onProfileSelected: _onProfileSelected,
-                )
-            )
+          color: Colors.black54,
+          child: Center(
+            child: MenuNguoiXem(
+              danhSachProfiles: _danhSachProfiles,
+              onProfileSelected: _onProfileSelected,
+            ),
+          ),
         ),
       ),
     );

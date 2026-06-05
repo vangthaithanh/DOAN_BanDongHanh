@@ -30,7 +30,6 @@
             <data android:mimeType="text/plain" />
         </intent>
     </queries>
-
     <application
         android:name="${applicationName}"
         android:label="do_an"
