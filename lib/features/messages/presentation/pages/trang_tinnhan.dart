@@ -1,3 +1,4 @@
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
@@ -23,11 +24,41 @@ class _TrangTinNhanPageState extends State<TrangTinNhanPage> {
   final MessageService _messageService = MessageService();
   final NotificationService _notificationService = NotificationService();
   late Future<List<ConversationPreview>> _future;
+  RealtimeChannel? _messagesChannel;
+  int _badgeVersion = 0;
 
   @override
   void initState() {
     super.initState();
     _future = _messageService.loadConversations(waiting: false);
+    _subscribeRealtime();
+  }
+
+  @override
+  void dispose() {
+    final channel = _messagesChannel;
+    if (channel != null) {
+      Supabase.instance.client.removeChannel(channel);
+    }
+    super.dispose();
+  }
+
+  void _subscribeRealtime() {
+    _messagesChannel = Supabase.instance.client
+        .channel('messages-list-normal')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'messages',
+          callback: (_) => _reloadSilently(),
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.update,
+          schema: 'public',
+          table: 'messages',
+          callback: (_) => _reloadSilently(),
+        )
+        .subscribe();
   }
 
   Future<void> _reload() async {
@@ -35,9 +66,21 @@ class _TrangTinNhanPageState extends State<TrangTinNhanPage> {
 
     setState(() {
       _future = future;
+      _badgeVersion++;
     });
 
     await future;
+  }
+
+  void _reloadSilently() {
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _future = _messageService.loadConversations(waiting: false);
+      _badgeVersion++;
+    });
   }
 
   @override
@@ -103,7 +146,10 @@ class _TrangTinNhanPageState extends State<TrangTinNhanPage> {
           ],
         ),
       ),
-      bottomNavigationBar: const AppBottomNav(activeTab: MainTab.messages),
+      bottomNavigationBar: AppBottomNav(
+        key: ValueKey('messages_nav_$_badgeVersion'),
+        activeTab: MainTab.messages,
+      ),
     );
   }
 
@@ -130,6 +176,7 @@ class _TrangTinNhanPageState extends State<TrangTinNhanPage> {
               if (mounted) setState(() {});
             },
             child: AsyncUnreadBadge(
+              key: ValueKey('message_top_bell_$_badgeVersion'),
               loadCount: _notificationService.countUnreadMine,
               child: const Icon(
                 LucideIcons.bell,

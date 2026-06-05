@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../app/routes/app_routes.dart';
 import '../../../../shared/widgets/unread_badge.dart';
@@ -17,11 +18,40 @@ class _TrangTinNhanChoPageState extends State<TrangTinNhanChoPage> {
 
   final MessageService _service = MessageService();
   late Future<List<ConversationPreview>> _future;
+  RealtimeChannel? _messagesChannel;
 
   @override
   void initState() {
     super.initState();
     _future = _service.loadConversations(waiting: true);
+    _subscribeRealtime();
+  }
+
+  @override
+  void dispose() {
+    final channel = _messagesChannel;
+    if (channel != null) {
+      Supabase.instance.client.removeChannel(channel);
+    }
+    super.dispose();
+  }
+
+  void _subscribeRealtime() {
+    _messagesChannel = Supabase.instance.client
+        .channel('messages-list-waiting')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'messages',
+          callback: (_) => _reloadSilently(),
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.update,
+          schema: 'public',
+          table: 'messages',
+          callback: (_) => _reloadSilently(),
+        )
+        .subscribe();
   }
 
   Future<void> _reload() async {
@@ -32,6 +62,16 @@ class _TrangTinNhanChoPageState extends State<TrangTinNhanChoPage> {
     });
 
     await future;
+  }
+
+  void _reloadSilently() {
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _future = _service.loadConversations(waiting: true);
+    });
   }
 
   @override

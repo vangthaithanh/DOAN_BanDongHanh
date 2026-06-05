@@ -310,6 +310,13 @@ class MessageService {
         .update({'last_read_at': DateTime.now().toUtc().toIso8601String()})
         .eq('conversation_id', conversationId)
         .eq('profile_id', user.id);
+
+    await _client
+        .from('notifications')
+        .update({'is_read': true})
+        .eq('profile_id', user.id)
+        .eq('notification_type', 'message')
+        .eq('is_read', false);
   }
 
   Future<int?> _findPrivateConversation(

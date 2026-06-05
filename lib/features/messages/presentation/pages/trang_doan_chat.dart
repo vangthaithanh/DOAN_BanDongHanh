@@ -7,6 +7,7 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../data/message_service.dart';
 import '../../data/mock/mock_messages.dart';
 import 'trang_tinnhan_caidat.dart';
@@ -40,6 +41,8 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
   final FocusNode _focusNode = FocusNode();
   final MessageService _messageService = MessageService();
   int? _conversationId;
+  int? _subscribedConversationId;
+  RealtimeChannel? _messagesChannel;
   bool _loadingMessages = true;
   bool get _usesRealConversation =>
       _conversationId != null || widget.otherProfileId?.isNotEmpty == true;
@@ -91,6 +94,10 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
     _recorder.dispose();
     _audioPlayer.dispose();
     _micBlinkAnim.dispose();
+    final channel = _messagesChannel;
+    if (channel != null) {
+      Supabase.instance.client.removeChannel(channel);
+    }
     super.dispose();
   }
 
@@ -173,6 +180,7 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
         throw Exception('Không tìm thấy cuộc trò chuyện');
       }
 
+      _subscribeToConversation(conversationId);
       final messages = await _messageService.loadMessages(conversationId);
 
       if (!mounted) {
@@ -199,6 +207,55 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
           backgroundColor: Colors.redAccent,
         ),
       );
+    }
+  }
+
+  void _subscribeToConversation(int conversationId) {
+    if (_subscribedConversationId == conversationId) {
+      return;
+    }
+
+    final oldChannel = _messagesChannel;
+    if (oldChannel != null) {
+      Supabase.instance.client.removeChannel(oldChannel);
+    }
+
+    _subscribedConversationId = conversationId;
+    _messagesChannel = Supabase.instance.client
+        .channel('messages-chat-$conversationId')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'messages',
+          callback: (payload) {
+            final changedConversationId = payload.newRecord['conversation_id'];
+            if (changedConversationId?.toString() ==
+                conversationId.toString()) {
+              _reloadConversationSilently();
+            }
+          },
+        )
+        .subscribe();
+  }
+
+  Future<void> _reloadConversationSilently() async {
+    if (!mounted || _conversationId == null) {
+      return;
+    }
+
+    try {
+      final messages = await _messageService.loadMessages(_conversationId!);
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _currentMessages = messages.map(_toUiMessage).toList();
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+    } catch (_) {
+      // Realtime reload should stay quiet; manual navigation/reload handles errors.
     }
   }
 
