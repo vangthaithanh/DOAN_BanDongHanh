@@ -60,17 +60,35 @@ class MyProfile {
 
 class ProfilePlanItemData {
   final String id;
+  final int placeId;
   final String title;
+  final String province;
   final String timeText;
+  final String dayText;
+  final String hourText;
   final String actionText;
   final bool isActive;
+  final bool canShowAction;
+  final String status;
+  final bool gpsConfirmed;
+  final String? imageUrl;
+  final DateTime? plannedTime;
 
   const ProfilePlanItemData({
     required this.id,
+    required this.placeId,
     required this.title,
+    required this.province,
     required this.timeText,
+    required this.dayText,
+    required this.hourText,
     required this.actionText,
     required this.isActive,
+    required this.canShowAction,
+    required this.status,
+    required this.gpsConfirmed,
+    this.imageUrl,
+    required this.plannedTime,
   });
 }
 
@@ -78,12 +96,14 @@ class ProfilePlanGroupData {
   final String id;
   final String name;
   final String routeText;
+  final bool pinned;
   final List<ProfilePlanItemData> items;
 
   const ProfilePlanGroupData({
     required this.id,
     required this.name,
     required this.routeText,
+    required this.pinned,
     required this.items,
   });
 }
@@ -341,28 +361,32 @@ class ProfileService {
     try {
       final planRows = await _client
           .from('itineraries')
-          .select('*')
+          .select('id, name, description, pinned, status, created_at')
           .eq('profile_id', userId)
+          .order('pinned', ascending: false)
           .order('created_at', ascending: false)
           .limit(10);
 
       final plans = <ProfilePlanGroupData>[];
 
       for (final rawPlan in planRows as List) {
-        final plan = rawPlan as Map<String, dynamic>;
+        final plan = rawPlan as Map;
         final planId = plan['id']?.toString() ?? '';
+        final pinned = plan['pinned'] == true;
 
-        final items = await _loadPlanItems(planId);
+        final items = await _loadPlanItems(
+          itineraryId: planId,
+          pinned: pinned,
+        );
 
         plans.add(
           ProfilePlanGroupData(
             id: planId,
-            name: _firstText([plan['title'], plan['name']], fallback: 'Plan'),
-            routeText: _firstText([
-              plan['route_text'],
-              plan['destination'],
-              plan['description'],
-            ], fallback: 'Chưa có tuyến'),
+            name: _firstText([plan['name']], fallback: 'Plan'),
+            routeText: items.isEmpty
+                ? _firstText([plan['description']], fallback: 'Chưa có tuyến')
+                : items.take(3).map((item) => item.title).join(' - '),
+            pinned: pinned,
             items: items,
           ),
         );
@@ -374,7 +398,10 @@ class ProfileService {
     }
   }
 
-  Future<List<ProfilePlanItemData>> _loadPlanItems(String itineraryId) async {
+  Future<List<ProfilePlanItemData>> _loadPlanItems({
+    required String itineraryId,
+    required bool pinned,
+  }) async {
     if (itineraryId.isEmpty) {
       return [];
     }
@@ -382,44 +409,162 @@ class ProfileService {
     try {
       final itemRows = await _client
           .from('itinerary_items')
-          .select('*')
+          .select('''
+          id,
+          place_id,
+          order_no,
+          planned_time,
+          status,
+          gps_confirmed,
+          places (
+            id,
+            name,
+            province,
+            district,
+            address,
+            place_media (
+              id,
+              media_type,
+              url
+            )
+          )
+        ''')
           .eq('itinerary_id', itineraryId)
-          .order('sort_order', ascending: true)
+          .order('planned_time', ascending: true)
+          .order('order_no', ascending: true)
           .limit(30);
 
       final items = <ProfilePlanItemData>[];
 
       for (final rawItem in itemRows as List) {
-        final item = rawItem as Map<String, dynamic>;
+        final item = rawItem as Map;
+        final place = item['places'] is Map ? item['places'] as Map : {};
+        final status = item['status']?.toString() ?? 'planned';
+        final gpsConfirmed = item['gps_confirmed'] == true;
+        final plannedTime = DateTime.tryParse(
+          item['planned_time']?.toString() ?? '',
+        )?.toLocal();
 
         items.add(
           ProfilePlanItemData(
             id: item['id']?.toString() ?? '',
-            title: _firstText([
-              item['title'],
-              item['name'],
-              item['place_name'],
-            ], fallback: 'Địa điểm'),
-            timeText: _formatTime(
-              _firstText([
-                item['start_time'],
-                item['scheduled_at'],
-                item['time_text'],
-              ], fallback: ''),
+            placeId: _asInt(item['place_id']),
+            title: _firstText([place['name']], fallback: 'Địa điểm'),
+            province: _firstText(
+              [place['province'], place['district'], place['address']],
+              fallback: 'Tỉnh thành',
             ),
-            actionText: _firstText([
-              item['action_text'],
-              item['action'],
-            ], fallback: 'Xem điểm đến'),
-            isActive: _isActiveItem(item['status']),
+            timeText: _formatPlanTime(plannedTime),
+            dayText: _formatPlanDay(plannedTime),
+            hourText: _formatPlanHour(plannedTime),
+            actionText: _planActionText(
+              pinned: pinned,
+              status: status,
+              gpsConfirmed: gpsConfirmed,
+            ),
+            isActive: _isActiveItem(status) || gpsConfirmed,
+            canShowAction: pinned,
+            status: status,
+            gpsConfirmed: gpsConfirmed,
+            plannedTime: plannedTime,
+            imageUrl: _firstPlaceImage(place['place_media']),
           ),
         );
       }
+
+      items.sort((a, b) {
+        final aTime = a.plannedTime;
+        final bTime = b.plannedTime;
+
+        if (aTime == null && bTime == null) return 0;
+        if (aTime == null) return 1;
+        if (bTime == null) return -1;
+
+        return aTime.compareTo(bTime);
+      });
+
+      return items;
 
       return items;
     } catch (_) {
       return [];
     }
+  }
+
+  int _asInt(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse(value?.toString() ?? '') ?? 0;
+  }
+
+  String? _firstPlaceImage(dynamic rawMedia) {
+    if (rawMedia is! List || rawMedia.isEmpty) return null;
+
+    for (final item in rawMedia) {
+      if (item is! Map) continue;
+
+      final type = item['media_type']?.toString() ?? 'image';
+      final url = item['url']?.toString() ?? '';
+
+      if (type == 'image' && url.trim().isNotEmpty) {
+        return url;
+      }
+    }
+
+    return null;
+  }
+
+  String _formatPlanDay(DateTime? dateTime) {
+    if (dateTime == null) return '--';
+
+    const thu = {
+      1: 'T2',
+      2: 'T3',
+      3: 'T4',
+      4: 'T5',
+      5: 'T6',
+      6: 'T7',
+      7: 'CN',
+    };
+
+    return '${thu[dateTime.weekday]}-${dateTime.day}';
+  }
+
+  String _formatPlanHour(DateTime? dateTime) {
+    if (dateTime == null) return '--:--';
+
+    final hour = dateTime.hour.toString().padLeft(2, '0');
+    final minute = dateTime.minute.toString().padLeft(2, '0');
+
+    return '$hour:$minute';
+  }
+
+  String _formatPlanTime(DateTime? dateTime) {
+    if (dateTime == null) return 'Chưa có thời gian';
+
+    return '${_formatPlanDay(dateTime)}, ${_formatPlanHour(dateTime)}';
+  }
+
+  String _planActionText({
+    required bool pinned,
+    required String status,
+    required bool gpsConfirmed,
+  }) {
+    if (!pinned) return '';
+
+    final cleanStatus = status.toLowerCase();
+
+    if (gpsConfirmed ||
+        cleanStatus == 'visited' ||
+        cleanStatus == 'completed') {
+      return 'Đánh giá';
+    }
+
+    if (cleanStatus == 'skipped') {
+      return 'Đặt lại';
+    }
+
+    return 'Xem vị trí';
   }
 
   String _firstText(List<dynamic> values, {required String fallback}) {

@@ -51,6 +51,8 @@ import '../../features/profile/presentation/pages/trang_xem_baiviet_luutru.dart'
 import '../../features/social/data/models/post_model.dart';
 import '../../features/social/presentation/pages/trang_binhluan.dart';
 import '../../features/social/presentation/pages/trang_tao_baiviet.dart';
+import '../../features/itinerary/presentation/pages/trang_lich_trinh.dart';
+import '../../features/itinerary/presentation/pages/trang_them_sua_lich_trinh.dart';
 import 'app_routes.dart';
 
 class AppRouter {
@@ -135,8 +137,6 @@ class AppRouter {
       AppRoutes.placeDetail: (_) => const TrangChiTietDiaDiemPage(),
       AppRoutes.placeReview: (_) => const TrangDanhGiaDiaDiemPage(),
 
-      // NOTE SỬA:
-      // Route mở bản đồ nhiều địa điểm du lịch từ bảng places Supabase.
       AppRoutes.placeMap: (_) => const TrangBanDoDiaDiemPage(),
       AppRoutes.tripList: (_) =>
           const ComingSoonPage(title: 'Lịch trình của tôi'),
@@ -144,6 +144,22 @@ class AppRouter {
           const ComingSoonPage(title: 'Tạo lịch trình'),
       AppRoutes.tripDetail: (_) =>
           const ComingSoonPage(title: 'Chi tiết lịch trình'),
+      AppRoutes.tripList: (_) => const TrangLichTrinhPage(),
+      AppRoutes.tripCreate: (context) {
+        final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+
+        return TrangThemSuaLichTrinhPage(
+          itineraryId: args?['itineraryId'] as int?,
+          initialPlaceId: args?['initialPlaceId'] as int?,
+        );
+      },
+      AppRoutes.tripDetail: (context) {
+        final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+
+        return TrangThemSuaLichTrinhPage(
+          itineraryId: args?['itineraryId'] as int?,
+        );
+      },
       AppRoutes.editProfile: (context) {
         final args = ModalRoute.of(context)?.settings.arguments;
         return TrangChinhSuaHoSoPage(
