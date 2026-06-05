@@ -11,18 +11,28 @@ class ChatData {
     this.isUnread = false,
   });
 }
-// Thêm image, video, audio, sticker — giữ nguyên text và location cũ
-enum MessageType { text, location, image, video, audio, sticker }
+
+enum MessageType { text, location, image, video, audio, sticker, momentReply }
 
 class MessageModel {
   final String text;
   final bool isMe;
   final MessageType type;
 
+  // Fields for Moment/Story Reply
+  final String? momentId;
+  final String? momentImageUrl;
+  final String? momentOwnerName;
+  final String? momentOwnerId;
+
   const MessageModel({
     required this.text,
     required this.isMe,
     this.type = MessageType.text,
+    this.momentId,
+    this.momentImageUrl,
+    this.momentOwnerName,
+    this.momentOwnerId,
   });
 }
 
@@ -43,7 +53,7 @@ List<ChatData> waitingMessages = [
   ),
 ];
 Map<String, String> nicknames = {};
-// QUẢN LÝ TIN NHẮN RIÊNG BIỆT CHO TỪNG NGƯỜI DÙNG BẰNG MAP
+
 Map<String, List<MessageModel>> allChatsData = {
   'BongAnhHung': [
     const MessageModel(text: 'Bạn muốn đến đây không', isMe: false),
@@ -58,31 +68,25 @@ Map<String, List<MessageModel>> allChatsData = {
     const MessageModel(text: 'Tôi thấy rồi, bạn đợi nhé', isMe: true),
   ],
 };
+
 String getLastMessageText(String userName) {
   final messages = allChatsData[userName];
-
-  if (messages == null || messages.isEmpty) {
-    return '';
-  }
-
+  if (messages == null || messages.isEmpty) return '';
   final last = messages.last;
 
   switch (last.type) {
     case MessageType.image:
       return '📷 Hình ảnh';
-
     case MessageType.video:
       return '🎥 Video';
-
     case MessageType.audio:
       return '🎤 Tin nhắn thoại';
-
     case MessageType.location:
       return '📍 Vị trí';
-
     case MessageType.sticker:
       return '😊 Sticker';
-
+    case MessageType.momentReply:
+      return '💬 Đã trả lời khoảnh khắc';
     case MessageType.text:
       return last.text;
   }

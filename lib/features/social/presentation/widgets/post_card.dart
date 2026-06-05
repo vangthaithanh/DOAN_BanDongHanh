@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../../../../app/routes/app_routes.dart';
 import '../../../../core/utils/time_ago.dart';
 import '../../data/models/post_model.dart';
 import '../../data/services/post_service.dart';
@@ -69,6 +70,16 @@ class _PostCardState extends State<PostCard> {
   void dispose() {
     _timer?.cancel();
     super.dispose();
+  }
+
+  void _goToProfile() {
+    if (widget.post.authorId != null) {
+      Navigator.pushNamed(
+        context,
+        AppRoutes.profile,
+        arguments: widget.post.authorId,
+      );
+    }
   }
 
   // ── Visibility ───────────────────────────────────────────────────────────────
@@ -346,37 +357,43 @@ class _PostCardState extends State<PostCard> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        CircleAvatar(
-          radius: 20,
-          backgroundColor: widget.post.laBaiVietCuaToi
-              ? const Color(0xFF5AB2FF)
-              : const Color(0xFF4AA8FF),
-          backgroundImage: avatarUrl.isNotEmpty
-              ? NetworkImage(avatarUrl)
-              : null,
-          child: avatarUrl.isEmpty
-              ? Text(
-                  widget.post.tenNguoiDang.isEmpty
-                      ? '?'
-                      : widget.post.tenNguoiDang[0].toUpperCase(),
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w800,
-                  ),
-                )
-              : null,
+        GestureDetector(
+          onTap: _goToProfile,
+          child: CircleAvatar(
+            radius: 20,
+            backgroundColor: widget.post.laBaiVietCuaToi
+                ? const Color(0xFF5AB2FF)
+                : const Color(0xFF4AA8FF),
+            backgroundImage: avatarUrl.isNotEmpty
+                ? NetworkImage(avatarUrl)
+                : null,
+            child: avatarUrl.isEmpty
+                ? Text(
+                    widget.post.tenNguoiDang.isEmpty
+                        ? '?'
+                        : widget.post.tenNguoiDang[0].toUpperCase(),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  )
+                : null,
+          ),
         ),
         const SizedBox(width: 10),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                widget.post.tenNguoiDang,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w800,
+              GestureDetector(
+                onTap: _goToProfile,
+                child: Text(
+                  widget.post.tenNguoiDang,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
               ),
               const SizedBox(height: 2),

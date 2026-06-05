@@ -97,7 +97,13 @@ class AppRouter {
       },
       AppRoutes.notifications: (_) => const TrangThongBaoPage(),
       AppRoutes.messages: (_) => const TrangTinNhanPage(),
-      AppRoutes.profile: (_) => const TrangCaNhanPage(),
+      
+      // NOTE SỬA: Cập nhật route profile để nhận tham số userId (từ arguments)
+      AppRoutes.profile: (context) {
+        final userId = ModalRoute.of(context)?.settings.arguments as String?;
+        return TrangCaNhanPage(userId: userId);
+      },
+
       AppRoutes.createPost: (_) => const TrangTaoBaiViet(),
       AppRoutes.postDetail: (_) => const ComingSoonPage(title: 'Chi tiết bài viết'),
       AppRoutes.search: (_) => const ComingSoonPage(title: 'Tìm kiếm'),
