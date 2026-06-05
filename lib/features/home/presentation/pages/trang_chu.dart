@@ -33,6 +33,7 @@ class _TrangChuPageState extends State<TrangChuPage> {
   MyProfile? _profile;
   bool _loadingProfile = true;
   late Future<List<PostModel>> _feedFuture;
+  final Set<int> _hiddenPostIds = {};
 
   @override
   void initState() {
@@ -123,7 +124,9 @@ class _TrangChuPageState extends State<TrangChuPage> {
       );
     }
 
-    final posts = snapshot.data ?? const [];
+    final posts = (snapshot.data ?? const [])
+        .where((p) => !_hiddenPostIds.contains(p.id))
+        .toList();
 
     if (posts.isEmpty) {
       return _feedShell(
@@ -187,6 +190,9 @@ class _TrangChuPageState extends State<TrangChuPage> {
               },
               onPostModified: () {
                 _refreshFeed();
+              },
+              onHidePost: () {
+                setState(() => _hiddenPostIds.add(post.id));
               },
             ),
           );

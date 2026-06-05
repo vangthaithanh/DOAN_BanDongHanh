@@ -23,6 +23,7 @@ class ConversationPreview {
   final String timeText;
   final int unreadCount;
   final bool isWaiting;
+  final DateTime? lastMessageAt;
 
   const ConversationPreview({
     required this.conversationId,
@@ -33,6 +34,7 @@ class ConversationPreview {
     required this.timeText,
     required this.unreadCount,
     required this.isWaiting,
+    this.lastMessageAt,
   });
 
   bool get isUnread => unreadCount > 0;
@@ -138,11 +140,12 @@ class MessageService {
           timeText: _timeText(lastMessage?['sent_at']),
           unreadCount: unreadCount,
           isWaiting: isWaiting,
+          lastMessageAt: DateTime.tryParse(lastMessage?['sent_at']?.toString() ?? '')?.toLocal(),
         ),
       );
     }
 
-    previews.sort((a, b) => b.conversationId.compareTo(a.conversationId));
+    previews.sort((a, b) => (b.lastMessageAt ?? DateTime(0)).compareTo(a.lastMessageAt ?? DateTime(0)));
 
     return previews
         .where((p) => !_deletedConversationIds.contains(p.conversationId))
@@ -358,6 +361,15 @@ class MessageService {
       if (conversationId == 0) {
         throw Exception('Không tạo được cuộc trò chuyện');
       }
+
+      // Nếu user đã xóa conversation này trước đó, khôi phục lại membership
+      await _client
+          .from('conversation_members')
+          .update({'status': 'active'})
+          .eq('conversation_id', conversationId)
+          .eq('profile_id', user.id)
+          .eq('status', 'deleted');
+      _deletedConversationIds.remove(conversationId);
 
       return conversationId;
     } on PostgrestException catch (e) {

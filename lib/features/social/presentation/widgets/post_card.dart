@@ -10,6 +10,7 @@ import '../../../../core/utils/time_ago.dart';
 import '../../data/models/post_model.dart';
 import '../../data/services/post_service.dart';
 import '../pages/trang_chinh_sua_baiviet.dart';
+import '../../../users/data/block_service.dart';
 
 class PostCard extends StatefulWidget {
   final PostModel post;
@@ -17,6 +18,7 @@ class PostCard extends StatefulWidget {
   final VoidCallback? onShare;
   final VoidCallback? onTap;
   final VoidCallback? onPostModified;
+  final VoidCallback? onHidePost;
 
   // NOTE SỬA LƯU TRỮ:
   // hienThiTuongTac = false dùng ở màn xem bài đã lưu trữ: không hiện tim/cmt/gửi.
@@ -35,6 +37,7 @@ class PostCard extends StatefulWidget {
     this.hienThiTuongTac = true,
     this.hienThiNutBaCham = true,
     this.cheDoKhoLuuTru = false,
+    this.onHidePost,
   });
 
   @override
@@ -49,6 +52,7 @@ class _PostCardState extends State<PostCard> {
   late int _soThich;
   bool _dangXuLyThich = false;
   final PostService _postService = PostService();
+  final BlockService _blockService = BlockService();
   final SupabaseClient _supabase = Supabase.instance.client;
   bool _expandedCaption = false;
   Timer? _timer;
@@ -174,6 +178,39 @@ class _PostCardState extends State<PostCard> {
                 ),
               ),
               const SizedBox(height: 16),
+              if (!widget.post.laBaiVietCuaToi) ...[
+                _sheetItem(
+                  icon: Icons.visibility_off_outlined,
+                  label: 'Ẩn bài viết',
+                  color: Colors.white,
+                  onTap: () {
+                    Navigator.pop(sheetCtx);
+                    widget.onHidePost?.call();
+                  },
+                ),
+                const Divider(color: Color(0xFF2B2B2B), height: 1),
+                _sheetItem(
+                  icon: Icons.flag_outlined,
+                  label: 'Báo cáo bài viết',
+                  color: Colors.orangeAccent,
+                  onTap: () {
+                    Navigator.pop(sheetCtx);
+                    _showReportSheet(context);
+                  },
+                ),
+                const Divider(color: Color(0xFF2B2B2B), height: 1),
+                _sheetItem(
+                  icon: Icons.block,
+                  label: 'Chặn người dùng',
+                  color: Colors.redAccent,
+                  onTap: () {
+                    Navigator.pop(sheetCtx);
+                    _confirmBlock(context);
+                  },
+                ),
+                const SizedBox(height: 8),
+              ],
+              if (widget.post.laBaiVietCuaToi) ...[
               _sheetItem(
                 icon: LucideIcons.pencil,
                 label: 'Chỉnh sửa',
@@ -226,11 +263,134 @@ class _PostCardState extends State<PostCard> {
                 },
               ),
               const SizedBox(height: 8),
+              ],
             ],
           ),
         ),
       ),
     );
+  }
+
+  void _confirmBlock(BuildContext context) {
+    final authorId = widget.post.authorId ?? '';
+    final name = widget.post.tenNguoiDang;
+    if (authorId.isEmpty) return;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1C1C1E),
+        title: const Text('Chặn người dùng', style: TextStyle(color: Colors.white)),
+        content: Text(
+          'Bạn và @$name sẽ không thể xem bài viết hay tìm kiếm nhau nữa.',
+          style: const TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Hủy'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              final messenger = ScaffoldMessenger.of(context);
+              await _blockService.blockUser(authorId);
+              widget.onHidePost?.call();
+              messenger.showSnackBar(
+                SnackBar(
+                  content: Text('Đã chặn @$name'),
+                  backgroundColor: const Color(0xFF1C1C1E),
+                  duration: const Duration(seconds: 2),
+                ),
+              );
+            },
+            child: const Text('Chặn', style: TextStyle(color: Colors.redAccent)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showReportSheet(BuildContext context) {
+    const reasons = [
+      'Nội dung không phù hợp',
+      'Thông tin sai lệch',
+      'Spam hoặc quảng cáo',
+      'Bạo lực hoặc nguy hiểm',
+      'Khác',
+    ];
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1C1C1E),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetCtx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.white24,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Báo cáo bài viết',
+                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Chọn lý do báo cáo',
+                style: TextStyle(color: Colors.white54, fontSize: 13),
+              ),
+              const SizedBox(height: 12),
+              ...reasons.map((reason) => Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Divider(color: Color(0xFF2B2B2B), height: 1),
+                  _sheetItem(
+                    icon: Icons.flag_outlined,
+                    label: reason,
+                    color: Colors.white,
+                    onTap: () async {
+                      Navigator.pop(sheetCtx);
+                      await _submitReport(reason);
+                    },
+                  ),
+                ],
+              )),
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _submitReport(String reason) async {
+    final user = _supabase.auth.currentUser;
+    if (user == null) return;
+    try {
+      await _supabase.from('post_reports').insert({
+        'post_id': widget.post.id,
+        'reporter_id': user.id,
+        'reason': reason,
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Đã gửi báo cáo. Chúng tôi sẽ xem xét sớm.'),
+            backgroundColor: Color(0xFF1C1C1E),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (_) {}
   }
 
   void _showArchiveMoreSheet(BuildContext context) {
@@ -687,8 +847,7 @@ class _PostCardState extends State<PostCard> {
             ],
           ),
         ),
-        if (widget.hienThiNutBaCham &&
-            (widget.post.laBaiVietCuaToi || widget.cheDoKhoLuuTru))
+        if (widget.hienThiNutBaCham)
           GestureDetector(
             onTap: () => _showMoreSheet(context),
             child: const Padding(
