@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:ui';
 
@@ -13,6 +14,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../app/routes/app_routes.dart';
 import '../../../../shared/navigation/app_bottom_nav.dart';
 import '../../../../shared/navigation/main_tab.dart';
+import '../../../messages/data/message_service.dart';
 import '../../data/khoanh_khac_service.dart';
 import '../../data/model/khoanh_khac_mau.dart';
 import '../widgets/menu_nguoi_xem.dart';
@@ -39,6 +41,8 @@ class _TrangHinhAnhChiTietState extends State<TrangHinhAnhChiTiet> {
 
   final TextEditingController _tinNhanController = TextEditingController();
   final KhoanhKhacService _service = KhoanhKhacService();
+  final MessageService _messageService = MessageService();
+  Timer? _timer;
 
   List<Map<String, dynamic>> _danhSachProfiles = [];
   Map<String, dynamic>? _selectedProfile;
@@ -51,10 +55,14 @@ class _TrangHinhAnhChiTietState extends State<TrangHinhAnhChiTiet> {
     _hienThiMoments = widget.danhSachMoments;
     _pageController = PageController(initialPage: widget.indexBatDau);
     _loadProfiles();
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
   }
 
   @override
   void dispose() {
+    _timer?.cancel();
     _pageController.dispose();
     _tinNhanController.dispose();
     super.dispose();
@@ -62,8 +70,19 @@ class _TrangHinhAnhChiTietState extends State<TrangHinhAnhChiTiet> {
 
   Future<void> _loadProfiles() async {
     try {
-      final profiles = await _service.getTatCaProfiles();
-      setState(() => _danhSachProfiles = profiles);
+      final results = await Future.wait([
+        _service.getMyProfile(),
+        _service.getBanBe(),
+      ]);
+      final me = results[0] as Map<String, dynamic>?;
+      final friends = results[1] as List<Map<String, dynamic>>;
+      if (!mounted) return;
+      setState(() {
+        _danhSachProfiles = [
+          if (me != null) {...me, 'nickname': 'Bạn'},
+          ...friends,
+        ];
+      });
     } catch (e) {
       debugPrint("Lỗi tải profiles: $e");
     }
@@ -95,17 +114,46 @@ class _TrangHinhAnhChiTietState extends State<TrangHinhAnhChiTiet> {
     }
   }
 
-  void _guiTinNhan() {
+  Future<void> _guiTinNhan() async {
+    if (_hienThiMoments.isEmpty) return;
     final noiDung = _tinNhanController.text.trim();
     if (noiDung.isEmpty) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Đã gửi: $noiDung'),
-        backgroundColor: const Color(0xFF4AA8FF),
-      ),
-    );
+    final moment = _hienThiMoments[_currentIndex];
+    final ownerProfileId = moment.profileId ?? '';
+    if (ownerProfileId.isEmpty || ownerProfileId == _currentUserId) return;
+
     _tinNhanController.clear();
+
+    try {
+      final conversationId = await _messageService.sendMomentReply(
+        momentOwnerProfileId: ownerProfileId,
+        replyText: noiDung,
+        momentId: moment.id,
+        momentImageUrl: moment.duongDanAnh,
+      );
+
+      if (!mounted) return;
+      Navigator.pushNamed(
+        context,
+        AppRoutes.chatDetail,
+        arguments: {
+          'conversationId': conversationId,
+          'name': moment.tenNguoiDang,
+          'isWaiting': false,
+          'avatarUrl': moment.avatarUrl,
+          'otherProfileId': ownerProfileId,
+        },
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Lỗi gửi tin: $e'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    }
   }
 
   // 📥 HÀM TẢI ẢNH VỀ MÁY (SỬ DỤNG GAL & XỬ LÝ QUYỀN CHÍNH XÁC)
@@ -296,7 +344,7 @@ class _TrangHinhAnhChiTietState extends State<TrangHinhAnhChiTiet> {
 
   @override
   Widget build(BuildContext context) {
-    String tenHienTai = 'Mọi người';
+    String tenHienTai = 'Bạn bè';
     if (_selectedProfile != null) {
       tenHienTai =
           _selectedProfile!['nickname'] ??
@@ -382,10 +430,11 @@ class _TrangHinhAnhChiTietState extends State<TrangHinhAnhChiTiet> {
   }
 
   Widget _hienThiAnh(String duongDan) {
-    if (duongDan.isEmpty)
+    if (duongDan.isEmpty) {
       return const Center(
         child: Text('Không có ảnh', style: TextStyle(color: Colors.white)),
       );
+    }
     if (duongDan.startsWith('http')) {
       return Image.network(
         duongDan,
@@ -436,15 +485,20 @@ class _TrangHinhAnhChiTietState extends State<TrangHinhAnhChiTiet> {
   }
 
   Widget _thongTinNguoiDang(KhoanhKhacMau moment) {
-    final tg = moment.thoiGian;
-    final thoiGianHienThi = tg == null
-        ? 'Vừa xong'
-        : '${tg.day}/${tg.month}/${tg.year}';
+    final thoiGianHienThi = _thoiGianRelative(moment.thoiGian);
+    final avatar = moment.avatarUrl ?? '';
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        const CircleAvatar(radius: 14, backgroundColor: Colors.grey),
+        CircleAvatar(
+          radius: 18,
+          backgroundColor: const Color(0xFF4AA8FF),
+          backgroundImage: avatar.isNotEmpty ? NetworkImage(avatar) : null,
+          child: avatar.isEmpty
+              ? const Icon(Icons.person, size: 18, color: Colors.white)
+              : null,
+        ),
         const SizedBox(width: 10),
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -454,16 +508,27 @@ class _TrangHinhAnhChiTietState extends State<TrangHinhAnhChiTiet> {
               style: const TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.bold,
+                fontSize: 15,
               ),
             ),
             Text(
               thoiGianHienThi,
-              style: const TextStyle(color: Colors.white70, fontSize: 12),
+              style: const TextStyle(color: Colors.white54, fontSize: 12),
             ),
           ],
         ),
       ],
     );
+  }
+
+  String _thoiGianRelative(DateTime? tg) {
+    if (tg == null) return 'Vừa xong';
+    final diff = DateTime.now().difference(tg.toLocal());
+    if (diff.inSeconds < 60) return 'Vừa xong';
+    if (diff.inMinutes < 60) return '${diff.inMinutes} phút trước';
+    if (diff.inHours < 24) return '${diff.inHours} giờ trước';
+    if (diff.inDays < 7) return '${diff.inDays} ngày trước';
+    return '${tg.day}/${tg.month}/${tg.year}';
   }
 
   Widget _thongTinViTri(String? viTri) {

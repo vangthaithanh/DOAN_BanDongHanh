@@ -13,7 +13,7 @@ class HomeFeedService {
 
     // 2. Load bài viết từ Mutual Follows (nếu đã đăng nhập)// D:/Mobile/DOAN_BanDongHanh/lib/features/home/data/services/home_feed_service.dart
 
-    Future<List<PostModel>> _loadMutualFollowerPosts(String userId) async {
+    Future<List<PostModel>> loadMutualFollowerPosts(String userId) async {
       final mutualIds = await _getMutualFollowIds(userId);
       if (mutualIds.isEmpty) return [];
 
@@ -39,7 +39,7 @@ class HomeFeedService {
     }
     List<PostModel> followerPosts = [];
     if (user != null) {
-      followerPosts = await _loadMutualFollowerPosts(user.id);
+      followerPosts = await loadMutualFollowerPosts(user.id);
     }
 
     // 3. Load bài viết gợi ý (nếu có sở thích)
@@ -116,30 +116,6 @@ class HomeFeedService {
 
       return followingIds.intersection(followerIds).toList();
     } catch (_) {
-      return [];
-    }
-  }
-
-  Future<List<PostModel>> _loadMutualFollowerPosts(String userId) async {
-    final mutualIds = await _getMutualFollowIds(userId);
-    if (mutualIds.isEmpty) return [];
-
-    try {
-      final rows = await _client
-          .from('posts')
-          .select('''
-            *,
-            profiles:profile_id (nickname, avatar_url),
-            post_media(url, display_order)
-          ''')
-          .inFilter('profile_id', mutualIds)
-          .eq('visibility', 'follower')
-          .eq('status', 'active')
-          .order('created_at', ascending: false)
-          .limit(20);
-
-      return _mapRawPosts(rows as List);
-    } catch (e) {
       return [];
     }
   }

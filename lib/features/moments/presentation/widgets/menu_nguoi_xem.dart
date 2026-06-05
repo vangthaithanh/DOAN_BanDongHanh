@@ -107,7 +107,7 @@ class MenuNguoiXem extends StatelessWidget {
             ),
             SizedBox(width: 16),
             Text(
-              'Mọi người',
+              'Bạn bè',
               style: TextStyle(
                 color: Colors.white,
                 fontSize: 14,

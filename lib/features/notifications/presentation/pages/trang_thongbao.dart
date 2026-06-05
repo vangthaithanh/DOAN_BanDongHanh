@@ -165,8 +165,19 @@ class _TrangThongBaoPageState extends State<TrangThongBaoPage> {
     return InkWell(
       onTap: () async {
         await _service.markAsRead(data.id);
+        if (!mounted) return;
 
-        if (mounted) {
+        if (data.type == 'moment_reply' && (data.referenceId ?? 0) > 0) {
+          Navigator.pushNamed(
+            context,
+            AppRoutes.chatDetail,
+            arguments: {
+              'conversationId': data.referenceId,
+              'name': 'Tin nhắn',
+              'isWaiting': false,
+            },
+          );
+        } else {
           _reload();
         }
       },

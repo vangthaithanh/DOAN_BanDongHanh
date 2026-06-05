@@ -9,6 +9,7 @@ class NotificationItem {
   final String content;
   final bool isRead;
   final DateTime? createdAt;
+  final int? referenceId;
 
   const NotificationItem({
     required this.id,
@@ -17,6 +18,7 @@ class NotificationItem {
     required this.content,
     required this.isRead,
     this.createdAt,
+    this.referenceId,
   });
 
   String get timeText {
@@ -39,6 +41,7 @@ class NotificationItem {
       content: map['content']?.toString().trim() ?? '',
       isRead: map['is_read'] == true,
       createdAt: DateTime.tryParse(rawCreatedAt)?.toLocal(),
+      referenceId: _asInt(map['reference_id']),
     );
   }
 
@@ -67,7 +70,7 @@ class NotificationService {
 
     final rows = await _client
         .from('notifications')
-        .select('id, notification_type, title, content, is_read, created_at')
+        .select('id, notification_type, title, content, is_read, created_at, reference_id')
         .eq('profile_id', user.id)
         .order('created_at', ascending: false)
         .limit(50);

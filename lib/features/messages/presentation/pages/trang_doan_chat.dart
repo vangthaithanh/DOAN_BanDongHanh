@@ -44,6 +44,8 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
   int? _subscribedConversationId;
   RealtimeChannel? _messagesChannel;
   bool _loadingMessages = true;
+  DateTime? _otherLastReadAt;
+  DateTime? _lastSentAt;
   bool get _usesRealConversation =>
       _conversationId != null || widget.otherProfileId?.isNotEmpty == true;
 
@@ -140,6 +142,7 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
 
         setState(() {
           _currentMessages.add(_toUiMessage(message));
+          _lastSentAt = message.createdAt ?? DateTime.now();
         });
         Future.delayed(const Duration(milliseconds: 50), _scrollToBottom);
       } catch (e) {
@@ -183,13 +186,17 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
       _subscribeToConversation(conversationId);
 
       final messages = await _messageService.loadMessages(conversationId);
+      final otherRead = await _messageService.getOtherMemberLastRead(conversationId);
 
       if (!mounted) {
         return;
       }
 
+      final myMessages = messages.where((m) => m.isMe).toList();
       setState(() {
         _currentMessages = messages.map(_toUiMessage).toList();
+        _otherLastReadAt = otherRead;
+        _lastSentAt = myMessages.isNotEmpty ? myMessages.last.createdAt : null;
         _loadingMessages = false;
       });
       WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
@@ -298,6 +305,14 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
         return MessageModel(
           text: message.text.isEmpty ? 'Bài viết' : message.text,
           isMe: message.isMe,
+        );
+      case RealMessageType.momentReply:
+        return MessageModel(
+          text: message.text,
+          isMe: message.isMe,
+          type: MessageType.momentReply,
+          momentImageUrl: message.mediaUrl,
+          momentId: message.momentId?.toString(),
         );
       case RealMessageType.text:
         return MessageModel(text: message.text, isMe: message.isMe);
@@ -847,12 +862,23 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
                   itemCount: _currentMessages.length + 1,
                   itemBuilder: (context, index) {
                     if (index == _currentMessages.length) {
-                      return const Padding(
-                        padding: EdgeInsets.only(top: 6, bottom: 12, right: 12),
+                      // Chỉ hiện status sau tin nhắn cuối của mình
+                      final hasMyMessages = _currentMessages.any((m) => m.isMe);
+                      if (!hasMyMessages) return const SizedBox.shrink();
+
+                      final lastMyReal = _lastSentAt;
+                      final daXem = _otherLastReadAt != null &&
+                          lastMyReal != null &&
+                          !_otherLastReadAt!.isBefore(lastMyReal);
+
+                      return Padding(
+                        padding: const EdgeInsets.only(
+                            top: 4, bottom: 12, right: 12),
                         child: Text(
-                          'Đã xem',
+                          daXem ? 'Đã xem' : 'Đã gửi',
                           textAlign: TextAlign.end,
-                          style: TextStyle(color: Colors.white38, fontSize: 12),
+                          style: const TextStyle(
+                              color: Colors.white38, fontSize: 12),
                         ),
                       );
                     }
@@ -889,6 +915,8 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
 
   Widget _buildChatBubble(MessageModel message) {
     switch (message.type) {
+      case MessageType.momentReply:
+        return _momentReplyBubble(message);
       case MessageType.image:
         return _imageBubble(message);
       case MessageType.video:
@@ -966,6 +994,52 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
           ),
           const SizedBox(width: 6),
           const Icon(LucideIcons.mapPin, color: Colors.white, size: 16),
+        ],
+      ),
+    ),
+  );
+
+  Widget _momentReplyBubble(MessageModel msg) => _bubbleRow(
+    isMe: msg.isMe,
+    child: Container(
+      width: 220,
+      decoration: BoxDecoration(
+        color: const Color(0xFF2C2C2E),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white12),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (msg.momentImageUrl != null && msg.momentImageUrl!.isNotEmpty)
+            SizedBox(
+              height: 140,
+              width: double.infinity,
+              child: Image.network(
+                msg.momentImageUrl!,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Container(
+                  color: Colors.grey.shade900,
+                  child: const Icon(Icons.broken_image,
+                      color: Colors.white38, size: 32),
+                ),
+              ),
+            ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 6, 12, 2),
+            child: const Text(
+              'Đã trả lời khoảnh khắc',
+              style: TextStyle(color: Colors.white38, fontSize: 11),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+            child: Text(
+              msg.text,
+              style: const TextStyle(color: Colors.white, fontSize: 14),
+            ),
+          ),
         ],
       ),
     ),

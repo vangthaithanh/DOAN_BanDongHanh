@@ -33,6 +33,7 @@ class _TrangDanhSachNguoiTheoDoiPageState
           mockUsers[userName]!.isFollowing;
     }
   }
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,

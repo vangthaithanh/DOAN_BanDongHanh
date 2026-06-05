@@ -29,6 +29,7 @@ class _TrangDanhSachBanBePageState
     friends = List<String>.from(mockFriends);
     suggestions = List<String>.from(mockSuggestions);
   }
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,

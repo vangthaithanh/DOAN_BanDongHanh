@@ -335,7 +335,7 @@ class ProfileService {
           .from('posts')
           .select('id')
           .eq('profile_id', userId)
-          .neq('status', 'deleted');
+          .eq('status', 'active');
 
       return (rows as List).length;
     } catch (_) {
