@@ -2327,28 +2327,21 @@ class _TrangBanDoDiaDiemPageState extends State<TrangBanDoDiaDiemPage> {
     if (userId == null) return;
 
     try {
-      final existing = await _supabase
-          .from('place_shares')
-          .select('id')
-          .eq('place_id', place.id)
-          .eq('from_user_id', userId)
-          .eq('to_user_id', friend.id)
-          .eq('status', 'pending')
-          .maybeSingle();
-
-      if (existing != null) {
-        _showMessage('Bạn đã gửi địa điểm này cho ${friend.name} rồi');
-        return;
-      }
-
-      await _supabase.from('place_shares').insert({
-        'place_id': place.id,
-        'from_user_id': userId,
-        'to_user_id': friend.id,
-        'status': 'pending',
+      final result = await _supabase.rpc('share_place_direct', params: {
+        'p_place_id': place.id,
+        'p_to_user_id': friend.id,
       });
 
-      _showMessage('Đã gửi chia sẻ cho ${friend.name}');
+      final data = result is Map
+          ? Map<String, dynamic>.from(result)
+          : <String, dynamic>{};
+      final alreadyExists = data['already_exists'] == true;
+
+      _showMessage(
+        alreadyExists
+            ? '${friend.name} đã có địa điểm này trong bản đồ'
+            : 'Đã chia sẻ địa điểm sang bản đồ của ${friend.name}',
+      );
     } catch (e) {
       _showMessage(e.toString().replaceFirst('Exception: ', ''));
     }
