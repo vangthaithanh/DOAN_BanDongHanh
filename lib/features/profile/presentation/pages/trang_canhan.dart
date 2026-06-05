@@ -64,9 +64,9 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
       _reloadProfile();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi: ${e.toString()}')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Lỗi: ${e.toString()}')));
       }
     } finally {
       if (mounted) {
@@ -136,13 +136,16 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
           : null,
       appBar: widget.userId != null
           ? AppBar(
-        backgroundColor: Colors.black,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Text('Hồ sơ', style: _textStyle(size: 18, weight: FontWeight.w700)),
-      )
+              backgroundColor: Colors.black,
+              leading: IconButton(
+                icon: const Icon(Icons.arrow_back, color: Colors.white),
+                onPressed: () => Navigator.pop(context),
+              ),
+              title: Text(
+                'Hồ sơ',
+                style: _textStyle(size: 18, weight: FontWeight.w700),
+              ),
+            )
           : null,
       body: SafeArea(
         child: FutureBuilder<ProfilePageData>(
@@ -199,10 +202,12 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
             // NOTE SỬA LƯU TRỮ:
             // Phòng trường hợp service profile vẫn trả về bài archived, UI sẽ tự ẩn.
             final postsHienThi = data.posts
-                .where((post) =>
-            post.status != 'archived' &&
-                post.status != 'deleted' &&
-                !post.isArchived)
+                .where(
+                  (post) =>
+                      post.status != 'archived' &&
+                      post.status != 'deleted' &&
+                      !post.isArchived,
+                )
                 .toList();
 
             return Column(
@@ -228,7 +233,7 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
                           _emptyPostBox(context, data)
                         else
                           ...postsHienThi.map(
-                                (post) => PostCard(
+                            (post) => PostCard(
                               post: post,
                               onComment: () async {
                                 final changed = await Navigator.pushNamed(
@@ -418,14 +423,28 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
                   onPressed: () => _handleFollow(data.profile.id),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: data.isFollowing ? softGrey : blue,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
                   ),
                   child: _isActionLoading
-                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
                       : Text(
-                      data.isFollowing ? 'Đang theo dõi' : 'Theo dõi',
-                      style: _textStyle(weight: FontWeight.w700, color: data.isFollowing ? Colors.white70 : Colors.white)
-                  ),
+                          data.isFollowing ? 'Đang theo dõi' : 'Theo dõi',
+                          style: _textStyle(
+                            weight: FontWeight.w700,
+                            color: data.isFollowing
+                                ? Colors.white70
+                                : Colors.white,
+                          ),
+                        ),
                 ),
               ),
               const SizedBox(width: 12),
@@ -436,7 +455,12 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
                     Navigator.pushNamed(
                       context,
                       AppRoutes.chatDetail,
-                      arguments: {'name': data.profile.displayName},
+                      arguments: {
+                        'name': data.profile.displayName,
+                        'otherProfileId': data.profile.id,
+                        'avatarUrl': data.profile.avatarUrl,
+                        'isWaiting': !data.isFollowing,
+                      },
                     );
                   },
                 ),

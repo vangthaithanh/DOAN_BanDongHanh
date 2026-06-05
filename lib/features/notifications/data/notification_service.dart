@@ -77,6 +77,26 @@ class NotificationService {
         .toList();
   }
 
+  Future<int> countUnreadMine() async {
+    final user = _client.auth.currentUser;
+
+    if (user == null) {
+      return 0;
+    }
+
+    try {
+      final rows = await _client
+          .from('notifications')
+          .select('id')
+          .eq('profile_id', user.id)
+          .eq('is_read', false);
+
+      return (rows as List).length;
+    } catch (_) {
+      return 0;
+    }
+  }
+
   Future<void> markAsRead(int notificationId) async {
     final user = _client.auth.currentUser;
 
