@@ -419,17 +419,14 @@ class _PostCardState extends State<PostCard> {
   }
 
   Future<void> _handleRestore(BuildContext context) async {
+    final nav = Navigator.of(context);
     try {
       await _capNhatTrangThaiBaiViet('active');
       widget.onPostModified?.call();
 
-      // NOTE SỬA LƯU TRỮ:
-      // Nếu đang ở Kho lưu trữ, khôi phục xong thì pop true ra ngoài.
-      // Luồng sẽ là:
-      // Kho lưu trữ pop true -> Cài đặt pop true -> Trang cá nhân reload lại.
       if (widget.cheDoKhoLuuTru) {
         if (!mounted) return;
-        Navigator.of(context).pop(true);
+        nav.pop(true);
         return;
       }
 
@@ -574,6 +571,11 @@ class _PostCardState extends State<PostCard> {
             if (widget.post.danhSachHashTag.isNotEmpty) ...[
               const SizedBox(height: 6),
               _hashTags(),
+            ],
+
+            if (widget.post.danhSachBanBeDuocTag.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              _taggedUsers(),
             ],
 
             if (widget.post.danhSachAnh.isNotEmpty) ...[
@@ -779,6 +781,45 @@ class _PostCardState extends State<PostCard> {
               ),
             )
             .toList(),
+      ),
+    );
+  }
+
+  Widget _taggedUsers() {
+    return Padding(
+      padding: const EdgeInsets.only(left: 50),
+      child: Wrap(
+        spacing: 6,
+        runSpacing: 4,
+        children: [
+          const Icon(Icons.people_alt_outlined, color: Colors.white54, size: 14),
+          ...widget.post.danhSachBanBeDuocTag.map(
+            (nick) => GestureDetector(
+              onTap: () async {
+                try {
+                  final nav = Navigator.of(context);
+                  final row = await Supabase.instance.client
+                      .from('profiles')
+                      .select('id')
+                      .eq('nickname', nick)
+                      .maybeSingle();
+                  final profileId = row?['id']?.toString() ?? '';
+                  if (profileId.isNotEmpty) {
+                    nav.pushNamed(AppRoutes.profile, arguments: profileId);
+                  }
+                } catch (_) {}
+              },
+              child: Text(
+                '@$nick',
+                style: const TextStyle(
+                  color: _mauXanh,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

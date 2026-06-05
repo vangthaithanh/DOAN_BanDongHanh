@@ -63,6 +63,7 @@ class AppRoutes {
   static const String archivePostDetail = '/kho-luu-tru/xem-bai-viet';
   static const String followRequests = '/theo-doi/yeu-cau';
   static const String friendSuggestions = '/ban-be/goi-y';
+  static const String blockedUsers = '/da-chan';
 
   // Admin
   static const String adminDashboard = '/admin';

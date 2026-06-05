@@ -8,6 +8,8 @@ import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../../app/routes/app_routes.dart';
+import '../../../social/data/services/post_service.dart';
 import '../../data/message_service.dart';
 import '../../data/mock/mock_messages.dart';
 import 'trang_tinnhan_caidat.dart';
@@ -309,8 +311,10 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
       case RealMessageType.post:
         return MessageModel(
           id: message.id,
-          text: message.text.isEmpty ? 'Bài viết' : message.text,
+          text: message.text,
           isMe: message.isMe,
+          type: MessageType.sharedPost,
+          postId: message.postId,
         );
       case RealMessageType.momentReply:
         return MessageModel(
@@ -982,6 +986,8 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
     switch (message.type) {
       case MessageType.momentReply:
         return _momentReplyBubble(message);
+      case MessageType.sharedPost:
+        return _sharedPostBubble(message);
       case MessageType.image:
         return _imageBubble(message);
       case MessageType.video:
@@ -1089,7 +1095,7 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
               child: Image.network(
                 msg.momentImageUrl!,
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(
+                errorBuilder: (_, _, _) => Container(
                   color: Colors.grey.shade900,
                   child: const Icon(Icons.broken_image,
                       color: Colors.white38, size: 32),
@@ -1112,6 +1118,110 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
           ),
         ],
       ),
+    ),
+  );
+
+  Widget _sharedPostBubble(MessageModel msg) {
+    final postId = msg.postId ?? 0;
+    return _bubbleRow(
+      isMe: msg.isMe,
+      child: GestureDetector(
+        onTap: () async {
+          if (postId == 0) {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text('Bài viết này hiện không còn khả dụng.'),
+            ));
+            return;
+          }
+          try {
+            // Kiểm tra bài viết trước khi điều hướng (UC5, UC6)
+            await PostService().loadPostById(postId);
+            if (!mounted) return;
+            Navigator.pushNamed(context, AppRoutes.trangBinhLuan, arguments: postId);
+          } catch (e) {
+            if (!mounted) return;
+            final msg = e.toString().contains('quyền')
+                ? 'Bạn không có quyền xem bài viết này.'
+                : 'Bài viết này hiện không còn khả dụng.';
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+          }
+        },
+        child: Container(
+          width: 230,
+          decoration: BoxDecoration(
+            color: const Color(0xFF1C1C1E),
+            border: Border.all(color: const Color(0xFF2C2C2E), width: 1.5),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: postId == 0
+              ? _postUnavailable()
+              : FutureBuilder(
+                  future: PostService().loadPostById(postId),
+                  builder: (context, snap) {
+                    if (snap.connectionState == ConnectionState.waiting) {
+                      return const SizedBox(
+                        height: 80,
+                        child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                      );
+                    }
+                    if (snap.hasError || snap.data == null) return _postUnavailable();
+                    final post = snap.data!;
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (post.danhSachAnh.isNotEmpty)
+                          ClipRRect(
+                            borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
+                            child: Image.network(
+                              post.danhSachAnh.first,
+                              height: 120,
+                              width: double.infinity,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, _, _) => const SizedBox(height: 0),
+                            ),
+                          ),
+                        Padding(
+                          padding: const EdgeInsets.all(10),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                post.tenNguoiDang,
+                                style: const TextStyle(
+                                  color: Color(0xFF4AA8FF),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                post.caption ?? '',
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(color: Colors.white, fontSize: 13),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                post.thoiGian,
+                                style: const TextStyle(color: Colors.white38, fontSize: 11),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+        ),
+      ),
+    );
+  }
+
+  Widget _postUnavailable() => const Padding(
+    padding: EdgeInsets.all(14),
+    child: Text(
+      'Bài viết này hiện không còn khả dụng.',
+      style: TextStyle(color: Colors.white54, fontSize: 13),
     ),
   );
 

@@ -5,6 +5,7 @@ import '../../../../app/routes/app_routes.dart';
 import '../../data/models/binh_luan_model.dart';
 import '../../data/models/post_model.dart';
 import '../../data/services/post_service.dart';
+import '../../../messages/presentation/widgets/share_post_sheet.dart';
 import '../widgets/post_card.dart';
 
 class TrangBinhLuan extends StatefulWidget {
@@ -207,7 +208,14 @@ class _TrangBinhLuanState extends State<TrangBinhLuan> {
             post: post,
             onComment: () {},
             onShare: () {
-              Navigator.pushNamed(context, AppRoutes.messages);
+              final postId = _post?.id;
+              if (postId == null) return;
+              showModalBottomSheet(
+                context: context,
+                isScrollControlled: true,
+                backgroundColor: Colors.transparent,
+                builder: (_) => SharePostSheet(postId: postId),
+              );
             },
             onPostModified: () async {
               _changed = true;
@@ -357,10 +365,6 @@ class _TrangBinhLuanState extends State<TrangBinhLuan> {
           children: [
             const SizedBox(width: 13),
 
-            const Icon(LucideIcons.camera, color: Colors.white, size: 21),
-
-            const SizedBox(width: 10),
-
             Expanded(
               child: TextField(
                 controller: _binhLuanController,
@@ -416,11 +420,7 @@ class _TrangBinhLuanState extends State<TrangBinhLuan> {
               ),
             ),
 
-            const SizedBox(width: 4),
-
-            const Icon(LucideIcons.image, color: Colors.white, size: 21),
-
-            const SizedBox(width: 12),
+            const SizedBox(width: 8),
           ],
         ),
       ),
