@@ -12,10 +12,17 @@ class DiaDiemService {
   final SupabaseClient _client = Supabase.instance.client;
 
   Future<List<DiaDiemModel>> layDanhSachDiaDiem() async {
-    final data = await _client
+    final userId = _client.auth.currentUser?.id;
+    var query = _client
         .from('places')
         .select('*, place_media(*)')
-        .eq('status', 'active')
+        .eq('status', 'active');
+
+    query = userId == null
+        ? query.filter('user_id', 'is', null)
+        : query.or('user_id.is.null,user_id.eq.$userId');
+
+    final data = await query
         .order('avg_rating', ascending: false)
         .order('total_saves', ascending: false);
 
@@ -25,11 +32,17 @@ class DiaDiemService {
   }
 
   Future<DiaDiemModel?> layDiaDiemTheoId(int maDiaDiem) async {
-    final data = await _client
+    final userId = _client.auth.currentUser?.id;
+    var query = _client
         .from('places')
         .select('*, place_media(*)')
-        .eq('id', maDiaDiem)
-        .maybeSingle();
+        .eq('id', maDiaDiem);
+
+    query = userId == null
+        ? query.filter('user_id', 'is', null)
+        : query.or('user_id.is.null,user_id.eq.$userId');
+
+    final data = await query.maybeSingle();
 
     if (data == null) return null;
 
@@ -37,14 +50,21 @@ class DiaDiemService {
   }
 
   Future<List<DiaDiemModel>> layDiaDiemLienQuan(DiaDiemModel diaDiem) async {
-    final data = await _client
+    final userId = _client.auth.currentUser?.id;
+    var query = _client
         .from('places')
         .select('*, place_media(*)')
         .eq('status', 'active')
         .neq('id', diaDiem.maDiaDiem)
-        .or('province.eq.${diaDiem.tinhThanh},category_id.eq.${diaDiem.maLoai}')
-        .order('avg_rating', ascending: false)
-        .limit(6);
+        .or(
+          'province.eq.${diaDiem.tinhThanh},category_id.eq.${diaDiem.maLoai}',
+        );
+
+    query = userId == null
+        ? query.filter('user_id', 'is', null)
+        : query.or('user_id.is.null,user_id.eq.$userId');
+
+    final data = await query.order('avg_rating', ascending: false).limit(6);
 
     return List<Map<String, dynamic>>.from(
       data,
@@ -307,7 +327,26 @@ class DiaDiemService {
 
   Map<String, dynamic> _mapPlaceRow(Map<String, dynamic> row) {
     final rawMedia = row['place_media'];
-    final media = rawMedia is List ? rawMedia : const [];
+    final media = rawMedia is List ? List<dynamic>.from(rawMedia) : <dynamic>[];
+    final coverImage = row['cover_image']?.toString().trim() ?? '';
+
+    if (coverImage.isNotEmpty) {
+      final alreadyIncluded = media.any((item) {
+        if (item is! Map) return false;
+        return item['url']?.toString() == coverImage;
+      });
+
+      if (!alreadyIncluded) {
+        media.insert(0, {
+          'id': 0,
+          'place_id': row['id'] ?? 0,
+          'media_type': 'image',
+          'url': coverImage,
+          'caption': null,
+          'created_at': row['updated_at'] ?? row['created_at'],
+        });
+      }
+    }
     final lat = _toDouble(row['latitude']);
     final lng = _toDouble(row['longitude']);
     final distanceKm = _tinhKhoangCachKm(_gocLatHcm, _gocLngHcm, lat, lng);

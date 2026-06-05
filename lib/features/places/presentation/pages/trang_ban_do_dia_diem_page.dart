@@ -3,6 +3,7 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:geocoding/geocoding.dart' as geocoding;
 import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:latlong2/latlong.dart';
@@ -387,9 +388,7 @@ class _TrangBanDoDiaDiemPageState extends State<TrangBanDoDiaDiemPage> {
               ],
             ),
             child: Icon(
-              place.isMine(_currentUserId)
-                  ? Icons.person_pin_circle_rounded
-                  : _markerIcon(place),
+              _markerIcon(place),
               color: Colors.white,
               size: isSelected ? 25 : 21,
             ),
@@ -1396,10 +1395,27 @@ class _TrangBanDoDiaDiemPageState extends State<TrangBanDoDiaDiemPage> {
     String? anhCu = place?.coverImage;
     bool xoaAnhCu = false;
     bool dangLuu = false;
+    bool luuThanhCong = false;
+    bool anhKhongLuuDuoc = false;
+    String? thongBaoSauKhiLuu;
+    var selectedMarkerPreset = _markerPresetFromKeywords(place?.keywords);
+
+    if (!isEdit && addressController.text.trim().isEmpty) {
+      final suggestedAddress = await _goiYDiaChiTuToaDo(selectedLocation);
+      if (!mounted) return;
+
+      if (suggestedAddress != null) {
+        addressController.text = suggestedAddress.address ?? '';
+        provinceController.text = suggestedAddress.province ?? '';
+        districtController.text = suggestedAddress.district ?? '';
+      }
+    }
 
     await showModalBottomSheet<void>(
       context: context,
       backgroundColor: const Color(0xFF151515),
+      isDismissible: false,
+      enableDrag: false,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -1442,6 +1458,8 @@ class _TrangBanDoDiaDiemPageState extends State<TrangBanDoDiaDiemPage> {
 
               if (dangLuu) return;
 
+              FocusManager.instance.primaryFocus?.unfocus();
+
               modalSetState(() {
                 dangLuu = true;
               });
@@ -1459,11 +1477,17 @@ class _TrangBanDoDiaDiemPageState extends State<TrangBanDoDiaDiemPage> {
 
                 if (anhMoi != null) {
                   coverImage = await _uploadAnhDiaDiem(anhMoi!, userId);
+                  anhKhongLuuDuoc = coverImage == null;
                 } else if (xoaAnhCu) {
                   coverImage = null;
                 } else {
                   coverImage = anhCu;
                 }
+
+                final mergedKeywords = _tronTuKhoaVoiBieuTuong(
+                  keywordsController.text.trim(),
+                  selectedMarkerPreset,
+                );
 
                 final data = <String, dynamic>{
                   'name': name,
@@ -1477,9 +1501,7 @@ class _TrangBanDoDiaDiemPageState extends State<TrangBanDoDiaDiemPage> {
                   'description': descriptionController.text.trim().isEmpty
                       ? null
                       : descriptionController.text.trim(),
-                  'keywords': keywordsController.text.trim().isEmpty
-                      ? null
-                      : keywordsController.text.trim(),
+                  'keywords': mergedKeywords.isEmpty ? null : mergedKeywords,
                   'price': price,
                   'cover_image': coverImage,
                   'latitude': selectedLocation.latitude,
@@ -1496,10 +1518,14 @@ class _TrangBanDoDiaDiemPageState extends State<TrangBanDoDiaDiemPage> {
                       .eq('id', place.id)
                       .eq('user_id', userId);
 
-                  if (!mounted) return;
+                  if (!mounted || !sheetContext.mounted) return;
 
+                  luuThanhCong = true;
+                  thongBaoSauKhiLuu = anhKhongLuuDuoc
+                      ? 'Đã cập nhật địa điểm, nhưng ảnh chưa lưu được'
+                      : 'Đã cập nhật địa điểm';
                   Navigator.pop(sheetContext);
-                  _showMessage('Đã cập nhật địa điểm');
+                  return;
                 } else {
                   data.addAll({
                     'category_id': 1,
@@ -1511,156 +1537,168 @@ class _TrangBanDoDiaDiemPageState extends State<TrangBanDoDiaDiemPage> {
 
                   await _supabase.from('places').insert(data);
 
-                  if (!mounted) return;
+                  if (!mounted || !sheetContext.mounted) return;
 
+                  luuThanhCong = true;
+                  thongBaoSauKhiLuu = anhKhongLuuDuoc
+                      ? 'Đã thêm địa điểm, nhưng ảnh chưa lưu được'
+                      : 'Đã thêm địa điểm vào bản đồ của bạn';
                   Navigator.pop(sheetContext);
-                  _showMessage('Đã thêm địa điểm vào bản đồ của bạn');
+                  return;
                 }
-
-                setState(() {
-                  _dangGhimViTri = false;
-                  _dangGhimDeSua = false;
-                  _viTriDangGhim = null;
-                  _diaDiemDangSua = null;
-                  _diaDiemDangChon = null;
-                });
-
-                await _taiDiaDiemLenBanDo();
               } catch (e) {
                 _showMessage(e.toString().replaceFirst('Exception: ', ''));
               } finally {
-                try {
-                  modalSetState(() {
-                    dangLuu = false;
-                  });
-                } catch (_) {}
+                if (!luuThanhCong) {
+                  try {
+                    if (context.mounted) {
+                      modalSetState(() {
+                        dangLuu = false;
+                      });
+                    }
+                  } catch (_) {}
+                }
               }
             }
 
-            return SafeArea(
-              child: Padding(
-                padding: EdgeInsets.only(
-                  left: 18,
-                  right: 18,
-                  top: 16,
-                  bottom: MediaQuery.of(context).viewInsets.bottom + 18,
-                ),
-                child: SingleChildScrollView(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _sheetTitle(
-                        isEdit ? 'Sửa địa điểm' : 'Thêm địa điểm riêng',
-                        onClose: () => Navigator.pop(sheetContext),
-                      ),
-                      const SizedBox(height: 14),
-                      _imagePickerBox(
-                        anhMoi: anhMoi,
-                        anhCu: xoaAnhCu ? null : anhCu,
-                        onPick: chonAnhTuThuVien,
-                        onRemove: () {
-                          modalSetState(() {
-                            anhMoi = null;
-                            xoaAnhCu = true;
-                          });
-                        },
-                      ),
-                      const SizedBox(height: 14),
-                      _inputField(
-                        controller: nameController,
-                        label: 'Tên địa điểm',
-                        hint: 'VD: Quán cafe view đẹp',
-                      ),
-                      const SizedBox(height: 10),
-                      _inputField(
-                        controller: provinceController,
-                        label: 'Tỉnh/thành',
-                        hint: 'VD: Lâm Đồng',
-                      ),
-                      const SizedBox(height: 10),
-                      _inputField(
-                        controller: districtController,
-                        label: 'Quận/huyện',
-                        hint: 'VD: Đà Lạt',
-                      ),
-                      const SizedBox(height: 10),
-                      _inputField(
-                        controller: addressController,
-                        label: 'Địa chỉ',
-                        hint: 'VD: Đường ABC, phường XYZ',
-                      ),
-                      const SizedBox(height: 10),
-                      _inputField(
-                        controller: descriptionController,
-                        label: 'Mô tả',
-                        hint: 'Ghi chú ngắn về địa điểm',
-                        maxLines: 3,
-                      ),
-                      const SizedBox(height: 10),
-                      _inputField(
-                        controller: keywordsController,
-                        label: 'Từ khóa',
-                        hint: 'VD: cafe, check-in, view đẹp',
-                      ),
-                      const SizedBox(height: 10),
-                      _inputField(
-                        controller: priceController,
-                        label: 'Giá tham khảo',
-                        hint: 'VD: 50000',
-                        keyboardType: TextInputType.number,
-                      ),
-                      const SizedBox(height: 14),
-                      Container(
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF202020),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: AppColors.border),
+            return PopScope(
+              canPop: !dangLuu,
+              child: SafeArea(
+                child: Padding(
+                  padding: EdgeInsets.only(
+                    left: 18,
+                    right: 18,
+                    top: 16,
+                    bottom: MediaQuery.of(context).viewInsets.bottom + 18,
+                  ),
+                  child: SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _sheetTitle(
+                          isEdit ? 'Sửa địa điểm' : 'Thêm địa điểm riêng',
+                          onClose: dangLuu
+                              ? () {}
+                              : () => Navigator.pop(sheetContext),
                         ),
-                        child: Row(
-                          children: [
-                            const Icon(
-                              Icons.location_on_rounded,
-                              color: AppColors.primary,
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                '${selectedLocation.latitude.toStringAsFixed(6)}, ${selectedLocation.longitude.toStringAsFixed(6)}',
-                                style: const TextStyle(
-                                  color: Colors.white70,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
+                        const SizedBox(height: 14),
+                        _imagePickerBox(
+                          anhMoi: anhMoi,
+                          anhCu: xoaAnhCu ? null : anhCu,
+                          onPick: chonAnhTuThuVien,
+                          onRemove: () {
+                            modalSetState(() {
+                              anhMoi = null;
+                              xoaAnhCu = true;
+                            });
+                          },
+                        ),
+                        const SizedBox(height: 14),
+                        _inputField(
+                          controller: nameController,
+                          label: 'Tên địa điểm',
+                          hint: 'VD: Quán cafe view đẹp',
+                        ),
+                        const SizedBox(height: 10),
+                        _inputField(
+                          controller: provinceController,
+                          label: 'Tỉnh/thành',
+                          hint: 'VD: Lâm Đồng',
+                        ),
+                        const SizedBox(height: 10),
+                        _inputField(
+                          controller: districtController,
+                          label: 'Quận/huyện',
+                          hint: 'VD: Đà Lạt',
+                        ),
+                        const SizedBox(height: 10),
+                        _inputField(
+                          controller: addressController,
+                          label: 'Địa chỉ',
+                          hint: 'VD: Đường ABC, phường XYZ',
+                        ),
+                        const SizedBox(height: 10),
+                        _inputField(
+                          controller: descriptionController,
+                          label: 'Mô tả',
+                          hint: 'Ghi chú ngắn về địa điểm',
+                          maxLines: 3,
+                        ),
+                        const SizedBox(height: 10),
+                        _inputField(
+                          controller: keywordsController,
+                          label: 'Từ khóa',
+                          hint: 'VD: cafe, check-in, view đẹp',
+                        ),
+                        const SizedBox(height: 10),
+                        _markerPresetPicker(
+                          selected: selectedMarkerPreset,
+                          onChanged: (preset) {
+                            modalSetState(() {
+                              selectedMarkerPreset = preset;
+                            });
+                          },
+                        ),
+                        const SizedBox(height: 10),
+                        _inputField(
+                          controller: priceController,
+                          label: 'Giá tham khảo',
+                          hint: 'VD: 50000',
+                          keyboardType: TextInputType.number,
+                        ),
+                        const SizedBox(height: 14),
+                        Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF202020),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: AppColors.border),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.location_on_rounded,
+                                color: AppColors.primary,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  '${selectedLocation.latitude.toStringAsFixed(6)}, ${selectedLocation.longitude.toStringAsFixed(6)}',
+                                  style: const TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                  ),
                                 ),
                               ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 44,
-                        child: ElevatedButton(
-                          onPressed: dangLuu ? null : luuDiaDiem,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primaryDark,
-                            foregroundColor: Colors.white,
-                            elevation: 0,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                          ),
-                          child: Text(
-                            dangLuu
-                                ? 'Đang lưu...'
-                                : isEdit
-                                ? 'Cập nhật địa điểm'
-                                : 'Thêm địa điểm',
+                            ],
                           ),
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 16),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 44,
+                          child: ElevatedButton(
+                            onPressed: dangLuu ? null : luuDiaDiem,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primaryDark,
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                            ),
+                            child: Text(
+                              dangLuu
+                                  ? 'Đang lưu...'
+                                  : isEdit
+                                  ? 'Cập nhật địa điểm'
+                                  : 'Thêm địa điểm',
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -1670,6 +1708,22 @@ class _TrangBanDoDiaDiemPageState extends State<TrangBanDoDiaDiemPage> {
       },
     );
 
+    if (luuThanhCong && mounted) {
+      setState(() {
+        _dangGhimViTri = false;
+        _dangGhimDeSua = false;
+        _viTriDangGhim = null;
+        _diaDiemDangSua = null;
+        _diaDiemDangChon = null;
+      });
+
+      await _taiDiaDiemLenBanDo();
+
+      if (mounted && thongBaoSauKhiLuu != null) {
+        _showMessage(thongBaoSauKhiLuu!);
+      }
+    }
+
     nameController.dispose();
     provinceController.dispose();
     districtController.dispose();
@@ -1677,6 +1731,139 @@ class _TrangBanDoDiaDiemPageState extends State<TrangBanDoDiaDiemPage> {
     descriptionController.dispose();
     keywordsController.dispose();
     priceController.dispose();
+  }
+
+  Future<_SuggestedAddress?> _goiYDiaChiTuToaDo(LatLng point) async {
+    try {
+      final placemarks = await geocoding.placemarkFromCoordinates(
+        point.latitude,
+        point.longitude,
+      );
+
+      if (placemarks.isEmpty) return null;
+
+      final place = placemarks.first;
+      final parts =
+          [
+                place.street,
+                place.subLocality,
+                place.locality,
+                place.subAdministrativeArea,
+              ]
+              .whereType<String>()
+              .map((item) => item.trim())
+              .where((item) => item.isNotEmpty)
+              .toSet()
+              .toList();
+
+      final province = (place.administrativeArea ?? '').trim();
+      final district = (place.locality ?? place.subAdministrativeArea ?? '')
+          .trim();
+
+      return _SuggestedAddress(
+        address: parts.isEmpty ? null : parts.join(', '),
+        province: province.isEmpty ? null : province,
+        district: district.isEmpty ? null : district,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  _MarkerPreset _markerPresetFromKeywords(String? keywords) {
+    final text = _normalize(keywords ?? '');
+
+    for (final preset in _markerPresets) {
+      if (text.contains(_normalize(preset.keyword))) {
+        return preset;
+      }
+    }
+
+    return _markerPresets.first;
+  }
+
+  String _tronTuKhoaVoiBieuTuong(
+    String rawKeywords,
+    _MarkerPreset selectedPreset,
+  ) {
+    final parts = rawKeywords
+        .split(',')
+        .map((item) => item.trim())
+        .where((item) => item.isNotEmpty)
+        .where((item) {
+          final normalized = _normalize(item);
+          return !_markerPresets.any(
+            (preset) => normalized == _normalize(preset.keyword),
+          );
+        })
+        .toList();
+
+    parts.insert(0, selectedPreset.keyword);
+    return parts.toSet().join(', ');
+  }
+
+  Widget _markerPresetPicker({
+    required _MarkerPreset selected,
+    required ValueChanged<_MarkerPreset> onChanged,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Biểu tượng',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 13,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: _markerPresets.map((preset) {
+            final isSelected = preset.keyword == selected.keyword;
+
+            return InkWell(
+              borderRadius: BorderRadius.circular(999),
+              onTap: () => onChanged(preset),
+              child: Container(
+                height: 40,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? AppColors.primary.withOpacity(0.18)
+                      : const Color(0xFF202020),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(
+                    color: isSelected ? AppColors.primary : AppColors.border,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      preset.icon,
+                      color: isSelected ? AppColors.primary : Colors.white70,
+                      size: 18,
+                    ),
+                    const SizedBox(width: 7),
+                    Text(
+                      preset.label,
+                      style: TextStyle(
+                        color: isSelected ? Colors.white : Colors.white70,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
+    );
   }
 
   Widget _sheetTitle(String title, {required VoidCallback onClose}) {
@@ -1853,7 +2040,7 @@ class _TrangBanDoDiaDiemPageState extends State<TrangBanDoDiaDiemPage> {
     );
   }
 
-  Future<String> _uploadAnhDiaDiem(XFile image, String userId) async {
+  Future<String?> _uploadAnhDiaDiem(XFile image, String userId) async {
     final extension = _layDuoiFileAnh(image);
     final fileName =
         '${DateTime.now().millisecondsSinceEpoch}_${Random().nextInt(999999)}.$extension';
@@ -1861,17 +2048,25 @@ class _TrangBanDoDiaDiemPageState extends State<TrangBanDoDiaDiemPage> {
 
     final contentType = _contentTypeTheoDuoiFile(extension);
 
-    await _supabase.storage
-        .from('place-images')
-        .upload(
-          filePath,
-          File(image.path),
-          fileOptions: FileOptions(
-            cacheControl: '3600',
-            upsert: true,
-            contentType: contentType,
-          ),
-        );
+    try {
+      await _supabase.storage
+          .from('place-images')
+          .upload(
+            filePath,
+            File(image.path),
+            fileOptions: FileOptions(
+              cacheControl: '3600',
+              upsert: true,
+              contentType: contentType,
+            ),
+          );
+    } on StorageException catch (e) {
+      if (e.statusCode == '404' || e.message.contains('Bucket not found')) {
+        return null;
+      }
+
+      rethrow;
+    }
 
     return _supabase.storage.from('place-images').getPublicUrl(filePath);
   }
@@ -2256,6 +2451,12 @@ class _TrangBanDoDiaDiemPageState extends State<TrangBanDoDiaDiemPage> {
 
     final text = _normalize('${place.name} ${place.keywords ?? ''}');
 
+    if (text.contains('cafe') ||
+        text.contains('ca phe') ||
+        text.contains('check in')) {
+      return AppColors.primary;
+    }
+
     if (text.contains('bien') ||
         text.contains('dao') ||
         text.contains('song')) {
@@ -2270,6 +2471,7 @@ class _TrangBanDoDiaDiemPageState extends State<TrangBanDoDiaDiemPage> {
     }
 
     if (text.contains('cho') ||
+        text.contains('nha hang') ||
         text.contains('am thuc') ||
         text.contains('an uong')) {
       return const Color(0xFFFF9F1C);
@@ -2287,6 +2489,14 @@ class _TrangBanDoDiaDiemPageState extends State<TrangBanDoDiaDiemPage> {
   IconData _markerIcon(_MapPlace place) {
     final text = _normalize('${place.name} ${place.keywords ?? ''}');
 
+    if (text.contains('cafe') || text.contains('ca phe')) {
+      return Icons.local_cafe_rounded;
+    }
+
+    if (text.contains('check in')) {
+      return Icons.photo_camera_rounded;
+    }
+
     if (text.contains('bien') || text.contains('dao')) {
       return Icons.beach_access_rounded;
     }
@@ -2299,6 +2509,7 @@ class _TrangBanDoDiaDiemPageState extends State<TrangBanDoDiaDiemPage> {
     }
 
     if (text.contains('cho') ||
+        text.contains('nha hang') ||
         text.contains('am thuc') ||
         text.contains('an uong')) {
       return Icons.restaurant_rounded;
@@ -2344,6 +2555,60 @@ class _TrangBanDoDiaDiemPageState extends State<TrangBanDoDiaDiemPage> {
     text = text.replaceAll(RegExp(r'\s+'), ' ').trim();
     return text;
   }
+}
+
+const List<_MarkerPreset> _markerPresets = [
+  _MarkerPreset(label: 'Cafe', keyword: 'cafe', icon: Icons.local_cafe_rounded),
+  _MarkerPreset(
+    label: 'Ăn uống',
+    keyword: 'ăn uống',
+    icon: Icons.restaurant_rounded,
+  ),
+  _MarkerPreset(
+    label: 'Check-in',
+    keyword: 'check-in',
+    icon: Icons.photo_camera_rounded,
+  ),
+  _MarkerPreset(
+    label: 'Thiên nhiên',
+    keyword: 'thiên nhiên',
+    icon: Icons.terrain_rounded,
+  ),
+  _MarkerPreset(
+    label: 'Biển/đảo',
+    keyword: 'biển đảo',
+    icon: Icons.beach_access_rounded,
+  ),
+  _MarkerPreset(
+    label: 'Văn hóa',
+    keyword: 'văn hóa',
+    icon: Icons.account_balance_rounded,
+  ),
+  _MarkerPreset(
+    label: 'Khác',
+    keyword: 'địa điểm riêng',
+    icon: Icons.place_rounded,
+  ),
+];
+
+class _MarkerPreset {
+  final String label;
+  final String keyword;
+  final IconData icon;
+
+  const _MarkerPreset({
+    required this.label,
+    required this.keyword,
+    required this.icon,
+  });
+}
+
+class _SuggestedAddress {
+  final String? address;
+  final String? province;
+  final String? district;
+
+  const _SuggestedAddress({this.address, this.province, this.district});
 }
 
 class _MapPlace {

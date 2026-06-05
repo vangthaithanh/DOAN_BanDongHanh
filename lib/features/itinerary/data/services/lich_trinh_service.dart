@@ -39,11 +39,17 @@ class DiaDiemLichTrinh {
       kinhDo: _asDouble(map['longitude']),
       diemTrungBinh: _asDouble(map['avg_rating']),
       tongDanhGia: _asInt(map['total_reviews']),
-      imageUrl: _firstImageUrl(map['place_media']),
+      imageUrl: _firstImageUrl(map['place_media'], map['cover_image']),
     );
   }
 
-  static String? _firstImageUrl(dynamic rawMedia) {
+  static String? _firstImageUrl(dynamic rawMedia, dynamic coverImage) {
+    final coverUrl = coverImage?.toString().trim() ?? '';
+
+    if (coverUrl.isNotEmpty) {
+      return coverUrl;
+    }
+
     if (rawMedia is! List || rawMedia.isEmpty) return null;
 
     for (final item in rawMedia) {
@@ -351,6 +357,7 @@ class LichTrinhService {
         address,
         latitude,
         longitude,
+        cover_image,
         avg_rating,
         total_reviews,
         status,
@@ -382,6 +389,7 @@ class LichTrinhService {
       address,
       latitude,
       longitude,
+      cover_image,
       avg_rating,
       total_reviews,
       status,
@@ -392,6 +400,12 @@ class LichTrinhService {
       )
     ''')
         .eq('status', 'active');
+
+    final userId = _user?.id;
+
+    query = userId == null
+        ? query.filter('user_id', 'is', null)
+        : query.or('user_id.is.null,user_id.eq.$userId');
 
     final cleanKeyword = keyword.trim();
 
