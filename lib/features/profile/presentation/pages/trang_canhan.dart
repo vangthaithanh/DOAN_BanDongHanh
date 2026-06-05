@@ -7,6 +7,7 @@ import '../../../../core/services/profile_service.dart';
 import '../../../../shared/navigation/app_bottom_nav.dart';
 import '../../../../shared/navigation/main_tab.dart';
 import '../../../social/presentation/widgets/post_card.dart';
+import '../../../itinerary/data/services/lich_trinh_service.dart';
 
 class TrangCaNhanPage extends StatefulWidget {
   final String? userId;
@@ -24,6 +25,7 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
   static const Color textGrey = Color(0xFFA9A9A9);
 
   final ProfileService _service = ProfileService();
+  final LichTrinhService _lichTrinhService = LichTrinhService();
 
   late Future<ProfilePageData> _future;
   bool _isActionLoading = false;
@@ -36,6 +38,7 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
   void initState() {
     super.initState();
     _loadData();
+    _kiemTraGpsLichTrinhDangGhim();
   }
 
   void _loadData() {
@@ -50,6 +53,96 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
     setState(() {
       _loadData();
     });
+  }
+  Future<void> _kiemTraGpsLichTrinhDangGhim() async {
+    try {
+      await _lichTrinhService.kiemTraLichTrinhDangGhimBangGps();
+
+      if (!mounted) return;
+
+      _reloadProfile();
+    } catch (_) {
+      // Không chặn trang cá nhân nếu user chưa bật GPS/quyền vị trí.
+    }
+  }
+  Future<void> _togglePinPlan(ProfilePlanGroupData plan) async {
+    final planId = int.tryParse(plan.id);
+
+    if (planId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Không xác định được lịch trình.')),
+      );
+      return;
+    }
+
+    try {
+      await _lichTrinhService.doiTrangThaiGhim(
+        itineraryId: planId,
+        pinned: !plan.pinned,
+      );
+
+      if (!mounted) return;
+
+      _reloadProfile();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            plan.pinned
+                ? 'Đã bỏ ghim lịch trình.'
+                : 'Đã ghim lịch trình. GoMate sẽ kiểm tra GPS cho lịch trình này.',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+        ),
+      );
+    }
+  }
+
+  Future<void> _handlePlanItemAction(ProfilePlanItemData item) async {
+    if (item.actionText == 'Đánh giá') {
+      final changed = await Navigator.pushNamed(
+        context,
+        AppRoutes.placeReview,
+        arguments: item.placeId,
+      );
+
+      if (!mounted) return;
+
+      if (changed == true) {
+        _reloadProfile();
+      }
+
+      return;
+    }
+
+    if (item.actionText == 'Đặt lại') {
+      final changed = await Navigator.pushNamed(
+        context,
+        AppRoutes.tripCreate,
+        arguments: {'initialPlaceId': item.placeId},
+      );
+
+      if (!mounted) return;
+
+      if (changed == true) {
+        _reloadProfile();
+      }
+
+      return;
+    }
+
+    Navigator.pushNamed(
+      context,
+      AppRoutes.placeDetail,
+      arguments: item.placeId,
+    );
   }
 
   Future<void> _handleFollow(String targetId) async {
@@ -463,11 +556,22 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
               Expanded(
                 child: _grayButton(
                   'Lịch trình',
-                  onTap: () {
+                  onTap: () async {
+                    final changed = await Navigator.pushNamed(
+                      context,
+                      AppRoutes.tripList,
+                    );
+
+                    if (!mounted) return;
+
                     setState(() {
                       selectedTab = 1;
                       isPlanPickerOpen = false;
                     });
+
+                    if (changed == true) {
+                      _reloadProfile();
+                    }
                   },
                 ),
               ),
@@ -823,6 +927,93 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
     );
   }
 
+  List<_PlanDayGroup> _groupPlanItemsByDay(List<ProfilePlanItemData> items) {
+    final sortedItems = List<ProfilePlanItemData>.from(items)
+      ..sort((a, b) {
+        final aTime = a.plannedTime;
+        final bTime = b.plannedTime;
+
+        if (aTime == null && bTime == null) return 0;
+        if (aTime == null) return 1;
+        if (bTime == null) return -1;
+
+        return aTime.compareTo(bTime);
+      });
+
+    final groups = <String, List<ProfilePlanItemData>>{};
+    final dates = <String, DateTime?>{};
+
+    for (final item in sortedItems) {
+      final time = item.plannedTime;
+
+      final key = time == null
+          ? 'unknown'
+          : '${time.year}-${time.month}-${time.day}';
+
+      groups.putIfAbsent(key, () => []);
+      groups[key]!.add(item);
+
+      dates[key] = time == null
+          ? null
+          : DateTime(time.year, time.month, time.day);
+    }
+
+    return groups.entries.map((entry) {
+      return _PlanDayGroup(
+        date: dates[entry.key],
+        items: entry.value,
+      );
+    }).toList()
+      ..sort((a, b) {
+        final aDate = a.date;
+        final bDate = b.date;
+
+        if (aDate == null && bDate == null) return 0;
+        if (aDate == null) return 1;
+        if (bDate == null) return -1;
+
+        return aDate.compareTo(bDate);
+      });
+  }
+
+  String _thuDayDu(DateTime? date) {
+    if (date == null) return 'Chưa rõ ngày';
+
+    switch (date.weekday) {
+      case DateTime.monday:
+        return 'Thứ 2';
+      case DateTime.tuesday:
+        return 'Thứ 3';
+      case DateTime.wednesday:
+        return 'Thứ 4';
+      case DateTime.thursday:
+        return 'Thứ 5';
+      case DateTime.friday:
+        return 'Thứ 6';
+      case DateTime.saturday:
+        return 'Thứ 7';
+      default:
+        return 'Chủ nhật';
+    }
+  }
+
+  String _ngayThangText(DateTime? date) {
+    if (date == null) return '';
+
+    return '${date.day}/${date.month}/${date.year}';
+  }
+
+  String _gioItemText(ProfilePlanItemData item) {
+    final time = item.plannedTime;
+
+    if (time == null) return item.hourText;
+
+    final hour = time.hour.toString().padLeft(2, '0');
+    final minute = time.minute.toString().padLeft(2, '0');
+
+    return '$hour:$minute';
+  }
+
   Widget _planList(BuildContext context, ProfilePageData data) {
     final plan = _currentPlan(data);
 
@@ -838,20 +1029,64 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
         decoration: const BoxDecoration(
           border: Border(bottom: BorderSide(color: divider, width: 1)),
         ),
-        child: Text(
-          'Chưa có lịch trình',
-          style: _textStyle(
-            size: 18,
-            weight: FontWeight.w600,
-            color: Colors.white70,
-          ),
+        child: Column(
+          children: [
+            const Icon(
+              Icons.calendar_month_outlined,
+              color: Colors.white38,
+              size: 42,
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Chưa có lịch trình',
+              style: _textStyle(
+                size: 17,
+                weight: FontWeight.w700,
+                color: Colors.white70,
+              ),
+            ),
+            if (data.isMe) ...[
+              const SizedBox(height: 12),
+              InkWell(
+                onTap: () async {
+                  final changed = await Navigator.pushNamed(
+                    context,
+                    AppRoutes.tripCreate,
+                  );
+
+                  if (!mounted) return;
+
+                  if (changed == true) {
+                    _reloadProfile();
+                  }
+                },
+                borderRadius: BorderRadius.circular(999),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: blue,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    'Tạo lịch trình',
+                    style: _textStyle(size: 13, weight: FontWeight.w800),
+                  ),
+                ),
+              ),
+            ],
+          ],
         ),
       );
     }
 
+    final dayGroups = _groupPlanItemsByDay(plan.items);
+
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.only(top: 8, bottom: 8),
+      padding: const EdgeInsets.only(top: 8, bottom: 10),
       decoration: const BoxDecoration(
         border: Border(bottom: BorderSide(color: divider, width: 1)),
       ),
@@ -861,29 +1096,52 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
           Padding(
             padding: EdgeInsets.fromLTRB(
               _horizontalPadding(context),
-              0,
+              2,
               _horizontalPadding(context),
-              8,
+              10,
             ),
-            child: Text(
-              plan.name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: _textStyle(size: 24, weight: FontWeight.w700),
-            ),
-          ),
-          Padding(
-            padding: EdgeInsets.fromLTRB(
-              _horizontalPadding(context),
-              0,
-              _horizontalPadding(context),
-              8,
-            ),
-            child: Text(
-              plan.routeText,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: _textStyle(size: 14, color: Colors.white70),
+            child: Row(
+              children: [
+                Icon(
+                  plan.pinned ? Icons.push_pin : Icons.event_note_outlined,
+                  color: plan.pinned ? Colors.white : Colors.white70,
+                  size: 18,
+                ),
+                const SizedBox(width: 5),
+                Expanded(
+                  child: Text(
+                    plan.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: _textStyle(size: 18, weight: FontWeight.w800),
+                  ),
+                ),
+                if (data.isMe) ...[
+                  const SizedBox(width: 8),
+                  InkWell(
+                    onTap: () => _togglePinPlan(plan),
+                    borderRadius: BorderRadius.circular(999),
+                    child: Container(
+                      constraints: const BoxConstraints(minWidth: 76),
+                      height: 27,
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      decoration: BoxDecoration(
+                        color: softGrey,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        plan.pinned ? 'Bỏ ghim' : 'Ghim',
+                        style: _textStyle(
+                          size: 11,
+                          weight: FontWeight.w800,
+                          color: Colors.white70,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
           if (plan.items.isEmpty)
@@ -900,74 +1158,245 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
               ),
             )
           else
-            ...plan.items.map((item) => _planRow(context, item)),
+            ...dayGroups.map((group) => _planDaySection(context, group)),
         ],
       ),
     );
   }
 
-  Widget _planRow(BuildContext context, ProfilePlanItemData item) {
-    final isSmallPhone = _isSmallPhone(context);
+  Widget _planDaySection(BuildContext context, _PlanDayGroup group) {
+    final items = group.items;
+
+    if (items.isEmpty) return const SizedBox.shrink();
 
     return Padding(
-      padding: EdgeInsets.fromLTRB(
-        _horizontalPadding(context),
-        8,
-        _horizontalPadding(context),
-        8,
+      padding: EdgeInsets.only(
+        left: _horizontalPadding(context),
+        right: _horizontalPadding(context),
+        bottom: 12,
       ),
-      child: Row(
-        children: [
-          Container(
-            width: 10,
-            height: 10,
-            decoration: BoxDecoration(
-              color: item.isActive ? blue : Colors.white38,
-              shape: BoxShape.circle,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  item.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: _textStyle(
-                    size: isSmallPhone ? 17 : 20,
-                    weight: FontWeight.w600,
-                  ),
+      child: Container(
+        decoration: BoxDecoration(
+          color: const Color(0xFF050505),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFF232323)),
+        ),
+        child: Column(
+          children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
+              decoration: const BoxDecoration(
+                color: Color(0xFF111111),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
+                border: Border(
+                  bottom: BorderSide(color: Color(0xFF2A2A2A), width: 1),
                 ),
-                const SizedBox(height: 3),
-                Text(
-                  item.timeText,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: _textStyle(
-                    size: isSmallPhone ? 13 : 15,
-                    weight: FontWeight.w500,
-                    color: textGrey,
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 7,
+                    height: 7,
+                    decoration: const BoxDecoration(
+                      color: blue,
+                      shape: BoxShape.circle,
+                    ),
                   ),
-                ),
-              ],
+                  const SizedBox(width: 8),
+                  Text(
+                    _thuDayDu(group.date),
+                    style: _textStyle(
+                      size: 17,
+                      weight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    _ngayThangText(group.date),
+                    style: _textStyle(
+                      size: 12,
+                      weight: FontWeight.w700,
+                      color: Colors.white54,
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    '${items.length} điểm',
+                    style: _textStyle(
+                      size: 11,
+                      weight: FontWeight.w700,
+                      color: Colors.white54,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(width: 10),
-          _planActionButton(context, item.actionText),
-        ],
+            for (int i = 0; i < items.length; i++)
+              _planRow(
+                context,
+                items[i],
+                isLastInDay: i == items.length - 1,
+              ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _planActionButton(BuildContext context, String text) {
+  Widget _planPlaceImage(String? imageUrl) {
+    final url = imageUrl?.trim() ?? '';
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        width: 52,
+        height: 52,
+        color: const Color(0xFF2B2B2B),
+        child: url.isEmpty
+            ? const Icon(
+          Icons.image_outlined,
+          color: Colors.white38,
+          size: 22,
+        )
+            : Image.network(
+          url,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) {
+            return const Icon(
+              Icons.image_outlined,
+              color: Colors.white38,
+              size: 22,
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _planRow(
+      BuildContext context,
+      ProfilePlanItemData item, {
+        bool isLastInDay = false,
+      }) {
     final isSmallPhone = _isSmallPhone(context);
 
-    return SizedBox(
-      width: isSmallPhone ? 92 : 110,
-      height: 32,
-      child: DecoratedBox(
+    return InkWell(
+      onTap: () {
+        if (item.placeId > 0) {
+          Navigator.pushNamed(
+            context,
+            AppRoutes.placeDetail,
+            arguments: item.placeId,
+          );
+        }
+      },
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(10, 9, 10, 9),
+        decoration: BoxDecoration(
+          border: isLastInDay
+              ? null
+              : const Border(
+            bottom: BorderSide(color: Color(0xFF242424), width: 1),
+          ),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            SizedBox(
+              width: isSmallPhone ? 38 : 44,
+              child: Text(
+                _gioItemText(item),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: _textStyle(
+                  size: isSmallPhone ? 10.5 : 11.5,
+                  weight: FontWeight.w800,
+                  color: Colors.white60,
+                ),
+              ),
+            ),
+
+            Container(
+              width: 12,
+              height: 12,
+              decoration: BoxDecoration(
+                color: item.isActive ? blue : Colors.white54,
+                shape: BoxShape.circle,
+              ),
+            ),
+
+            const SizedBox(width: 10),
+
+            _planPlaceImage(item.imageUrl),
+
+            const SizedBox(width: 10),
+
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: _textStyle(
+                      size: isSmallPhone ? 13.5 : 14.5,
+                      weight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    item.province.trim().isEmpty ? 'Tỉnh thành' : item.province,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: _textStyle(
+                      size: isSmallPhone ? 10.5 : 11.5,
+                      weight: FontWeight.w700,
+                      color: Colors.white54,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(width: 6),
+
+            if (item.canShowAction && item.actionText.trim().isNotEmpty)
+              _planActionButton(
+                context,
+                item.actionText,
+                onTap: () => _handlePlanItemAction(item),
+              )
+            else
+              const Icon(
+                Icons.chevron_right,
+                color: Colors.white38,
+                size: 20,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _planActionButton(
+      BuildContext context,
+      String text, {
+        VoidCallback? onTap,
+      }) {
+    final isSmallPhone = _isSmallPhone(context);
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(999),
+      child: Container(
+        constraints: BoxConstraints(
+          minWidth: isSmallPhone ? 62 : 74,
+          maxWidth: isSmallPhone ? 76 : 88,
+        ),
+        height: 25,
+        padding: const EdgeInsets.symmetric(horizontal: 7),
         decoration: BoxDecoration(
           color: const Color(0xFF6DB9F3),
           borderRadius: BorderRadius.circular(999),
@@ -979,8 +1408,8 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
             overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.center,
             style: _textStyle(
-              size: isSmallPhone ? 12 : 14,
-              weight: FontWeight.w700,
+              size: isSmallPhone ? 9 : 10,
+              weight: FontWeight.w800,
             ),
           ),
         ),
@@ -1053,13 +1482,24 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
               _sheetItem(
                 icon: Icons.calendar_month_outlined,
                 text: 'Lịch trình',
-                onTap: () {
+                onTap: () async {
                   Navigator.pop(context);
+
+                  final changed = await Navigator.pushNamed(
+                    context,
+                    AppRoutes.tripCreate,
+                  );
+
+                  if (!mounted) return;
 
                   setState(() {
                     selectedTab = 1;
                     isPlanPickerOpen = false;
                   });
+
+                  if (changed == true) {
+                    _reloadProfile();
+                  }
                 },
               ),
             ],
@@ -1092,4 +1532,13 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
       ),
     );
   }
+}
+class _PlanDayGroup {
+  final DateTime? date;
+  final List<ProfilePlanItemData> items;
+
+  const _PlanDayGroup({
+    required this.date,
+    required this.items,
+  });
 }
