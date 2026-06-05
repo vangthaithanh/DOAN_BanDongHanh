@@ -55,6 +55,10 @@ class AppRoutes {
   static const String tripList = '/lich-trinh';
   static const String tripCreate = '/lich-trinh/tao';
   static const String tripDetail = '/lich-trinh/chi-tiet';
+  static const String groupTripList = '/lich-trinh-nhom';
+  static const String groupTripCreate = '/lich-trinh-nhom/tao';
+  static const String groupTripDetail = '/lich-trinh-nhom/chi-tiet';
+  static const String groupTripMap = '/lich-trinh-nhom/ban-do';
 
   // Profile/settings/friends
   static const String editProfile = '/ho-so/chinh-sua';
