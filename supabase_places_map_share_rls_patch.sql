@@ -1,4 +1,5 @@
 -- Fix quyen cho map dia diem rieng: sua/xoa/share.
+-- Nghiep vu hien tai: share cho ban be la copy dia diem ngay, khong can nguoi nhan xac nhan.
 -- Chay trong Supabase SQL Editor.
 
 begin;
@@ -14,30 +15,17 @@ create table if not exists public.place_shares (
   place_id bigint not null references public.places(id) on delete cascade,
   from_user_id uuid not null references public.profiles(id) on delete cascade,
   to_user_id uuid not null references public.profiles(id) on delete cascade,
-  status text not null default 'pending',
+  status text not null default 'accepted',
   created_at timestamptz not null default now(),
   accepted_at timestamptz,
   rejected_at timestamptz
 );
 
+alter table public.place_shares
+  alter column status set default 'accepted';
+
 create index if not exists idx_places_user_status
 on public.places(user_id, status);
-
-create index if not exists idx_place_shares_to_status
-on public.place_shares(to_user_id, status, created_at desc);
-
-delete from public.place_shares old_share
-using public.place_shares keep_share
-where old_share.status = 'pending'
-  and keep_share.status = 'pending'
-  and old_share.place_id = keep_share.place_id
-  and old_share.from_user_id = keep_share.from_user_id
-  and old_share.to_user_id = keep_share.to_user_id
-  and old_share.id < keep_share.id;
-
-create unique index if not exists idx_place_shares_pending_unique
-on public.place_shares(place_id, from_user_id, to_user_id)
-where status = 'pending';
 
 create table if not exists public.notifications (
   id bigserial primary key,
@@ -56,6 +44,87 @@ alter table public.notifications
   add column if not exists content text,
   add column if not exists is_read boolean not null default false,
   add column if not exists created_at timestamptz not null default now();
+
+-- Chuyen cac loi moi pending cu sang nghiep vu moi: copy ngay vao map nguoi nhan.
+insert into public.places (
+  category_id,
+  user_id,
+  copied_from_place_id,
+  name,
+  province,
+  district,
+  address,
+  latitude,
+  longitude,
+  opening_hours,
+  price,
+  avg_rating,
+  total_reviews,
+  total_saves,
+  keywords,
+  description,
+  cover_image,
+  status,
+  updated_at
+)
+select
+  p.category_id,
+  ps.to_user_id,
+  p.id,
+  p.name,
+  p.province,
+  p.district,
+  p.address,
+  p.latitude,
+  p.longitude,
+  p.opening_hours,
+  p.price,
+  p.avg_rating,
+  p.total_reviews,
+  p.total_saves,
+  p.keywords,
+  p.description,
+  p.cover_image,
+  'active',
+  now()
+from public.place_shares ps
+join public.places p
+  on p.id = ps.place_id
+where ps.status = 'pending'
+  and p.status = 'active'
+  and p.user_id = ps.from_user_id
+  and not exists (
+    select 1
+    from public.places existing
+    where existing.user_id = ps.to_user_id
+      and existing.copied_from_place_id = p.id
+      and existing.status = 'active'
+  );
+
+update public.place_shares
+set
+  status = 'accepted',
+  accepted_at = coalesce(accepted_at, now()),
+  rejected_at = null
+where status = 'pending';
+
+create index if not exists idx_place_shares_to_status
+on public.place_shares(to_user_id, status, created_at desc);
+
+drop index if exists public.idx_place_shares_pending_unique;
+
+delete from public.place_shares old_share
+using public.place_shares keep_share
+where old_share.status = 'accepted'
+  and keep_share.status = 'accepted'
+  and old_share.place_id = keep_share.place_id
+  and old_share.from_user_id = keep_share.from_user_id
+  and old_share.to_user_id = keep_share.to_user_id
+  and old_share.id < keep_share.id;
+
+create unique index if not exists idx_place_shares_accepted_unique
+on public.place_shares(place_id, from_user_id, to_user_id)
+where status = 'accepted';
 
 alter table public.places enable row level security;
 alter table public.place_shares enable row level security;
@@ -119,22 +188,6 @@ using (
 );
 
 drop policy if exists "place_shares_insert_own_place" on public.place_shares;
-create policy "place_shares_insert_own_place"
-on public.place_shares
-for insert
-to authenticated
-with check (
-  from_user_id = (select auth.uid())
-  and to_user_id <> (select auth.uid())
-  and status = 'pending'
-  and exists (
-    select 1
-    from public.places p
-    where p.id = place_id
-      and p.user_id = (select auth.uid())
-      and p.status = 'active'
-  )
-);
 
 drop policy if exists "place_shares_update_related" on public.place_shares;
 create policy "place_shares_update_related"
@@ -150,18 +203,150 @@ with check (
   or to_user_id = (select auth.uid())
 );
 
-create or replace function public.create_place_share_notification()
-returns trigger
+drop trigger if exists place_shares_after_insert_notification on public.place_shares;
+drop function if exists public.create_place_share_notification();
+
+create or replace function public.share_place_direct(
+  p_place_id bigint,
+  p_to_user_id uuid
+)
+returns jsonb
 language plpgsql
 security definer
 set search_path = public
 as $$
 declare
+  v_from_user_id uuid := auth.uid();
+  source_place public.places%rowtype;
+  copied_place_id bigint;
+  share_row_id bigint;
   sender_name text;
   shared_place_name text;
+  already_exists boolean := false;
 begin
-  if new.status <> 'pending' then
-    return new;
+  if v_from_user_id is null then
+    raise exception 'Bạn cần đăng nhập để chia sẻ địa điểm';
+  end if;
+
+  if p_to_user_id is null or p_to_user_id = v_from_user_id then
+    raise exception 'Người nhận chia sẻ không hợp lệ';
+  end if;
+
+  select *
+  into source_place
+  from public.places p
+  where p.id = p_place_id
+    and p.user_id = v_from_user_id
+    and p.status = 'active';
+
+  if not found then
+    raise exception 'Chỉ được chia sẻ địa điểm riêng đang hoạt động của bạn';
+  end if;
+
+  if not exists (
+    select 1
+    from public.follows f1
+    join public.follows f2
+      on f2.follower_id = p_to_user_id
+     and f2.following_id = v_from_user_id
+     and f2.status = 'active'
+    where f1.follower_id = v_from_user_id
+      and f1.following_id = p_to_user_id
+      and f1.status = 'active'
+  ) then
+    raise exception 'Chỉ có thể chia sẻ địa điểm cho bạn bè';
+  end if;
+
+  select p.id
+  into copied_place_id
+  from public.places p
+  where p.user_id = p_to_user_id
+    and p.copied_from_place_id = p_place_id
+    and p.status = 'active'
+  order by p.id desc
+  limit 1;
+
+  if copied_place_id is not null then
+    already_exists := true;
+  else
+    insert into public.places (
+      category_id,
+      user_id,
+      copied_from_place_id,
+      name,
+      province,
+      district,
+      address,
+      latitude,
+      longitude,
+      opening_hours,
+      price,
+      avg_rating,
+      total_reviews,
+      total_saves,
+      keywords,
+      description,
+      cover_image,
+      status,
+      updated_at
+    )
+    values (
+      source_place.category_id,
+      p_to_user_id,
+      source_place.id,
+      source_place.name,
+      source_place.province,
+      source_place.district,
+      source_place.address,
+      source_place.latitude,
+      source_place.longitude,
+      source_place.opening_hours,
+      source_place.price,
+      source_place.avg_rating,
+      source_place.total_reviews,
+      source_place.total_saves,
+      source_place.keywords,
+      source_place.description,
+      source_place.cover_image,
+      'active',
+      now()
+    )
+    returning id into copied_place_id;
+  end if;
+
+  select ps.id
+  into share_row_id
+  from public.place_shares ps
+  where ps.place_id = p_place_id
+    and ps.from_user_id = v_from_user_id
+    and ps.to_user_id = p_to_user_id
+    and ps.status in ('pending', 'accepted')
+  order by ps.created_at desc
+  limit 1;
+
+  if share_row_id is null then
+    insert into public.place_shares (
+      place_id,
+      from_user_id,
+      to_user_id,
+      status,
+      accepted_at
+    )
+    values (
+      p_place_id,
+      v_from_user_id,
+      p_to_user_id,
+      'accepted',
+      now()
+    )
+    returning id into share_row_id;
+  else
+    update public.place_shares
+    set
+      status = 'accepted',
+      accepted_at = coalesce(accepted_at, now()),
+      rejected_at = null
+    where id = share_row_id;
   end if;
 
   select coalesce(
@@ -172,14 +357,12 @@ begin
   )
   into sender_name
   from public.profiles p
-  where p.id = new.from_user_id;
+  where p.id = v_from_user_id;
 
-  select coalesce(nullif(trim(pl.name), ''), 'một địa điểm')
-  into shared_place_name
-  from public.places pl
-  where pl.id = new.place_id;
+  shared_place_name := coalesce(nullif(trim(source_place.name), ''), 'một địa điểm');
 
-  if exists (
+  if not already_exists
+  and exists (
     select 1
     from information_schema.columns
     where table_schema = 'public'
@@ -215,22 +398,23 @@ begin
       is_read
     )
     values (
-      new.to_user_id,
+      p_to_user_id,
       'place_share',
       coalesce(sender_name, 'Người dùng'),
-      'đã chia sẻ địa điểm "' || coalesce(shared_place_name, 'một địa điểm') || '" cho bạn',
+      'đã chia sẻ địa điểm "' || coalesce(shared_place_name, 'một địa điểm') || '" vào bản đồ của bạn',
       false
     );
   end if;
 
-  return new;
+  return jsonb_build_object(
+    'copied_place_id', copied_place_id,
+    'share_id', share_row_id,
+    'already_exists', already_exists
+  );
 end;
 $$;
 
-drop trigger if exists place_shares_after_insert_notification on public.place_shares;
-create trigger place_shares_after_insert_notification
-after insert on public.place_shares
-for each row
-execute function public.create_place_share_notification();
+revoke all on function public.share_place_direct(bigint, uuid) from public;
+grant execute on function public.share_place_direct(bigint, uuid) to authenticated;
 
 commit;
