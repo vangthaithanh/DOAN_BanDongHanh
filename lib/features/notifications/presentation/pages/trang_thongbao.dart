@@ -302,7 +302,7 @@ class _TrangThongBaoPageState extends State<TrangThongBaoPage> {
             if ((group.latestReferenceId ?? 0) > 0) {
               Navigator.pushNamed(
                 context,
-                AppRoutes.postDetail,
+                AppRoutes.trangBinhLuan,
                 arguments: group.latestReferenceId,
               );
             } else {
