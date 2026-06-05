@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
-<<<<<<< HEAD
+
 import 'package:supabase_flutter/supabase_flutter.dart';
-=======
->>>>>>> origin/bui_trong
+
 
 import '../../../../app/routes/app_routes.dart';
 import '../../../../shared/widgets/unread_badge.dart';
@@ -21,16 +20,13 @@ class _TrangTinNhanChoPageState extends State<TrangTinNhanChoPage> {
 
   final MessageService _service = MessageService();
   late Future<List<ConversationPreview>> _future;
-<<<<<<< HEAD
+
   RealtimeChannel? _messagesChannel;
-=======
->>>>>>> origin/bui_trong
 
   @override
   void initState() {
     super.initState();
     _future = _service.loadConversations(waiting: true);
-<<<<<<< HEAD
     _subscribeRealtime();
   }
 
@@ -59,8 +55,6 @@ class _TrangTinNhanChoPageState extends State<TrangTinNhanChoPage> {
           callback: (_) => _reloadSilently(),
         )
         .subscribe();
-=======
->>>>>>> origin/bui_trong
   }
 
   Future<void> _reload() async {
@@ -73,7 +67,7 @@ class _TrangTinNhanChoPageState extends State<TrangTinNhanChoPage> {
     await future;
   }
 
-<<<<<<< HEAD
+
   void _reloadSilently() {
     if (!mounted) {
       return;
@@ -84,8 +78,6 @@ class _TrangTinNhanChoPageState extends State<TrangTinNhanChoPage> {
     });
   }
 
-=======
->>>>>>> origin/bui_trong
   @override
   Widget build(BuildContext context) {
     return Scaffold(

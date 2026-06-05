@@ -24,17 +24,14 @@ class _TrangTinNhanPageState extends State<TrangTinNhanPage> {
   final MessageService _messageService = MessageService();
   final NotificationService _notificationService = NotificationService();
   late Future<List<ConversationPreview>> _future;
-<<<<<<< HEAD
+
   RealtimeChannel? _messagesChannel;
   int _badgeVersion = 0;
-=======
->>>>>>> origin/bui_trong
 
   @override
   void initState() {
     super.initState();
     _future = _messageService.loadConversations(waiting: false);
-<<<<<<< HEAD
     _subscribeRealtime();
   }
 
@@ -63,8 +60,7 @@ class _TrangTinNhanPageState extends State<TrangTinNhanPage> {
           callback: (_) => _reloadSilently(),
         )
         .subscribe();
-=======
->>>>>>> origin/bui_trong
+
   }
 
   Future<void> _reload() async {
@@ -72,16 +68,13 @@ class _TrangTinNhanPageState extends State<TrangTinNhanPage> {
 
     setState(() {
       _future = future;
-<<<<<<< HEAD
       _badgeVersion++;
-=======
->>>>>>> origin/bui_trong
+
     });
 
     await future;
   }
 
-<<<<<<< HEAD
   void _reloadSilently() {
     if (!mounted) {
       return;
@@ -93,8 +86,6 @@ class _TrangTinNhanPageState extends State<TrangTinNhanPage> {
     });
   }
 
-=======
->>>>>>> origin/bui_trong
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -188,10 +179,7 @@ class _TrangTinNhanPageState extends State<TrangTinNhanPage> {
               if (mounted) setState(() {});
             },
             child: AsyncUnreadBadge(
-<<<<<<< HEAD
               key: ValueKey('message_top_bell_$_badgeVersion'),
-=======
->>>>>>> origin/bui_trong
               loadCount: _notificationService.countUnreadMine,
               child: const Icon(
                 LucideIcons.bell,
