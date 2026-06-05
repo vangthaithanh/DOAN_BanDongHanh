@@ -54,6 +54,16 @@ class _TrangLichTrinhPageState extends State<TrangLichTrinhPage> {
 
     if (changed == true) {
       _reload();
+    }
+  }
+
+  Future<void> _openGroupTrips() async {
+    final changed = await Navigator.pushNamed(context, AppRoutes.groupTripList);
+
+    if (!mounted) return;
+
+    if (changed == true) {
+      _reload();
       Navigator.pop(context, true);
     }
   }
@@ -143,9 +153,7 @@ class _TrangLichTrinhPageState extends State<TrangLichTrinhPage> {
     if (!mounted) return;
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(error.toString().replaceFirst('Exception: ', '')),
-      ),
+      SnackBar(content: Text(error.toString().replaceFirst('Exception: ', ''))),
     );
   }
 
@@ -182,9 +190,7 @@ class _TrangLichTrinhPageState extends State<TrangLichTrinhPage> {
             return Column(
               children: [
                 _topBar(),
-                Expanded(
-                  child: _body(snapshot),
-                ),
+                Expanded(child: _body(snapshot)),
               ],
             );
           },
@@ -218,7 +224,19 @@ class _TrangLichTrinhPageState extends State<TrangLichTrinhPage> {
               style: _text(size: 22, weight: FontWeight.w800),
             ),
           ),
-          const SizedBox(width: 32),
+          InkWell(
+            onTap: _openGroupTrips,
+            borderRadius: BorderRadius.circular(18),
+            child: Container(
+              width: 34,
+              height: 34,
+              decoration: const BoxDecoration(
+                color: darkGrey,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.groups_rounded, color: blue, size: 20),
+            ),
+          ),
         ],
       ),
     );
@@ -251,7 +269,11 @@ class _TrangLichTrinhPageState extends State<TrangLichTrinhPage> {
           child: Text(
             'Hãy tạo lịch trình du lịch cá nhân của bạn',
             textAlign: TextAlign.center,
-            style: _text(size: 16, weight: FontWeight.w700, color: Colors.white70),
+            style: _text(
+              size: 16,
+              weight: FontWeight.w700,
+              color: Colors.white70,
+            ),
           ),
         ),
       );
@@ -262,7 +284,8 @@ class _TrangLichTrinhPageState extends State<TrangLichTrinhPage> {
       child: ListView.separated(
         padding: const EdgeInsets.fromLTRB(0, 6, 0, 24),
         itemCount: plans.length,
-        separatorBuilder: (_, __) => const Divider(color: lineGrey, height: 1),
+        separatorBuilder: (context, index) =>
+            const Divider(color: lineGrey, height: 1),
         itemBuilder: (context, index) {
           return _planTile(plans[index]);
         },
@@ -294,11 +317,7 @@ class _TrangLichTrinhPageState extends State<TrangLichTrinhPage> {
                       ),
                       if (plan.pinned) ...[
                         const SizedBox(width: 8),
-                        const Icon(
-                          Icons.push_pin,
-                          color: blue,
-                          size: 20,
-                        ),
+                        const Icon(Icons.push_pin, color: blue, size: 20),
                       ],
                     ],
                   ),
@@ -307,7 +326,11 @@ class _TrangLichTrinhPageState extends State<TrangLichTrinhPage> {
                     plan.ngayText,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: _text(size: 15, weight: FontWeight.w700, color: Colors.white60),
+                    style: _text(
+                      size: 15,
+                      weight: FontWeight.w700,
+                      color: Colors.white60,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Text(
@@ -344,11 +367,17 @@ class _TrangLichTrinhPageState extends State<TrangLichTrinhPage> {
                 ),
                 const PopupMenuItem(
                   value: 'edit',
-                  child: Text('Sửa lịch trình', style: TextStyle(color: Colors.white)),
+                  child: Text(
+                    'Sửa lịch trình',
+                    style: TextStyle(color: Colors.white),
+                  ),
                 ),
                 const PopupMenuItem(
                   value: 'delete',
-                  child: Text('Xóa lịch trình', style: TextStyle(color: Colors.redAccent)),
+                  child: Text(
+                    'Xóa lịch trình',
+                    style: TextStyle(color: Colors.redAccent),
+                  ),
                 ),
               ],
             ),

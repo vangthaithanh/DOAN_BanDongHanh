@@ -39,6 +39,14 @@ class _NotifGroup {
         return items.first.content.isNotEmpty
             ? items.first.content
             : 'đã trả lời khoảnh khắc của bạn';
+      case 'place_share':
+        return items.first.content.isNotEmpty
+            ? items.first.content
+            : 'đã chia sẻ địa điểm cho bạn';
+      case 'itinerary_reminder':
+        return items.first.content.isNotEmpty
+            ? items.first.content
+            : 'nhắc lịch trình của bạn';
       default:
         return items.first.content;
     }
@@ -67,6 +75,10 @@ class _NotifGroup {
         return LucideIcons.messageCircle;
       case 'moment_reply':
         return LucideIcons.camera;
+      case 'place_share':
+        return LucideIcons.mapPin;
+      case 'itinerary_reminder':
+        return Icons.event_available_rounded;
       default:
         return LucideIcons.bell;
     }
@@ -82,6 +94,10 @@ class _NotifGroup {
         return Colors.greenAccent;
       case 'moment_reply':
         return Colors.orangeAccent;
+      case 'place_share':
+        return const Color(0xFF4AA8FF);
+      case 'itinerary_reminder':
+        return Colors.amberAccent;
       default:
         return Colors.white70;
     }
@@ -93,7 +109,12 @@ List<_NotifGroup> _groupNotifications(List<NotificationItem> items) {
   for (final item in items) {
     // like/comment: group theo từng bài viết riêng (type_postId)
     // các loại khác: group theo type
-    final key = (item.type == 'like' || item.type == 'comment')
+    final shouldGroupByReference = item.type == 'like' ||
+        item.type == 'comment' ||
+        item.type == 'place_share' ||
+        item.type == 'itinerary_reminder';
+
+    final key = shouldGroupByReference
         ? '${item.type}_${item.referenceId ?? 0}'
         : item.type;
     map.putIfAbsent(key, () => []).add(item);
@@ -311,6 +332,26 @@ class _TrangThongBaoPageState extends State<TrangThongBaoPage> {
             }
           case 'message':
             Navigator.pushNamed(context, AppRoutes.messages);
+          case 'place_share':
+            if ((group.latestReferenceId ?? 0) > 0) {
+              Navigator.pushNamed(
+                context,
+                AppRoutes.placeDetail,
+                arguments: group.latestReferenceId,
+              );
+            } else {
+              _reload();
+            }
+          case 'itinerary_reminder':
+            if ((group.latestReferenceId ?? 0) > 0) {
+              Navigator.pushNamed(
+                context,
+                AppRoutes.tripDetail,
+                arguments: {'itineraryId': group.latestReferenceId},
+              );
+            } else {
+              Navigator.pushNamed(context, AppRoutes.tripList);
+            }
           default:
             _reload();
         }

@@ -52,8 +52,12 @@ import '../../features/profile/presentation/pages/trang_xem_baiviet_luutru.dart'
 import '../../features/social/data/models/post_model.dart';
 import '../../features/social/presentation/pages/trang_binhluan.dart';
 import '../../features/social/presentation/pages/trang_tao_baiviet.dart';
+import '../../features/itinerary/presentation/pages/trang_ban_do_vi_tri_nhom.dart';
+import '../../features/itinerary/presentation/pages/trang_chi_tiet_lich_trinh_nhom.dart';
 import '../../features/itinerary/presentation/pages/trang_lich_trinh.dart';
+import '../../features/itinerary/presentation/pages/trang_lich_trinh_nhom.dart';
 import '../../features/itinerary/presentation/pages/trang_them_sua_lich_trinh.dart';
+import '../../features/itinerary/presentation/pages/trang_them_sua_lich_trinh_nhom.dart';
 import 'app_routes.dart';
 
 class AppRouter {
@@ -139,15 +143,10 @@ class AppRouter {
       AppRoutes.placeReview: (_) => const TrangDanhGiaDiaDiemPage(),
 
       AppRoutes.placeMap: (_) => const TrangBanDoDiaDiemPage(),
-      AppRoutes.tripList: (_) =>
-          const ComingSoonPage(title: 'Lịch trình của tôi'),
-      AppRoutes.tripCreate: (_) =>
-          const ComingSoonPage(title: 'Tạo lịch trình'),
-      AppRoutes.tripDetail: (_) =>
-          const ComingSoonPage(title: 'Chi tiết lịch trình'),
       AppRoutes.tripList: (_) => const TrangLichTrinhPage(),
       AppRoutes.tripCreate: (context) {
-        final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+        final args =
+            ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
 
         return TrangThemSuaLichTrinhPage(
           itineraryId: args?['itineraryId'] as int?,
@@ -155,10 +154,35 @@ class AppRouter {
         );
       },
       AppRoutes.tripDetail: (context) {
-        final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+        final args =
+            ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
 
         return TrangThemSuaLichTrinhPage(
           itineraryId: args?['itineraryId'] as int?,
+        );
+      },
+      AppRoutes.groupTripList: (_) => const TrangLichTrinhNhomPage(),
+      AppRoutes.groupTripCreate: (context) {
+        final args =
+            ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+
+        return TrangThemSuaLichTrinhNhomPage(tripId: args?['tripId'] as int?);
+      },
+      AppRoutes.groupTripDetail: (context) {
+        final args =
+            ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+
+        return TrangChiTietLichTrinhNhomPage(
+          tripId: args?['tripId'] as int? ?? 0,
+        );
+      },
+      AppRoutes.groupTripMap: (context) {
+        final args =
+            ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+
+        return TrangBanDoViTriNhomPage(
+          tripId: args?['tripId'] as int? ?? 0,
+          focusUserId: args?['focusUserId'] as String?,
         );
       },
       AppRoutes.editProfile: (context) {

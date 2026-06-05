@@ -724,16 +724,18 @@ class LichTrinhService {
       if (itinerary is! Map) continue;
 
       final itineraryMap = Map<String, dynamic>.from(itinerary);
+      final itineraryId = _asInt(itineraryMap['id']);
       final ownerId = itineraryMap['profile_id']?.toString() ?? '';
       final pinned = itineraryMap['pinned'] == true;
 
-      if (ownerId != userId || !pinned) continue;
+      if (ownerId != userId || !pinned || itineraryId <= 0) continue;
 
       await _client.from('notifications').insert({
         'profile_id': userId,
         'notification_type': 'itinerary_reminder',
         'title': row['title']?.toString() ?? 'Nhắc lịch trình',
         'content': row['content']?.toString() ?? 'Sắp đến giờ đi địa điểm trong lịch trình.',
+        'reference_id': itineraryId,
         'place_id': itemMap['place_id'],
         'is_read': false,
       });
