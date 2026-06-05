@@ -212,13 +212,77 @@ class _TrangTaoBaiVietState extends State<TrangTaoBaiViet> {
     );
   }
 
+  // NOTE SỬA:
+  // TrangViTri hiện trả về Map:
+  // {
+  //   'nearby_place_name': địa chỉ,
+  //   'latitude': ...,
+  //   'longitude': ...
+  // }
+  // Không được dùng ketQua.toString() vì sẽ bị hiện:
+  // {nearby_place_name: 26B Đ. số 8, latitude: ...}
+  String? _layTenViTriTuKetQua(dynamic ketQua) {
+    if (ketQua == null) return null;
+
+    if (ketQua is Map) {
+      final value =
+          ketQua['nearby_place_name'] ??
+          ketQua['locationName'] ??
+          ketQua['viTri'] ??
+          ketQua['address'] ??
+          ketQua['dia_chi'];
+
+      final text = value?.toString().trim();
+
+      if (text == null || text.isEmpty || text == 'null') {
+        return null;
+      }
+
+      return text;
+    }
+
+    final text = ketQua.toString().trim();
+
+    if (text.isEmpty || text == 'null') return null;
+
+    // NOTE SỬA:
+    // Chữa luôn dữ liệu/string cũ dạng:
+    // {nearby_place_name: 26B Đ. số 8, Thành phố Hồ Chí Minh, latitude: 10...}
+    if (text.startsWith('{') && text.contains('nearby_place_name:')) {
+      const key = 'nearby_place_name:';
+      final start = text.indexOf(key) + key.length;
+
+      final endCandidates = <int>[
+        text.indexOf(', latitude:', start),
+        text.indexOf(', longitude:', start),
+        text.indexOf(', place_id:', start),
+        text.indexOf('}', start),
+      ].where((index) => index > start).toList();
+
+      final end = endCandidates.isEmpty
+          ? text.length
+          : endCandidates.reduce((a, b) => a < b ? a : b);
+
+      final location = text.substring(start, end).trim();
+
+      if (location.isNotEmpty && location != 'null') {
+        return location;
+      }
+    }
+
+    return text;
+  }
+
   void _themViTri() async {
     final ketQua = await Navigator.pushNamed(context, AppRoutes.trangViTri);
-    if (ketQua != null) {
-      setState(() {
-        _viTri = ketQua.toString();
-      });
-    }
+
+    final tenViTri = _layTenViTriTuKetQua(ketQua);
+
+    if (tenViTri == null) return;
+
+    setState(() {
+      _viTri = tenViTri;
+    });
   }
 
   void _chonDoiTuong() async {
@@ -618,6 +682,9 @@ class _TrangTaoBaiVietState extends State<TrangTaoBaiViet> {
   Widget _duongNgan() =>
       const Divider(color: Color(0xFF1E1E1E), height: 1, indent: 56);
 
+  // NOTE SỬA:
+  // Sửa layout dòng tuỳ chọn để mô tả dài như địa chỉ GPS
+  // không làm chữ "Thêm vị trí" bị bóp xuống từng ký tự.
   Widget _dongTuyChon({
     required IconData icon,
     required String tieuDe,
@@ -625,11 +692,15 @@ class _TrangTaoBaiVietState extends State<TrangTaoBaiViet> {
     String? coGiaTriPhu,
     required VoidCallback onTap,
   }) {
+    final String? phu = moTa ?? coGiaTriPhu;
+    final bool coMoTa = phu != null && phu.trim().isNotEmpty;
+
     return InkWell(
       onTap: onTap,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Container(
               width: 36,
@@ -641,27 +712,41 @@ class _TrangTaoBaiVietState extends State<TrangTaoBaiViet> {
               child: Icon(icon, color: Colors.white70, size: 18),
             ),
             const SizedBox(width: 14),
+
             Expanded(
-              child: Text(
-                tieuDe,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    tieuDe,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+
+                  if (coMoTa) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      phu.trim(),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white54,
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        height: 1.25,
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ),
-            if (moTa != null || coGiaTriPhu != null) ...[
-              Text(
-                moTa ?? coGiaTriPhu ?? '',
-                style: const TextStyle(
-                  color: Colors.white54,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(width: 6),
-            ],
+
+            const SizedBox(width: 8),
             const Icon(
               LucideIcons.chevronRight,
               color: Colors.white38,

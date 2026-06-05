@@ -166,6 +166,8 @@ class HomeFeedService {
         laBaiVietCuaToi: currentUserId != null && authorId == currentUserId,
         createdAt: DateTime.tryParse(row['created_at']?.toString() ?? '')?.toLocal(),
         visibility: row['visibility']?.toString(),
+        status: row['status']?.toString(),
+        isArchived: row['status']?.toString() == 'archived' || row['is_archived'] == true,
       );
     }).toList();
   }
@@ -200,6 +202,8 @@ class HomeFeedService {
           laBaiVietCuaToi: isMine,
           createdAt: DateTime.tryParse(createdAtRaw)?.toLocal(),
           visibility: row['visibility']?.toString(),
+          status: row['status']?.toString(),
+          isArchived: row['status']?.toString() == 'archived' || row['is_archived'] == true,
         ),
       );
     }
@@ -231,6 +235,12 @@ class HomeFeedService {
     final all = [...recommended, ...followers, ...public];
 
     for (final post in all) {
+      // NOTE SỬA LƯU TRỮ:
+      // Bài đã lưu trữ / đã xoá không được hiện ở trang chủ.
+      if (post.status == 'archived' || post.status == 'deleted' || post.isArchived) {
+        continue;
+      }
+
       if (seenPostIds.add(post.id)) {
         mergedPosts.add(post);
       }

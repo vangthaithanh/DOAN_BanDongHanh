@@ -131,18 +131,18 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      bottomNavigationBar: widget.userId == null 
+      bottomNavigationBar: widget.userId == null
           ? const AppBottomNav(activeTab: MainTab.profile)
           : null,
-      appBar: widget.userId != null 
+      appBar: widget.userId != null
           ? AppBar(
-              backgroundColor: Colors.black,
-              leading: IconButton(
-                icon: const Icon(Icons.arrow_back, color: Colors.white),
-                onPressed: () => Navigator.pop(context),
-              ),
-              title: Text('Hồ sơ', style: _textStyle(size: 18, weight: FontWeight.w700)),
-            )
+        backgroundColor: Colors.black,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text('Hồ sơ', style: _textStyle(size: 18, weight: FontWeight.w700)),
+      )
           : null,
       body: SafeArea(
         child: FutureBuilder<ProfilePageData>(
@@ -196,6 +196,14 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
             }
 
             final data = snapshot.data!;
+            // NOTE SỬA LƯU TRỮ:
+            // Phòng trường hợp service profile vẫn trả về bài archived, UI sẽ tự ẩn.
+            final postsHienThi = data.posts
+                .where((post) =>
+            post.status != 'archived' &&
+                post.status != 'deleted' &&
+                !post.isArchived)
+                .toList();
 
             return Column(
               children: [
@@ -216,11 +224,11 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
                       _tabButtons(context),
                       if (selectedTab == 0) ...[
                         if (data.isMe) _shareBox(context, data),
-                        if (data.posts.isEmpty)
+                        if (postsHienThi.isEmpty)
                           _emptyPostBox(context, data)
                         else
-                          ...data.posts.map(
-                            (post) => PostCard(
+                          ...postsHienThi.map(
+                                (post) => PostCard(
                               post: post,
                               onComment: () async {
                                 final changed = await Navigator.pushNamed(
@@ -412,12 +420,12 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
                     backgroundColor: data.isFollowing ? softGrey : blue,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   ),
-                  child: _isActionLoading 
-                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                    : Text(
-                        data.isFollowing ? 'Đang theo dõi' : 'Theo dõi', 
-                        style: _textStyle(weight: FontWeight.w700, color: data.isFollowing ? Colors.white70 : Colors.white)
-                      ),
+                  child: _isActionLoading
+                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : Text(
+                      data.isFollowing ? 'Đang theo dõi' : 'Theo dõi',
+                      style: _textStyle(weight: FontWeight.w700, color: data.isFollowing ? Colors.white70 : Colors.white)
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
@@ -426,7 +434,7 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
                   'Nhắn tin',
                   onTap: () {
                     Navigator.pushNamed(
-                      context, 
+                      context,
                       AppRoutes.chatDetail,
                       arguments: {'name': data.profile.displayName},
                     );

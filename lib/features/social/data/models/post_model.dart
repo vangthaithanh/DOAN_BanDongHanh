@@ -16,6 +16,13 @@ class PostModel {
   final DateTime? createdAt;
   final String? visibility;
 
+  // NOTE SỬA LƯU TRỮ:
+  // active   -> hiện bình thường
+  // archived -> nằm trong kho lưu trữ
+  // deleted  -> đã xoá mềm
+  final String? status;
+  final bool isArchived;
+
   const PostModel({
     required this.id,
     this.authorId,
@@ -33,6 +40,8 @@ class PostModel {
     this.laBaiVietCuaToi = false,
     this.createdAt,
     this.visibility,
+    this.status,
+    this.isArchived = false,
   });
 
   PostModel copyWith({
@@ -52,6 +61,8 @@ class PostModel {
     bool? laBaiVietCuaToi,
     DateTime? createdAt,
     String? visibility,
+    String? status,
+    bool? isArchived,
   }) {
     return PostModel(
       id: id ?? this.id,
@@ -70,6 +81,8 @@ class PostModel {
       laBaiVietCuaToi: laBaiVietCuaToi ?? this.laBaiVietCuaToi,
       createdAt: createdAt ?? this.createdAt,
       visibility: visibility ?? this.visibility,
+      status: status ?? this.status,
+      isArchived: isArchived ?? this.isArchived,
     );
   }
 }

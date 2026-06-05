@@ -180,7 +180,9 @@ class _TrangCaiDatHoatDongPageState extends State<TrangCaiDatHoatDongPage> {
             _item(
               icon: Icons.archive_outlined,
               title: 'Kho lưu trữ',
-              onTap: () => _comingSoon('Kho lưu trữ'),
+              onTap: _loggingOut
+                  ? null
+                  : () => Navigator.pushNamed(context, AppRoutes.archive),
             ),
             _item(
               icon: Icons.history_rounded,

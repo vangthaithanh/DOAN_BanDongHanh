@@ -57,6 +57,8 @@ class AppRoutes {
   // Profile/settings/friends
   static const String editProfile = '/ho-so/chinh-sua';
   static const String settings = '/cai-dat';
+  static const String archive = '/kho-luu-tru';
+  static const String archivePostDetail = '/kho-luu-tru/xem-bai-viet';
   static const String followRequests = '/theo-doi/yeu-cau';
   static const String friendSuggestions = '/ban-be/goi-y';
 
