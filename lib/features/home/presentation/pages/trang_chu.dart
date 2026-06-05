@@ -9,9 +9,9 @@ import '../../../../shared/navigation/app_bottom_nav.dart';
 import '../../../../shared/navigation/main_tab.dart';
 import '../../../../shared/widgets/gomate_logo.dart';
 import '../../../../shared/widgets/unread_badge.dart';
-import '../../data/services/home_feed_service.dart';
 import '../../../social/data/models/post_model.dart';
 import '../../../social/presentation/widgets/post_card.dart';
+import '../../data/services/home_feed_service.dart';
 
 /// NOTE SỬA:
 /// Trang chủ:
@@ -249,7 +249,8 @@ class _TrangChuPageState extends State<TrangChuPage> {
       child: Row(
         children: [
           InkWell(
-            onTap: () => Navigator.pushNamed(context, AppRoutes.search),
+            onTap: () =>
+                Navigator.pushNamed(context, AppRoutes.globalUserSearch),
             child: const Icon(
               LucideIcons.search,
               color: Colors.white,

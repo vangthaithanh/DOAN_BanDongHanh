@@ -21,6 +21,7 @@ import '../../features/auth/presentation/pages/quen_matkhau_otp.dart';
 import '../../features/auth/presentation/pages/quen_matkhau_sdt.dart';
 import '../../features/auth/presentation/pages/them_anh_daidien.dart';
 import '../../features/auth/presentation/pages/trang_bat_dau.dart';
+import '../../features/home/presentation/pages/global_user_search_page.dart';
 import '../../features/home/presentation/pages/trang_chu.dart';
 import '../../features/map/presentation/pages/map.dart';
 import '../../features/messages/presentation/pages/trang_doan_chat.dart';
@@ -43,6 +44,7 @@ import '../../features/places/presentation/pages/trang_dia_diem.dart';
 import '../../features/profile/presentation/pages/trang_caidat_hoatdong.dart';
 import '../../features/profile/presentation/pages/trang_canhan.dart';
 import '../../features/profile/presentation/pages/trang_chinhsua_hoso.dart';
+import '../../features/profile/presentation/pages/trang_danhsach_ketnoi.dart';
 import '../../features/profile/presentation/pages/trang_kho_luu_tru.dart';
 import '../../features/profile/presentation/pages/trang_xem_baiviet_luutru.dart';
 import '../../features/social/data/models/post_model.dart';
@@ -111,11 +113,23 @@ class AppRouter {
         final userId = ModalRoute.of(context)?.settings.arguments as String?;
         return TrangCaNhanPage(userId: userId);
       },
+      AppRoutes.profileConnections: (context) {
+        final args =
+            ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
 
+        return TrangDanhSachKetNoi(
+          targetUserId: args?['targetUserId'] as String? ?? '',
+          type: args?['type'] as String? ?? 'followers',
+        );
+      },
       AppRoutes.createPost: (_) => const TrangTaoBaiViet(),
       AppRoutes.postDetail: (_) =>
           const ComingSoonPage(title: 'Chi tiết bài viết'),
+
       AppRoutes.search: (_) => const ComingSoonPage(title: 'Tìm kiếm'),
+
+      AppRoutes.globalUserSearch: (_) => const GlobalUserSearchPage(),
+
       AppRoutes.placeList: (_) => const TrangDiaDiemPage(),
       AppRoutes.placeDetail: (_) => const TrangChiTietDiaDiemPage(),
       AppRoutes.placeReview: (_) => const TrangDanhGiaDiaDiemPage(),

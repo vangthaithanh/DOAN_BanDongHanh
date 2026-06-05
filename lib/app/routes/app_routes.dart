@@ -35,6 +35,7 @@ class AppRoutes {
   static const String trangHinhAnhChiTiet = '/trang-hinh-anh-chi-tiet';
   static const String messages = '/trang-tinnhan';
   static const String profile = '/trang-canhan';
+  static const String profileConnections = '/profile-connections';
   static const String notifications = '/trang_thongbao';
   static const String trangViTri = '/trang-vi-tri';
 
@@ -70,4 +71,7 @@ class AppRoutes {
   static const String waitingMessages = '/trang-tinnhan-cho';
   static const String chatDetail = '/trang-doan-chat';
   static const String loginCallback = '/login-callback';
+
+  //trang chu
+  static const String globalUserSearch = '/global-user-search';
 }
