@@ -7,7 +7,10 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:path_provider/path_provider.dart';
+<<<<<<< HEAD
 import 'package:supabase_flutter/supabase_flutter.dart';
+=======
+>>>>>>> origin/bui_trong
 import '../../data/message_service.dart';
 import '../../data/mock/mock_messages.dart';
 import 'trang_tinnhan_caidat.dart';
@@ -41,8 +44,11 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
   final FocusNode _focusNode = FocusNode();
   final MessageService _messageService = MessageService();
   int? _conversationId;
+<<<<<<< HEAD
   int? _subscribedConversationId;
   RealtimeChannel? _messagesChannel;
+=======
+>>>>>>> origin/bui_trong
   bool _loadingMessages = true;
   bool get _usesRealConversation =>
       _conversationId != null || widget.otherProfileId?.isNotEmpty == true;
@@ -180,7 +186,10 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
         throw Exception('Không tìm thấy cuộc trò chuyện');
       }
 
+<<<<<<< HEAD
       _subscribeToConversation(conversationId);
+=======
+>>>>>>> origin/bui_trong
       final messages = await _messageService.loadMessages(conversationId);
 
       if (!mounted) {
@@ -210,6 +219,7 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
     }
   }
 
+<<<<<<< HEAD
   void _subscribeToConversation(int conversationId) {
     if (_subscribedConversationId == conversationId) {
       return;
@@ -259,6 +269,8 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
     }
   }
 
+=======
+>>>>>>> origin/bui_trong
   MessageModel _toUiMessage(RealMessage message) {
     switch (message.type) {
       case RealMessageType.location:

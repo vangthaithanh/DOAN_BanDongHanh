@@ -6,7 +6,7 @@ import '../../features/social/data/models/post_model.dart';
 /// Service này dùng cho trang cá nhân.
 /// Query khớp RLS/database hiện tại:
 /// follows: follower_id, following_id
-/// friends: profile_id1, profile_id2
+/// friends: không dùng để đếm bạn bè nữa
 /// posts: profile_id
 /// itineraries: profile_id
 /// itinerary_items: itinerary_id
@@ -142,11 +142,12 @@ class ProfileService {
     final friendCount = await _countFriends(profileId);
     final postCount = await _countPosts(profileId);
     final plans = await _loadPlans(profileId);
-    
+
     bool isFollowing = false;
     bool mutual = false;
     if (currentUserId != null && currentUserId != profileId) {
       isFollowing = await _checkIsFollowing(currentUserId, profileId);
+
       // Kiểm tra xem người đó có theo dõi lại mình không để xác định mutual follow
       final theyFollowMe = await _checkIsFollowing(profileId, currentUserId);
       mutual = isFollowing && theyFollowMe;
@@ -277,21 +278,52 @@ class ProfileService {
     }
   }
 
+  /// NOTE SỬA:
+  /// Bạn bè = 2 người theo dõi nhau trong bảng follows.
+  ///
+  /// Ví dụ:
+  /// A theo dõi B: follows.follower_id = A, follows.following_id = B
+  /// B theo dõi A: follows.follower_id = B, follows.following_id = A
+  ///
+  /// Khi có đủ 2 chiều active thì tính là 1 bạn bè.
   Future<int> _countFriends(String userId) async {
     try {
-      final rows1 = await _client
-          .from('friends')
-          .select('id')
-          .eq('profile_id1', userId)
+      final followingRows = await _client
+          .from('follows')
+          .select('following_id')
+          .eq('follower_id', userId)
+          .eq('status', 'active')
+          .neq('following_id', userId);
+
+      final followingIds = (followingRows as List)
+          .map((row) {
+            final map = row as Map<String, dynamic>;
+            return map['following_id']?.toString() ?? '';
+          })
+          .where((id) => id.isNotEmpty)
+          .toSet()
+          .toList();
+
+      if (followingIds.isEmpty) {
+        return 0;
+      }
+
+      final mutualRows = await _client
+          .from('follows')
+          .select('follower_id')
+          .inFilter('follower_id', followingIds)
+          .eq('following_id', userId)
           .eq('status', 'active');
 
-      final rows2 = await _client
-          .from('friends')
-          .select('id')
-          .eq('profile_id2', userId)
-          .eq('status', 'active');
+      final mutualIds = (mutualRows as List)
+          .map((row) {
+            final map = row as Map<String, dynamic>;
+            return map['follower_id']?.toString() ?? '';
+          })
+          .where((id) => id.isNotEmpty)
+          .toSet();
 
-      return (rows1 as List).length + (rows2 as List).length;
+      return mutualIds.length;
     } catch (_) {
       return 0;
     }
@@ -430,7 +462,11 @@ class ProfileService {
     return text == 'active' || text == 'current' || text == 'ongoing';
   }
 
-  Future<List<PostModel>> _loadUserPosts(String userId, MyProfile profile, bool mutualFollow) async {
+  Future<List<PostModel>> _loadUserPosts(
+    String userId,
+    MyProfile profile,
+    bool mutualFollow,
+  ) async {
     final currentUserId = _client.auth.currentUser?.id;
     try {
       var query = _client
@@ -441,7 +477,7 @@ class ProfileService {
           )
           .eq('profile_id', userId)
           .eq('status', 'active');
-      
+
       // Lọc bài viết theo quyền riêng tư nếu không phải chính mình xem
       if (userId != currentUserId) {
         if (mutualFollow) {
@@ -502,7 +538,9 @@ class ProfileService {
             danhSachHashTag: hashtagMap[postId] ?? const [],
             soLuotThich: (map['like_count'] as int?) ?? 0,
             soLuotBinhLuan: (map['comment_count'] as int?) ?? 0,
-            daThich: currentUserId != null ? await _isPostLikedByMe(postId, currentUserId) : false,
+            daThich: currentUserId != null
+                ? await _isPostLikedByMe(postId, currentUserId)
+                : false,
             laBaiVietCuaToi: userId == currentUserId,
             createdAt: DateTime.tryParse(createdAtRaw)?.toLocal(),
             visibility: map['visibility']?.toString(),
@@ -515,7 +553,8 @@ class ProfileService {
   }
 
   Future<Map<int, List<String>>> _loadHashtagsForPosts(
-      List<int> postIds) async {
+    List<int> postIds,
+  ) async {
     if (postIds.isEmpty) return {};
     try {
       final phRows = await _client
@@ -525,10 +564,7 @@ class ProfileService {
 
       if ((phRows as List).isEmpty) return {};
 
-      final hashtagIds = phRows
-          .map((r) => r['hashtag_id'])
-          .toSet()
-          .toList();
+      final hashtagIds = phRows.map((r) => r['hashtag_id']).toSet().toList();
 
       final hRows = await _client
           .from('hashtags')

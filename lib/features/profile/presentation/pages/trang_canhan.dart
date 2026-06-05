@@ -127,6 +127,42 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
     );
   }
 
+  /// NOTE SỬA:
+  /// Mở danh sách người theo dõi hoặc bạn bè của profile đang xem.
+  /// type:
+  /// - followers: người theo dõi
+  /// - friends: bạn bè follow 2 chiều
+  void _openProfileConnections({
+    required String targetUserId,
+    required String type,
+  }) {
+    Navigator.pushNamed(
+      context,
+      AppRoutes.profileConnections,
+      arguments: {'targetUserId': targetUserId, 'type': type},
+    );
+  }
+
+  /// NOTE SỬA:
+  /// Text thống kê có thể bấm được.
+  /// Dùng cho Người theo dõi và Bạn bè.
+  Widget _profileStatText({required String text, VoidCallback? onTap}) {
+    final content = Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Text(text, style: _textStyle(size: 12, weight: FontWeight.w600)),
+    );
+
+    if (onTap == null) {
+      return content;
+    }
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: content,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -351,21 +387,35 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
                       style: _textStyle(size: 14, weight: FontWeight.w700),
                     ),
                     const SizedBox(height: 8),
+
+                    /// NOTE SỬA:
+                    /// Người theo dõi và Bạn bè bấm được.
+                    /// Bài viết giữ nguyên chỉ hiển thị số lượng.
                     Wrap(
                       spacing: 14,
                       runSpacing: 6,
                       children: [
-                        Text(
-                          '${data.followerCount} Người theo dõi',
-                          style: _textStyle(size: 12, weight: FontWeight.w600),
+                        _profileStatText(
+                          text: '${data.followerCount} Người theo dõi',
+                          onTap: () {
+                            _openProfileConnections(
+                              targetUserId: data.profile.id,
+                              type: 'followers',
+                            );
+                          },
                         ),
-                        Text(
-                          '${data.friendCount} Bạn bè',
-                          style: _textStyle(size: 12, weight: FontWeight.w600),
+                        _profileStatText(
+                          text: '${data.friendCount} Bạn bè',
+                          onTap: () {
+                            _openProfileConnections(
+                              targetUserId: data.profile.id,
+                              type: 'friends',
+                            );
+                          },
                         ),
-                        Text(
-                          '${data.postCount} Bài viết',
-                          style: _textStyle(size: 12, weight: FontWeight.w600),
+                        _profileStatText(
+                          text:
+                              '${data.posts.where((post) => post.status != 'archived' && post.status != 'deleted' && !post.isArchived).length} Bài viết',
                         ),
                       ],
                     ),
