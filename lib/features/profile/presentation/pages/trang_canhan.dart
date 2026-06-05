@@ -199,8 +199,10 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
             }
 
             final data = snapshot.data!;
+
             // NOTE SỬA LƯU TRỮ:
-            // Phòng trường hợp service profile vẫn trả về bài archived, UI sẽ tự ẩn.
+            // Phòng trường hợp service profile vẫn trả về bài archived,
+            // UI sẽ tự ẩn bài archived/deleted khỏi trang cá nhân.
             final postsHienThi = data.posts
                 .where(
                   (post) =>
@@ -287,7 +289,6 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
               child: Icon(Icons.add, color: Colors.white, size: 26),
             ),
           ),
-
           Expanded(
             child: Text(
               data?.profile.displayName ?? 'Hồ sơ',
@@ -297,10 +298,21 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
               style: _textStyle(size: 20, weight: FontWeight.w700),
             ),
           ),
-
           InkWell(
-            onTap: () {
-              Navigator.pushNamed(context, AppRoutes.settings);
+            // NOTE SỬA LƯU TRỮ:
+            // Khi từ Cài đặt -> Kho lưu trữ khôi phục bài xong,
+            // route sẽ trả về true để trang cá nhân load lại ngay.
+            onTap: () async {
+              final changed = await Navigator.pushNamed(
+                context,
+                AppRoutes.settings,
+              );
+
+              if (!mounted) return;
+
+              if (changed == true) {
+                _reloadProfile();
+              }
             },
             borderRadius: BorderRadius.circular(20),
             child: const SizedBox(
@@ -339,7 +351,6 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
                       style: _textStyle(size: 14, weight: FontWeight.w700),
                     ),
                     const SizedBox(height: 8),
-
                     Wrap(
                       spacing: 14,
                       runSpacing: 6,
@@ -365,12 +376,10 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
           ],
         ),
         const SizedBox(height: 14),
-
         Text(
           data.profile.bio.isNotEmpty ? data.profile.bio : 'Chưa có tiểu sử',
           style: _textStyle(size: 13, weight: FontWeight.w500),
         ),
-
         if (data.profile.facebookUrl.isNotEmpty) ...[
           const SizedBox(height: 6),
           Text(
@@ -380,7 +389,6 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
             style: _textStyle(size: 13, weight: FontWeight.w600, color: blue),
           ),
         ],
-
         const SizedBox(height: 12),
         if (data.isMe)
           Row(
