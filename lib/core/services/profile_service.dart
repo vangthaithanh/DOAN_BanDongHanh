@@ -491,6 +491,7 @@ class ProfileService {
           .map((r) => (r as Map<String, dynamic>)['id'] as int)
           .toList();
       final hashtagMap = await _loadHashtagsForPosts(postIds);
+      final tagMap = await _loadTagsForPosts(postIds);
 
       return Future.wait(
         postList.map((raw) async {
@@ -531,6 +532,7 @@ class ProfileService {
             danhSachAnh: firstMediaUrl != null ? [firstMediaUrl] : const [],
             viTri: _emptyToNull(map['location_name']),
             danhSachHashTag: hashtagMap[postId] ?? const [],
+            danhSachBanBeDuocTag: tagMap[postId] ?? const [],
             soLuotThich: (map['like_count'] as int?) ?? 0,
             soLuotBinhLuan: (map['comment_count'] as int?) ?? 0,
             daThich: currentUserId != null
@@ -579,6 +581,29 @@ class ProfileService {
         if (name != null && name.isNotEmpty) {
           result.putIfAbsent(postId, () => []).add(name);
         }
+      }
+      return result;
+    } catch (_) {
+      return {};
+    }
+  }
+
+  Future<Map<int, List<String>>> _loadTagsForPosts(List<int> postIds) async {
+    if (postIds.isEmpty) return {};
+    try {
+      final rows = await _client
+          .from('post_tags')
+          .select('post_id, profiles(nickname)')
+          .inFilter('post_id', postIds);
+      final result = <int, List<String>>{};
+      for (final r in rows as List) {
+        final m = r as Map<String, dynamic>;
+        final postId = (m['post_id'] as num?)?.toInt() ?? 0;
+        if (postId == 0) continue;
+        final p = m['profiles'];
+        final nick = p is Map ? p['nickname']?.toString().trim() ?? '' : '';
+        if (nick.isEmpty) continue;
+        result.putIfAbsent(postId, () => []).add(nick);
       }
       return result;
     } catch (_) {

@@ -7,6 +7,7 @@ class HomeFeedService {
   Future<List<PostModel>> loadFeed() async {
     final user = _client.auth.currentUser;
     final hasInterests = await _hasSelectedInterests();
+    final blockedIds = await _getBlockedIds();
 
     // 1. Load bài viết Public (từ view)
     final publicPosts = await _loadPublicPosts();
@@ -49,11 +50,21 @@ class HomeFeedService {
     }
 
     // Gộp tất cả lại và loại bỏ trùng lặp
-    return _mergeAllPosts(
+    final merged = _mergeAllPosts(
       recommended: recommendedPosts,
       public: publicPosts,
       followers: followerPosts,
+      blockedIds: blockedIds,
     );
+
+    if (merged.isEmpty) return merged;
+    final tagMap = await _batchLoadTags(merged.map((p) => p.id).toList());
+    if (tagMap.isEmpty) return merged;
+    return merged.map((p) {
+      final tags = tagMap[p.id];
+      if (tags == null || tags.isEmpty) return p;
+      return p.copyWith(danhSachBanBeDuocTag: tags);
+    }).toList();
   }
 
   Future<bool> _hasSelectedInterests() async {
@@ -201,21 +212,61 @@ class HomeFeedService {
     }
   }
 
+  Future<Map<int, List<String>>> _batchLoadTags(List<int> postIds) async {
+    if (postIds.isEmpty) return {};
+    try {
+      final rows = await _client
+          .from('post_tags')
+          .select('post_id, profiles(nickname)')
+          .inFilter('post_id', postIds);
+      final result = <int, List<String>>{};
+      for (final r in rows as List) {
+        final m = r as Map<String, dynamic>;
+        final postId = _asInt(m['post_id']);
+        if (postId == 0) continue;
+        final p = m['profiles'];
+        final nick = p is Map ? p['nickname']?.toString().trim() ?? '' : '';
+        if (nick.isEmpty) continue;
+        result.putIfAbsent(postId, () => []).add(nick);
+      }
+      return result;
+    } catch (_) {
+      return {};
+    }
+  }
+
+  Future<Set<String>> _getBlockedIds() async {
+    final user = _client.auth.currentUser;
+    if (user == null) return {};
+    try {
+      final rows = await _client
+          .from('blocks')
+          .select('blocked_id')
+          .eq('blocker_id', user.id);
+      return (rows as List)
+          .map((r) => (r as Map)['blocked_id']?.toString() ?? '')
+          .where((id) => id.isNotEmpty)
+          .toSet();
+    } catch (_) {
+      return {};
+    }
+  }
+
   List<PostModel> _mergeAllPosts({
     required List<PostModel> recommended,
     required List<PostModel> public,
     required List<PostModel> followers,
+    Set<String> blockedIds = const {},
   }) {
     final mergedPosts = <PostModel>[];
     final seenPostIds = <int>{};
     final all = [...recommended, ...followers, ...public];
 
     for (final post in all) {
-      // NOTE SỬA LƯU TRỮ:
-      // Bài đã lưu trữ / đã xoá không được hiện ở trang chủ.
       if (post.status == 'archived' || post.status == 'deleted' || post.isArchived) {
         continue;
       }
+      if (blockedIds.contains(post.authorId)) continue;
 
       if (seenPostIds.add(post.id)) {
         mergedPosts.add(post);

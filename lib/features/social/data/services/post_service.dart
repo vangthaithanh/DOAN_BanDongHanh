@@ -40,10 +40,12 @@ class PostService {
     final locationName =
         _emptyToNull(row['location_name']) ?? taggedLocationName;
     final liked = await _isLikedByMe(postId);
+    final taggedNicknames = await _loadTaggedNicknames(postId);
     final createdAtRaw = row['created_at']?.toString().trim() ?? '';
 
     return PostModel(
       id: _asInt(row['id']),
+      authorId: authorProfileId,
       tenNguoiDang: _firstText([profile?['nickname']], fallback: 'Người dùng'),
       anhDaiDienNguoiDang: _emptyToNull(profile?['avatar_url']),
       thoiGian: _timeAgo(createdAtRaw),
@@ -51,6 +53,7 @@ class PostService {
       danhSachAnh: mediaUrls,
       viTri: locationName,
       danhSachHashTag: hashtags,
+      danhSachBanBeDuocTag: taggedNicknames,
       soLuotThich: await _countPostLikes(postId, row['like_count']),
       soLuotBinhLuan: await _countPostComments(postId, row['comment_count']),
       daThich: liked,
@@ -226,6 +229,7 @@ class PostService {
     String? imagePath,
     String? locationName,
     List<String> hashtags = const [],
+    List<String> taggedNicknames = const [],
   }) async {
     final user = _client.auth.currentUser;
 
@@ -276,6 +280,7 @@ class PostService {
 
     await _saveHashTags(postId, hashtags);
     await _saveLocationTag(postId, locationName);
+    await _saveTaggedUsers(postId, taggedNicknames);
 
     return postId;
   }
@@ -348,7 +353,7 @@ class PostService {
     await _wrapSupabaseError(() {
       return _client
           .from('posts')
-          .update({'status': 'hidden'})
+          .update({'status': 'deleted'})
           .eq('id', postId)
           .eq('profile_id', user.id);
     });
@@ -581,6 +586,60 @@ class PostService {
       }
 
       rethrow;
+    }
+  }
+
+  Future<void> _saveTaggedUsers(int postId, List<String> nicknames) async {
+    if (nicknames.isEmpty) return;
+    final user = _client.auth.currentUser;
+    if (user == null) return;
+    final me = await _loadPublicProfile(user.id);
+    final myName = _firstText([me?['nickname'], me?['full_name']], fallback: 'Ai đó');
+
+    for (final nickname in nicknames) {
+      final clean = nickname.trim();
+      if (clean.isEmpty) continue;
+      try {
+        final profile = await _client
+            .from('profiles')
+            .select('id')
+            .eq('nickname', clean)
+            .maybeSingle();
+        final profileId = profile?['id']?.toString() ?? '';
+        if (profileId.isEmpty || profileId == user.id) continue;
+
+        await _client.from('post_tags').insert({
+          'post_id': postId,
+          'profile_id': profileId,
+        });
+
+        await _client.from('notifications').insert({
+          'profile_id': profileId,
+          'notification_type': 'tag',
+          'title': myName,
+          'content': 'đã gắn thẻ bạn trong một bài viết',
+          'is_read': false,
+          'reference_id': postId,
+        });
+      } catch (_) {}
+    }
+  }
+
+  Future<List<String>> _loadTaggedNicknames(int postId) async {
+    try {
+      final rows = await _client
+          .from('post_tags')
+          .select('profiles(nickname)')
+          .eq('post_id', postId);
+      return (rows as List)
+          .map((r) {
+            final p = (r as Map<String, dynamic>)['profiles'];
+            return p is Map ? p['nickname']?.toString() ?? '' : '';
+          })
+          .where((n) => n.isNotEmpty)
+          .toList();
+    } catch (_) {
+      return [];
     }
   }
 

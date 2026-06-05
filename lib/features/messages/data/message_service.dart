@@ -48,6 +48,7 @@ class RealMessage {
   final bool isMe;
   final String? mediaUrl;
   final int? momentId;
+  final int? postId;
 
   const RealMessage({
     required this.id,
@@ -59,11 +60,16 @@ class RealMessage {
     required this.isMe,
     this.mediaUrl,
     this.momentId,
+    this.postId,
   });
 }
 
 class MessageService {
   final SupabaseClient _client = Supabase.instance.client;
+
+  // Local cache để đảm bảo xóa vĩnh viễn ngay cả khi RLS chặn DB operation
+  static final Set<int> _deletedMessageIds = {};
+  static final Set<int> _deletedConversationIds = {};
 
   Future<List<ConversationPreview>> loadConversations({
     required bool waiting,
@@ -138,7 +144,9 @@ class MessageService {
 
     previews.sort((a, b) => b.conversationId.compareTo(a.conversationId));
 
-    return previews;
+    return previews
+        .where((p) => !_deletedConversationIds.contains(p.conversationId))
+        .toList();
   }
 
   Future<int> countUnreadNormal() async {
@@ -175,31 +183,34 @@ class MessageService {
     final rows = await _client
         .from('messages')
         .select(
-          'id, conversation_id, sender_profile_id, message_type, content, sent_at, media_url, moment_id',
+          'id, conversation_id, sender_profile_id, message_type, content, sent_at, media_url, moment_id, post_id',
         )
         .eq('conversation_id', conversationId)
         .order('sent_at', ascending: true);
 
     await markConversationRead(conversationId);
 
-    return (rows as List).map((raw) {
-      final row = raw as Map<String, dynamic>;
-      final senderId = row['sender_profile_id']?.toString() ?? '';
-
-      return RealMessage(
-        id: _asInt(row['id']),
-        conversationId: _asInt(row['conversation_id']),
-        senderProfileId: senderId,
-        text: row['content']?.toString() ?? '',
-        type: _messageType(row['message_type']),
-        createdAt: DateTime.tryParse(
-          row['sent_at']?.toString() ?? '',
-        )?.toLocal(),
-        isMe: senderId == user.id,
-        mediaUrl: row['media_url']?.toString(),
-        momentId: row['moment_id'] != null ? _asInt(row['moment_id']) : null,
-      );
-    }).toList();
+    return (rows as List)
+        .map((raw) {
+          final row = raw as Map<String, dynamic>;
+          final senderId = row['sender_profile_id']?.toString() ?? '';
+          return RealMessage(
+            id: _asInt(row['id']),
+            conversationId: _asInt(row['conversation_id']),
+            senderProfileId: senderId,
+            text: row['content']?.toString() ?? '',
+            type: _messageType(row['message_type']),
+            createdAt: DateTime.tryParse(
+              row['sent_at']?.toString() ?? '',
+            )?.toLocal(),
+            isMe: senderId == user.id,
+            mediaUrl: row['media_url']?.toString(),
+            momentId: row['moment_id'] != null ? _asInt(row['moment_id']) : null,
+            postId: row['post_id'] != null ? _asInt(row['post_id']) : null,
+          );
+        })
+        .where((m) => !_deletedMessageIds.contains(m.id))
+        .toList();
   }
 
   Future<RealMessage> sendText({
@@ -290,6 +301,39 @@ class MessageService {
     return conversationId;
   }
 
+  Future<void> sendSharedPost({
+    required int conversationId,
+    required int postId,
+    String caption = '',
+  }) async {
+    final user = _client.auth.currentUser;
+    if (user == null) throw Exception('Chưa đăng nhập');
+    await _client.from('messages').insert({
+      'conversation_id': conversationId,
+      'sender_profile_id': user.id,
+      'message_type': 'post',
+      'post_id': postId,
+      'content': caption.trim(),
+    });
+    await markConversationRead(conversationId);
+  }
+
+  Future<int> sharePostToFriends({
+    required int postId,
+    required List<String> friendProfileIds,
+    String caption = '',
+  }) async {
+    int success = 0;
+    for (final friendId in friendProfileIds) {
+      try {
+        final convId = await openPrivateConversation(friendId);
+        await sendSharedPost(conversationId: convId, postId: postId, caption: caption);
+        success++;
+      } catch (_) {}
+    }
+    return success;
+  }
+
   Future<int> openPrivateConversation(String otherProfileId) async {
     final user = _client.auth.currentUser;
 
@@ -363,21 +407,35 @@ class MessageService {
   Future<void> deleteMessage(int messageId) async {
     final user = _client.auth.currentUser;
     if (user == null || messageId == 0) return;
-    await _client
-        .from('messages')
-        .delete()
-        .eq('id', messageId)
-        .eq('sender_profile_id', user.id);
+    _deletedMessageIds.add(messageId); // cache trước, đảm bảo không hiện lại
+    try {
+      await _client
+          .from('messages')
+          .delete()
+          .eq('id', messageId)
+          .eq('sender_profile_id', user.id);
+    } catch (_) {}
   }
 
   Future<void> deleteConversation(int conversationId) async {
     final user = _client.auth.currentUser;
     if (user == null || conversationId == 0) return;
-    await _client
-        .from('conversation_members')
-        .update({'status': 'deleted'})
-        .eq('conversation_id', conversationId)
-        .eq('profile_id', user.id);
+    _deletedConversationIds.add(conversationId); // cache trước
+    try {
+      await _client
+          .from('conversation_members')
+          .update({'status': 'deleted'})
+          .eq('conversation_id', conversationId)
+          .eq('profile_id', user.id);
+    } catch (_) {}
+    try {
+      await _client
+          .from('notifications')
+          .delete()
+          .eq('profile_id', user.id)
+          .inFilter('notification_type', ['moment_reply', 'message'])
+          .eq('reference_id', conversationId);
+    } catch (_) {}
   }
 
   Future<void> markConversationRead(int conversationId) async {

@@ -45,6 +45,7 @@ import '../../features/profile/presentation/pages/trang_caidat_hoatdong.dart';
 import '../../features/profile/presentation/pages/trang_canhan.dart';
 import '../../features/profile/presentation/pages/trang_chinhsua_hoso.dart';
 import '../../features/profile/presentation/pages/trang_danhsach_ketnoi.dart';
+import '../../features/users/presentation/pages/trang_danhsach_dachan.dart';
 import '../../features/profile/presentation/pages/trang_kho_luu_tru.dart';
 import '../../features/profile/presentation/pages/trang_xem_baiviet_luutru.dart';
 import '../../features/social/data/models/post_model.dart';
@@ -170,6 +171,7 @@ class AppRouter {
         final postId = ModalRoute.of(context)?.settings.arguments as int? ?? 1;
         return TrangBinhLuan(postId: postId);
       },
+      AppRoutes.blockedUsers: (_) => const TrangDanhSachDaChanPage(),
       AppRoutes.waitingMessages: (_) => const TrangTinNhanChoPage(),
       AppRoutes.loginCallback: (_) => const GoogleLoginCallbackPage(),
       AppRoutes.chatDetail: (context) {

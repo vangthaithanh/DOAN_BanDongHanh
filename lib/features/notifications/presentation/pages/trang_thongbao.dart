@@ -299,6 +299,7 @@ class _TrangThongBaoPageState extends State<TrangThongBaoPage> {
             }
           case 'like':
           case 'comment':
+          case 'tag':
             if ((group.latestReferenceId ?? 0) > 0) {
               Navigator.pushNamed(
                 context,

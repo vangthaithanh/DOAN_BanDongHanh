@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../app/routes/app_routes.dart';
 import '../../../../core/services/profile_service.dart';
+import '../../../users/data/block_service.dart';
 import '../../../../shared/navigation/app_bottom_nav.dart';
 import '../../../../shared/navigation/main_tab.dart';
 import '../../../social/presentation/widgets/post_card.dart';
@@ -478,12 +479,20 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
             children: [
               Expanded(
                 child: ElevatedButton(
-                  onPressed: () => _handleFollow(data.profile.id),
+                  onPressed: () {
+                    if (data.isFollowing) {
+                      _showUnfollowSheet(data.profile.id, data.profile.displayName);
+                    } else {
+                      _handleFollow(data.profile.id);
+                    }
+                  },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: data.isFollowing ? softGrey : blue,
+                    minimumSize: const Size(0, 46),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
                     ),
+                    elevation: 0,
                   ),
                   child: _isActionLoading
                       ? const SizedBox(
@@ -497,6 +506,7 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
                       : Text(
                           data.isFollowing ? 'Đang theo dõi' : 'Theo dõi',
                           style: _textStyle(
+                            size: 15,
                             weight: FontWeight.w700,
                             color: data.isFollowing
                                 ? Colors.white70
@@ -993,7 +1003,7 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
       child: Container(
-        height: 30,
+        height: 46,
         decoration: BoxDecoration(
           color: softGrey,
           borderRadius: BorderRadius.circular(16),
@@ -1004,10 +1014,122 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: _textStyle(
-            size: 16,
+            size: 15,
             weight: FontWeight.w600,
             color: Colors.white70,
           ),
+        ),
+      ),
+    );
+  }
+
+  void _showUnfollowSheet(String targetId, String displayName) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) {
+        return Container(
+          margin: const EdgeInsets.symmetric(horizontal: 6),
+          padding: const EdgeInsets.fromLTRB(18, 12, 18, 32),
+          decoration: const BoxDecoration(
+            color: Color(0xFF1C1C1E),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 36,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 20),
+                decoration: BoxDecoration(
+                  color: Colors.white24,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              Text(
+                displayName,
+                style: _textStyle(size: 16, weight: FontWeight.w700),
+              ),
+              const SizedBox(height: 20),
+              _sheetAction(
+                icon: Icons.person_remove_outlined,
+                label: 'Hủy theo dõi',
+                color: Colors.white,
+                onTap: () {
+                  Navigator.pop(context);
+                  _handleFollow(targetId);
+                },
+              ),
+              const Divider(color: Colors.white12, height: 1),
+              _sheetAction(
+                icon: Icons.block,
+                label: 'Chặn tài khoản',
+                color: Colors.redAccent,
+                onTap: () async {
+                  Navigator.pop(context);
+                  final confirm = await showDialog<bool>(
+                    context: context,
+                    builder: (ctx) => AlertDialog(
+                      backgroundColor: const Color(0xFF1C1C1E),
+                      title: const Text('Chặn tài khoản',
+                          style: TextStyle(color: Colors.white)),
+                      content: Text(
+                        'Chặn $displayName? Họ sẽ không thể xem hồ sơ và bài viết của bạn.',
+                        style: const TextStyle(color: Colors.white70),
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(ctx, false),
+                          child: const Text('Hủy'),
+                        ),
+                        TextButton(
+                          onPressed: () => Navigator.pop(ctx, true),
+                          child: const Text('Chặn',
+                              style: TextStyle(color: Colors.redAccent)),
+                        ),
+                      ],
+                    ),
+                  );
+                  if (confirm == true && mounted) {
+                    await BlockService().blockUser(targetId);
+                    // Cũng hủy theo dõi nếu đang follow
+                    await _service.toggleFollow(targetId).catchError((_) {});
+                    _reloadProfile();
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Đã chặn tài khoản'),
+                          backgroundColor: Colors.redAccent,
+                        ),
+                      );
+                    }
+                  }
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _sheetAction({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        child: Row(
+          children: [
+            Icon(icon, color: color, size: 22),
+            const SizedBox(width: 14),
+            Text(label, style: _textStyle(size: 15, color: color)),
+          ],
         ),
       ),
     );
