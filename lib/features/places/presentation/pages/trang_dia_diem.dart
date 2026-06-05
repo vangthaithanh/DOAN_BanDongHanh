@@ -218,7 +218,9 @@ class _TrangDiaDiemPageState extends State<TrangDiaDiemPage> {
       children: [
         InkWell(
           borderRadius: BorderRadius.circular(999),
-          onTap: _moBanDoThanhPhoHoChiMinh,
+          // NOTE SỬA:
+          // Bấm icon map sẽ mở bản đồ danh sách địa điểm du lịch từ Supabase.
+          onTap: _moBanDoDiaDiem,
           child: const Padding(
             padding: EdgeInsets.all(2),
             child: Icon(Icons.map_outlined, color: Colors.white, size: 28),
@@ -1024,18 +1026,11 @@ class _TrangDiaDiemPageState extends State<TrangDiaDiemPage> {
     );
   }
 
-  void _moBanDoThanhPhoHoChiMinh() {
-    Navigator.pushNamed(
-      context,
-      AppRoutes.map,
-      arguments: const {
-        'lat': 10.776889,
-        'lng': 106.700806,
-        'ten': 'TP. Hồ Chí Minh',
-        'originLat': 10.776889,
-        'originLng': 106.700806,
-      },
-    );
+  // NOTE SỬA:
+  // Mở trang bản đồ nhiều địa điểm du lịch.
+  // Trang bản đồ mới sẽ tự lấy dữ liệu từ bảng places trong Supabase.
+  void _moBanDoDiaDiem() {
+    Navigator.pushNamed(context, AppRoutes.placeMap);
   }
 
   String _shortSelectedLabel(Set<String> values) {

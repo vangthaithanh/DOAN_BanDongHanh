@@ -49,6 +49,7 @@ class AppRoutes {
   static const String placeList = '/dia-diem';
   static const String placeDetail = '/dia-diem/chi-tiet';
   static const String placeReview = '/dia-diem/danh-gia';
+  static const String placeMap = '/place-map';
 
   // Trips
   static const String tripList = '/lich-trinh';
