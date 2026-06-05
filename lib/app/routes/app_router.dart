@@ -38,6 +38,7 @@ import '../../features/onboarding/presentation/pages/cau_hoi.dart';
 import '../../features/onboarding/presentation/pages/cau_hoi_1.dart';
 import '../../features/onboarding/presentation/pages/cau_hoi_2.dart';
 import '../../features/onboarding/presentation/pages/cau_hoi_3.dart';
+import '../../features/places/presentation/pages/trang_ban_do_dia_diem_page.dart';
 import '../../features/places/presentation/pages/trang_chi_tiet_dia_diem.dart';
 import '../../features/places/presentation/pages/trang_danh_gia_dia_diem.dart';
 import '../../features/places/presentation/pages/trang_dia_diem.dart';
@@ -133,6 +134,10 @@ class AppRouter {
       AppRoutes.placeList: (_) => const TrangDiaDiemPage(),
       AppRoutes.placeDetail: (_) => const TrangChiTietDiaDiemPage(),
       AppRoutes.placeReview: (_) => const TrangDanhGiaDiaDiemPage(),
+
+      // NOTE SỬA:
+      // Route mở bản đồ nhiều địa điểm du lịch từ bảng places Supabase.
+      AppRoutes.placeMap: (_) => const TrangBanDoDiaDiemPage(),
       AppRoutes.tripList: (_) =>
           const ComingSoonPage(title: 'Lịch trình của tôi'),
       AppRoutes.tripCreate: (_) =>

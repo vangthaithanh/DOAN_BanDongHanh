@@ -710,14 +710,8 @@ class _TrangChiTietDiaDiemPageState extends State<TrangChiTietDiaDiemPage> {
   void _moBanDo(DiaDiemModel diaDiem) {
     Navigator.pushNamed(
       context,
-      AppRoutes.map,
-      arguments: {
-        'lat': diaDiem.viDo,
-        'lng': diaDiem.kinhDo,
-        'ten': diaDiem.tenDiaDiem,
-        'originLat': 10.776889,
-        'originLng': 106.700806,
-      },
+      AppRoutes.placeMap,
+      arguments: {'selectedPlaceId': diaDiem.maDiaDiem},
     );
   }
 }
