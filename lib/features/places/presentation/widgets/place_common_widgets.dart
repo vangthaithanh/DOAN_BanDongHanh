@@ -372,13 +372,9 @@ class PlaceCard extends StatelessWidget {
                               onTap: () {
                                 Navigator.pushNamed(
                                   context,
-                                  AppRoutes.map,
+                                  AppRoutes.placeMap,
                                   arguments: {
-                                    'lat': diaDiem.viDo,
-                                    'lng': diaDiem.kinhDo,
-                                    'ten': diaDiem.tenDiaDiem,
-                                    'originLat': 10.776889,
-                                    'originLng': 106.700806,
+                                    'selectedPlaceId': diaDiem.maDiaDiem,
                                   },
                                 );
                               },
