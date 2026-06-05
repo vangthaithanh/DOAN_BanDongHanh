@@ -398,6 +398,30 @@ class ProfileService {
     }
   }
 
+  DateTime? _parseSupabaseTimeForDisplay(dynamic value) {
+    final text = value?.toString();
+
+    if (text == null || text.trim().isEmpty) {
+      return null;
+    }
+
+    final parsed = DateTime.tryParse(text);
+
+    if (parsed == null) {
+      return null;
+    }
+
+    // Chỉ dùng ngày/giờ đúng như chuỗi Supabase trả về,
+    // không gọi toLocal() để tránh bị cộng thêm +7 giờ.
+    return DateTime(
+      parsed.year,
+      parsed.month,
+      parsed.day,
+      parsed.hour,
+      parsed.minute,
+      parsed.second,
+    );
+  }
   Future<List<ProfilePlanItemData>> _loadPlanItems({
     required String itineraryId,
     required bool pinned,
@@ -441,9 +465,9 @@ class ProfileService {
         final place = item['places'] is Map ? item['places'] as Map : {};
         final status = item['status']?.toString() ?? 'planned';
         final gpsConfirmed = item['gps_confirmed'] == true;
-        final plannedTime = DateTime.tryParse(
-          item['planned_time']?.toString() ?? '',
-        )?.toLocal();
+        final plannedTime = _parseSupabaseTimeForDisplay(
+          item['planned_time'],
+        );
 
         items.add(
           ProfilePlanItemData(

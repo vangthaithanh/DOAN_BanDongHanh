@@ -32,6 +32,9 @@ class TrangBanDoDiaDiemPage extends StatefulWidget {
 }
 
 class _TrangBanDoDiaDiemPageState extends State<TrangBanDoDiaDiemPage> {
+  static const String _placeSelectColumns =
+      'id, category_id, user_id, copied_from_place_id, name, province, district, address, latitude, longitude, opening_hours, price, avg_rating, total_reviews, total_saves, keywords, description, cover_image, status';
+
   final SupabaseClient _supabase = Supabase.instance.client;
   final MapController _mapController = MapController();
   final TextEditingController _searchController = TextEditingController();
@@ -123,17 +126,13 @@ class _TrangBanDoDiaDiemPageState extends State<TrangBanDoDiaDiemPage> {
       final response = userId == null
           ? await _supabase
                 .from('places')
-                .select(
-                  'id, category_id, user_id, copied_from_place_id, name, province, district, address, latitude, longitude, opening_hours, price, avg_rating, total_reviews, total_saves, keywords, description, cover_image, status',
-                )
+                .select(_placeSelectColumns)
                 .eq('status', 'active')
                 .filter('user_id', 'is', null)
                 .order('total_saves', ascending: false)
           : await _supabase
                 .from('places')
-                .select(
-                  'id, category_id, user_id, copied_from_place_id, name, province, district, address, latitude, longitude, opening_hours, price, avg_rating, total_reviews, total_saves, keywords, description, cover_image, status',
-                )
+                .select(_placeSelectColumns)
                 .eq('status', 'active')
                 .or('user_id.is.null,user_id.eq.$userId')
                 .order('total_saves', ascending: false);
@@ -1512,11 +1511,19 @@ class _TrangBanDoDiaDiemPageState extends State<TrangBanDoDiaDiemPage> {
                 };
 
                 if (isEdit) {
-                  await _supabase
+                  final updated = await _supabase
                       .from('places')
                       .update(data)
                       .eq('id', place.id)
-                      .eq('user_id', userId);
+                      .eq('user_id', userId)
+                      .select(_placeSelectColumns)
+                      .maybeSingle();
+
+                  if (updated == null) {
+                    throw Exception(
+                      'Không cập nhật được địa điểm. Hãy kiểm tra quyền sở hữu địa điểm này.',
+                    );
+                  }
 
                   if (!mounted || !sheetContext.mounted) return;
 
@@ -2140,14 +2147,22 @@ class _TrangBanDoDiaDiemPageState extends State<TrangBanDoDiaDiemPage> {
     if (dongY != true) return;
 
     try {
-      await _supabase
+      final deleted = await _supabase
           .from('places')
           .update({
             'status': 'deleted',
             'updated_at': DateTime.now().toIso8601String(),
           })
           .eq('id', place.id)
-          .eq('user_id', _currentUserId!);
+          .eq('user_id', _currentUserId!)
+          .select('id')
+          .maybeSingle();
+
+      if (deleted == null) {
+        throw Exception(
+          'Không xóa được địa điểm. Chỉ địa điểm riêng của bạn mới được xóa.',
+        );
+      }
 
       if (!mounted) return;
 
@@ -2326,36 +2341,12 @@ class _TrangBanDoDiaDiemPageState extends State<TrangBanDoDiaDiemPage> {
         return;
       }
 
-      final inserted = await _supabase
-          .from('place_shares')
-          .insert({
-            'place_id': place.id,
-            'from_user_id': userId,
-            'to_user_id': friend.id,
-            'status': 'pending',
-          })
-          .select('id')
-          .single();
-
-      final shareId = inserted['id'];
-
-      try {
-        await _supabase.from('notifications').insert({
-          'user_id': friend.id,
-          'actor_id': userId,
-          'type': 'place_share',
-          'title': 'Chia sẻ địa điểm',
-          'content': 'Đã chia sẻ địa điểm "${place.name}" cho bạn',
-          'image_url': place.coverImage,
-          'data': {
-            'share_id': shareId,
-            'place_id': place.id,
-            'place_name': place.name,
-            'place_image': place.coverImage,
-          },
-          'is_read': false,
-        });
-      } catch (_) {}
+      await _supabase.from('place_shares').insert({
+        'place_id': place.id,
+        'from_user_id': userId,
+        'to_user_id': friend.id,
+        'status': 'pending',
+      });
 
       _showMessage('Đã gửi chia sẻ cho ${friend.name}');
     } catch (e) {
@@ -2660,7 +2651,7 @@ class _MapPlace {
 
   bool isMine(String? currentUserId) {
     if (currentUserId == null) return false;
-    return userId == currentUserId;
+    return userId?.trim() == currentUserId.trim();
   }
 
   LatLng get latLng => LatLng(latitude!, longitude!);

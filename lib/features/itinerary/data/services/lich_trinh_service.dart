@@ -166,8 +166,26 @@ class LichTrinhItem {
 
   static DateTime? _asDateTime(dynamic value) {
     final text = value?.toString();
-    if (text == null || text.trim().isEmpty) return null;
-    return DateTime.tryParse(text)?.toLocal();
+
+    if (text == null || text.trim().isEmpty) {
+      return null;
+    }
+
+    final parsed = DateTime.tryParse(text);
+
+    if (parsed == null) {
+      return null;
+    }
+
+    // Không dùng toLocal(), vì sẽ làm 00:40 thành 07:40.
+    return DateTime(
+      parsed.year,
+      parsed.month,
+      parsed.day,
+      parsed.hour,
+      parsed.minute,
+      parsed.second,
+    );
   }
 
   static double? _asNullableDouble(dynamic value) {
