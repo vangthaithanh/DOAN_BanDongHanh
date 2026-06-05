@@ -392,9 +392,9 @@ class _PostCardState extends State<PostCard> {
   void _showSnack(String message, {Color color = _mauXanh}) {
     if (!mounted) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: color),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message), backgroundColor: color));
   }
 
   void _showError(Object e) {
@@ -422,6 +422,17 @@ class _PostCardState extends State<PostCard> {
     try {
       await _capNhatTrangThaiBaiViet('active');
       widget.onPostModified?.call();
+
+      // NOTE SỬA LƯU TRỮ:
+      // Nếu đang ở Kho lưu trữ, khôi phục xong thì pop true ra ngoài.
+      // Luồng sẽ là:
+      // Kho lưu trữ pop true -> Cài đặt pop true -> Trang cá nhân reload lại.
+      if (widget.cheDoKhoLuuTru) {
+        if (!mounted) return;
+        Navigator.of(context).pop(true);
+        return;
+      }
+
       _showSnack('Đã khôi phục bài viết về trang cá nhân');
     } catch (e) {
       _showError(e);
@@ -516,7 +527,9 @@ class _PostCardState extends State<PostCard> {
         _dangXuLyThich = false;
       });
 
-      widget.onPostModified?.call();
+      // NOTE SỬA:
+      // Không gọi widget.onPostModified ở đây nữa.
+      // Vì nếu gọi thì trang chủ sẽ load lại toàn bộ feed mỗi lần bấm tim.
     } catch (e) {
       if (!mounted) {
         return;
@@ -602,14 +615,14 @@ class _PostCardState extends State<PostCard> {
                 : null,
             child: avatarUrl.isEmpty
                 ? Text(
-              widget.post.tenNguoiDang.isEmpty
-                  ? '?'
-                  : widget.post.tenNguoiDang[0].toUpperCase(),
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w800,
-              ),
-            )
+                    widget.post.tenNguoiDang.isEmpty
+                        ? '?'
+                        : widget.post.tenNguoiDang[0].toUpperCase(),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  )
                 : null,
           ),
         ),
@@ -757,14 +770,14 @@ class _PostCardState extends State<PostCard> {
         children: widget.post.danhSachHashTag
             .map(
               (tag) => Text(
-            '#$tag',
-            style: const TextStyle(
-              color: _mauXanh,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        )
+                '#$tag',
+                style: const TextStyle(
+                  color: _mauXanh,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            )
             .toList(),
       ),
     );

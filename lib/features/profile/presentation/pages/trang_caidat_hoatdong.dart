@@ -100,7 +100,7 @@ class _TrangCaiDatHoatDongPageState extends State<TrangCaiDatHoatDongPage> {
       Navigator.pushNamedAndRemoveUntil(
         context,
         AppRoutes.start,
-            (route) => false,
+        (route) => false,
       );
     } catch (e) {
       if (!mounted) {
@@ -180,9 +180,24 @@ class _TrangCaiDatHoatDongPageState extends State<TrangCaiDatHoatDongPage> {
             _item(
               icon: Icons.archive_outlined,
               title: 'Kho lưu trữ',
+
+              // NOTE SỬA LƯU TRỮ:
+              // Nếu Kho lưu trữ trả về true sau khi khôi phục bài,
+              // màn Cài đặt cũng pop true về Trang cá nhân để Trang cá nhân reload.
               onTap: _loggingOut
                   ? null
-                  : () => Navigator.pushNamed(context, AppRoutes.archive),
+                  : () async {
+                      final changed = await Navigator.pushNamed(
+                        context,
+                        AppRoutes.archive,
+                      );
+
+                      if (!mounted) return;
+
+                      if (changed == true) {
+                        Navigator.pop(context, true);
+                      }
+                    },
             ),
             _item(
               icon: Icons.history_rounded,
@@ -346,7 +361,7 @@ class _ChangePasswordSheetState extends State<_ChangePasswordSheet> {
   final TextEditingController _oldPasswordController = TextEditingController();
   final TextEditingController _newPasswordController = TextEditingController();
   final TextEditingController _confirmPasswordController =
-  TextEditingController();
+      TextEditingController();
 
   bool _showOldPassword = false;
   bool _showNewPassword = false;
@@ -505,8 +520,9 @@ class _ChangePasswordSheetState extends State<_ChangePasswordSheet> {
                 onPressed: _changingPassword ? null : _submit,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF4AA8FF),
-                  disabledBackgroundColor:
-                  const Color(0xFF4AA8FF).withValues(alpha: 0.55),
+                  disabledBackgroundColor: const Color(
+                    0xFF4AA8FF,
+                  ).withValues(alpha: 0.55),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(26),
                   ),
@@ -514,21 +530,21 @@ class _ChangePasswordSheetState extends State<_ChangePasswordSheet> {
                 ),
                 child: _changingPassword
                     ? const SizedBox(
-                  width: 21,
-                  height: 21,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2.2,
-                    color: Colors.white,
-                  ),
-                )
+                        width: 21,
+                        height: 21,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.2,
+                          color: Colors.white,
+                        ),
+                      )
                     : const Text(
-                  'Cập nhật mật khẩu',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
+                        'Cập nhật mật khẩu',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
               ),
             ),
           ],
