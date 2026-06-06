@@ -105,8 +105,8 @@ class MessageService {
       final otherProfileId = otherProfile['id']?.toString() ?? '';
       final isMutual = await _isMutualFollow(user.id, otherProfileId);
       final iSentFirst = await _didISendFirst(conversationId, user.id);
-      final isWaiting = !isMutual && !iSentFirst;
-
+      final iAmFollowingThem = await _isFollowing(user.id, otherProfileId);
+      final isWaiting = !isMutual && !iSentFirst && !iAmFollowingThem;
       if (isWaiting != waiting) continue;
 
       final lastMessage = await _loadLastMessage(
