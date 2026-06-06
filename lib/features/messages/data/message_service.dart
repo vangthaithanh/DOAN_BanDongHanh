@@ -104,7 +104,8 @@ class MessageService {
 
       final otherProfileId = otherProfile['id']?.toString() ?? '';
       final isMutual = await _isMutualFollow(user.id, otherProfileId);
-      final isWaiting = !isMutual;
+      final iSentFirst = await _didISendFirst(conversationId, user.id);
+      final isWaiting = !isMutual && !iSentFirst;
 
       if (isWaiting != waiting) continue;
 
@@ -150,7 +151,20 @@ class MessageService {
         .where((p) => !_deletedConversationIds.contains(p.conversationId))
         .toList();
   }
-
+  Future<bool> _didISendFirst(int conversationId, String userId) async {
+    try {
+      final firstMessage = await _client
+          .from('messages')
+          .select('sender_profile_id')
+          .eq('conversation_id', conversationId)
+          .order('sent_at', ascending: true)
+          .limit(1)
+          .maybeSingle();
+      return firstMessage?['sender_profile_id']?.toString() == userId;
+    } catch (_) {
+      return false;
+    }
+  }
   Future<int> countUnreadNormal() async {
     try {
       final conversations = await loadConversations(waiting: false);

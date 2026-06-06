@@ -719,7 +719,7 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
                         'name': data.profile.displayName,
                         'otherProfileId': data.profile.id,
                         'avatarUrl': data.profile.avatarUrl,
-                        'isWaiting': !data.isFollowing,
+                        'isWaiting': false,
                       },
                     );
                   },
