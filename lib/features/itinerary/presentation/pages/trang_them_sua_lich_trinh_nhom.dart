@@ -227,33 +227,49 @@ class _TrangThemSuaLichTrinhNhomPageState
 
   Future<void> _editStopNote(int index) async {
     final stop = _stops[index];
-    final controller = TextEditingController(text: stop.note);
+    var draftNote = stop.note;
 
     final note = await showDialog<String>(
       context: context,
-      builder: (context) {
+      builder: (dialogContext) {
         return AlertDialog(
           backgroundColor: const Color(0xFF202020),
           title: Text(
             'Ghi chú điểm đến',
             style: _text(size: 18, weight: FontWeight.w800),
           ),
-          content: TextField(
-            controller: controller,
+          content: TextFormField(
+            initialValue: draftNote,
+            onChanged: (value) => draftNote = value,
             maxLines: 3,
             style: _text(),
-            decoration: _decoration(
-              'Ghi chú',
-              hint: 'Ví dụ: tập trung ở cổng chính',
+            decoration: InputDecoration(
+              labelText: 'Ghi chú',
+              hintText: 'Ví dụ: tập trung ở cổng chính',
+              labelStyle: _text(color: Colors.white60),
+              hintStyle: _text(color: Colors.white30),
+              filled: true,
+              fillColor: fieldGrey,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide.none,
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(color: blue, width: 1.2),
+              ),
             ),
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: () => Navigator.of(dialogContext).pop(),
               child: const Text('Hủy'),
             ),
             TextButton(
-              onPressed: () => Navigator.pop(context, controller.text.trim()),
+              onPressed: () {
+                FocusManager.instance.primaryFocus?.unfocus();
+                Navigator.of(dialogContext).pop(draftNote.trim());
+              },
               child: const Text('Lưu'),
             ),
           ],
@@ -261,12 +277,10 @@ class _TrangThemSuaLichTrinhNhomPageState
       },
     );
 
-    controller.dispose();
-
-    if (note == null) return;
+    if (!mounted || note == null || index >= _stops.length) return;
 
     setState(() {
-      _stops[index] = stop.copyWith(note: note);
+      _stops[index] = _stops[index].copyWith(note: note);
     });
   }
 

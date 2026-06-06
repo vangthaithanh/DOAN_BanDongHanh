@@ -21,10 +21,9 @@ class _NotifGroup {
   String get _firstName =>
       items.first.title.trim().isNotEmpty ? items.first.title.trim() : 'Ai đó';
 
-  String get _secondName =>
-      items.length > 1 && items[1].title.trim().isNotEmpty
-          ? items[1].title.trim()
-          : '';
+  String get _secondName => items.length > 1 && items[1].title.trim().isNotEmpty
+      ? items[1].title.trim()
+      : '';
 
   String get _actionText {
     switch (type) {
@@ -47,6 +46,10 @@ class _NotifGroup {
         return items.first.content.isNotEmpty
             ? items.first.content
             : 'nhắc lịch trình của bạn';
+      case 'group_itinerary_reminder':
+        return items.first.content.isNotEmpty
+            ? items.first.content
+            : 'nhắc lịch trình nhóm của bạn';
       default:
         return items.first.content;
     }
@@ -78,6 +81,7 @@ class _NotifGroup {
       case 'place_share':
         return LucideIcons.mapPin;
       case 'itinerary_reminder':
+      case 'group_itinerary_reminder':
         return Icons.event_available_rounded;
       default:
         return LucideIcons.bell;
@@ -97,6 +101,7 @@ class _NotifGroup {
       case 'place_share':
         return const Color(0xFF4AA8FF);
       case 'itinerary_reminder':
+      case 'group_itinerary_reminder':
         return Colors.amberAccent;
       default:
         return Colors.white70;
@@ -109,10 +114,12 @@ List<_NotifGroup> _groupNotifications(List<NotificationItem> items) {
   for (final item in items) {
     // like/comment: group theo từng bài viết riêng (type_postId)
     // các loại khác: group theo type
-    final shouldGroupByReference = item.type == 'like' ||
+    final shouldGroupByReference =
+        item.type == 'like' ||
         item.type == 'comment' ||
         item.type == 'place_share' ||
-        item.type == 'itinerary_reminder';
+        item.type == 'itinerary_reminder' ||
+        item.type == 'group_itinerary_reminder';
 
     final key = shouldGroupByReference
         ? '${item.type}_${item.referenceId ?? 0}'
@@ -128,9 +135,10 @@ List<_NotifGroup> _groupNotifications(List<NotificationItem> items) {
       return seen.add(actorKey);
     }).toList();
     return _NotifGroup(e.value.first.type, deduped);
-  }).toList()
-    ..sort((a, b) =>
-        (b.latestTime ?? DateTime(0)).compareTo(a.latestTime ?? DateTime(0)));
+  }).toList()..sort(
+    (a, b) =>
+        (b.latestTime ?? DateTime(0)).compareTo(a.latestTime ?? DateTime(0)),
+  );
 }
 
 // ---------- page ----------
@@ -181,9 +189,10 @@ class _TrangThongBaoPageState extends State<TrangThongBaoPage> {
                   if (snapshot.hasError) {
                     return _emptyState(
                       title: 'Không tải được thông báo',
-                      message: snapshot.error
-                          .toString()
-                          .replaceFirst('Exception: ', ''),
+                      message: snapshot.error.toString().replaceFirst(
+                        'Exception: ',
+                        '',
+                      ),
                       actionText: 'Tải lại',
                       onAction: _reload,
                     );
@@ -296,8 +305,7 @@ class _TrangThongBaoPageState extends State<TrangThongBaoPage> {
 
         switch (group.type) {
           case 'follow':
-            final userId =
-                Supabase.instance.client.auth.currentUser?.id ?? '';
+            final userId = Supabase.instance.client.auth.currentUser?.id ?? '';
             Navigator.pushNamed(
               context,
               AppRoutes.profileConnections,
@@ -352,6 +360,16 @@ class _TrangThongBaoPageState extends State<TrangThongBaoPage> {
             } else {
               Navigator.pushNamed(context, AppRoutes.tripList);
             }
+          case 'group_itinerary_reminder':
+            if ((group.latestReferenceId ?? 0) > 0) {
+              Navigator.pushNamed(
+                context,
+                AppRoutes.groupTripDetail,
+                arguments: {'tripId': group.latestReferenceId},
+              );
+            } else {
+              Navigator.pushNamed(context, AppRoutes.tripList);
+            }
           default:
             _reload();
         }
@@ -385,12 +403,13 @@ class _TrangThongBaoPageState extends State<TrangThongBaoPage> {
                     bottom: -4,
                     child: Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 5, vertical: 2),
+                        horizontal: 5,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color(0xFF1C1C1E),
                         borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                            color: Colors.white12, width: 1),
+                        border: Border.all(color: Colors.white12, width: 1),
                       ),
                       child: Text(
                         '${group.items.length}',

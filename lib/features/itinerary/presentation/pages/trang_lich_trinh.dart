@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../app/routes/app_routes.dart';
+import '../../data/services/lich_trinh_nhom_service.dart';
 import '../../data/services/lich_trinh_service.dart';
 
 class TrangLichTrinhPage extends StatefulWidget {
@@ -16,22 +17,56 @@ class _TrangLichTrinhPageState extends State<TrangLichTrinhPage> {
   static const Color lineGrey = Color(0xFF242424);
 
   final LichTrinhService _service = LichTrinhService();
+  final LichTrinhNhomService _groupService = LichTrinhNhomService();
 
-  late Future<List<LichTrinh>> _future;
+  late Future<List<_LichTrinhListItem>> _future;
+  bool _hasChanges = false;
 
   @override
   void initState() {
     super.initState();
     _load();
     _service.kiemTraLichTrinhDangGhimBangGps();
+    _groupService.kiemTraLichTrinhNhomDangGhim();
   }
 
   void _load() {
-    _future = _service.layLichTrinhCuaToi();
+    _future = _loadAllPlans();
   }
 
   void _reload() {
     setState(_load);
+  }
+
+  void _markChangedAndReload() {
+    setState(() {
+      _hasChanges = true;
+      _load();
+    });
+  }
+
+  void _close() {
+    Navigator.pop(context, _hasChanges);
+  }
+
+  Future<List<_LichTrinhListItem>> _loadAllPlans() async {
+    final personalFuture = _service.layLichTrinhCuaToi();
+    final groupFuture = _groupService.layDanhSachLichTrinhCuaToi();
+
+    final personalPlans = await personalFuture;
+    final groupPlans = await groupFuture;
+
+    final items = <_LichTrinhListItem>[
+      ...personalPlans.map(_LichTrinhListItem.personal),
+      ...groupPlans.map(_LichTrinhListItem.group),
+    ];
+
+    items.sort((a, b) {
+      if (a.pinned != b.pinned) return a.pinned ? -1 : 1;
+      return b.sortTime.compareTo(a.sortTime);
+    });
+
+    return items;
   }
 
   TextStyle _text({
@@ -53,18 +88,20 @@ class _TrangLichTrinhPageState extends State<TrangLichTrinhPage> {
     if (!mounted) return;
 
     if (changed == true) {
-      _reload();
+      _markChangedAndReload();
     }
   }
 
-  Future<void> _openGroupTrips() async {
-    final changed = await Navigator.pushNamed(context, AppRoutes.groupTripList);
+  Future<void> _openCreateGroup() async {
+    final changed = await Navigator.pushNamed(
+      context,
+      AppRoutes.groupTripCreate,
+    );
 
     if (!mounted) return;
 
     if (changed == true) {
-      _reload();
-      Navigator.pop(context, true);
+      _markChangedAndReload();
     }
   }
 
@@ -78,8 +115,22 @@ class _TrangLichTrinhPageState extends State<TrangLichTrinhPage> {
     if (!mounted) return;
 
     if (changed == true) {
-      _reload();
+      _hasChanges = true;
       Navigator.pop(context, true);
+    }
+  }
+
+  Future<void> _openGroupDetail(int tripId) async {
+    final changed = await Navigator.pushNamed(
+      context,
+      AppRoutes.groupTripDetail,
+      arguments: {'tripId': tripId},
+    );
+
+    if (!mounted) return;
+
+    if (changed == true) {
+      _markChangedAndReload();
     }
   }
 
@@ -89,9 +140,10 @@ class _TrangLichTrinhPageState extends State<TrangLichTrinhPage> {
         itineraryId: plan.id,
         pinned: !plan.pinned,
       );
-      _reload();
 
       if (!mounted) return;
+
+      _markChangedAndReload();
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -99,6 +151,31 @@ class _TrangLichTrinhPageState extends State<TrangLichTrinhPage> {
             plan.pinned
                 ? 'Đã bỏ ghim lịch trình.'
                 : 'Đã ghim lịch trình. GoMate sẽ kiểm tra GPS khi app đang mở.',
+          ),
+        ),
+      );
+    } catch (e) {
+      _showError(e);
+    }
+  }
+
+  Future<void> _togglePinGroup(TripGroup group) async {
+    try {
+      await _groupService.doiTrangThaiGhimNhom(
+        tripId: group.id,
+        pinned: !group.pinned,
+      );
+
+      if (!mounted) return;
+
+      _markChangedAndReload();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            group.pinned
+                ? 'Đã bỏ ghim lịch trình nhóm.'
+                : 'Đã ghim lịch trình nhóm. GoMate sẽ nhắc giờ khi app đang mở.',
           ),
         ),
       );
@@ -139,10 +216,10 @@ class _TrangLichTrinhPageState extends State<TrangLichTrinhPage> {
 
     try {
       await _service.xoaLichTrinh(plan.id);
-      _reload();
 
       if (!mounted) return;
 
+      _hasChanges = true;
       Navigator.pop(context, true);
     } catch (e) {
       _showError(e);
@@ -159,41 +236,80 @@ class _TrangLichTrinhPageState extends State<TrangLichTrinhPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      bottomNavigationBar: SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(34, 12, 34, 20),
-          child: SizedBox(
-            height: 48,
-            child: ElevatedButton(
-              onPressed: _openCreate,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: blue,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(999),
+    // ignore: deprecated_member_use
+    return WillPopScope(
+      onWillPop: () async {
+        _close();
+        return false;
+      },
+      child: Scaffold(
+        backgroundColor: Colors.black,
+        bottomNavigationBar: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(22, 12, 22, 20),
+            child: Row(
+              children: [
+                Expanded(
+                  child: SizedBox(
+                    height: 48,
+                    child: OutlinedButton.icon(
+                      onPressed: _openCreateGroup,
+                      icon: const Icon(Icons.groups_rounded, size: 18),
+                      label: Text(
+                        'Tạo nhóm',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: _text(size: 14, weight: FontWeight.w800),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        side: const BorderSide(color: blue),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
-              ),
-              child: Text(
-                'Thêm lịch trình mới',
-                style: _text(size: 16, weight: FontWeight.w800),
-              ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: SizedBox(
+                    height: 48,
+                    child: ElevatedButton.icon(
+                      onPressed: _openCreate,
+                      icon: const Icon(Icons.event_note_outlined, size: 18),
+                      label: Text(
+                        'Tạo cá nhân',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: _text(size: 14, weight: FontWeight.w800),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: blue,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ),
-      ),
-      body: SafeArea(
-        child: FutureBuilder<List<LichTrinh>>(
-          future: _future,
-          builder: (context, snapshot) {
-            return Column(
-              children: [
-                _topBar(),
-                Expanded(child: _body(snapshot)),
-              ],
-            );
-          },
+        body: SafeArea(
+          child: FutureBuilder<List<_LichTrinhListItem>>(
+            future: _future,
+            builder: (context, snapshot) {
+              return Column(
+                children: [
+                  _topBar(),
+                  Expanded(child: _body(snapshot)),
+                ],
+              );
+            },
+          ),
         ),
       ),
     );
@@ -205,7 +321,7 @@ class _TrangLichTrinhPageState extends State<TrangLichTrinhPage> {
       child: Row(
         children: [
           InkWell(
-            onTap: () => Navigator.pop(context),
+            onTap: _close,
             borderRadius: BorderRadius.circular(18),
             child: Container(
               width: 32,
@@ -224,25 +340,13 @@ class _TrangLichTrinhPageState extends State<TrangLichTrinhPage> {
               style: _text(size: 22, weight: FontWeight.w800),
             ),
           ),
-          InkWell(
-            onTap: _openGroupTrips,
-            borderRadius: BorderRadius.circular(18),
-            child: Container(
-              width: 34,
-              height: 34,
-              decoration: const BoxDecoration(
-                color: darkGrey,
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.groups_rounded, color: blue, size: 20),
-            ),
-          ),
+          const SizedBox(width: 32),
         ],
       ),
     );
   }
 
-  Widget _body(AsyncSnapshot<List<LichTrinh>> snapshot) {
+  Widget _body(AsyncSnapshot<List<_LichTrinhListItem>> snapshot) {
     if (snapshot.connectionState == ConnectionState.waiting) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -293,7 +397,125 @@ class _TrangLichTrinhPageState extends State<TrangLichTrinhPage> {
     );
   }
 
-  Widget _planTile(LichTrinh plan) {
+  Widget _planTile(_LichTrinhListItem item) {
+    if (item.isGroup) {
+      final group = item.group!;
+      final isOwner = group.ownerId == _groupService.currentUserId;
+
+      return InkWell(
+        onTap: () => _openGroupDetail(group.id),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(28, 20, 20, 18),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: const BoxDecoration(
+                  color: Color(0xFF183B59),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.groups_rounded, color: blue),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            group.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: _text(size: 22, weight: FontWeight.w800),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        _typeBadge('Nhóm'),
+                        if (group.pinned) ...[
+                          const SizedBox(width: 8),
+                          const Icon(Icons.push_pin, color: blue, size: 18),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      group.dateText,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: _text(
+                        size: 15,
+                        weight: FontWeight.w700,
+                        color: Colors.white60,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '${group.memberCount} thành viên • ${group.stopCount} điểm đến',
+                      style: _text(size: 13, color: Colors.white54),
+                    ),
+                  ],
+                ),
+              ),
+              PopupMenuButton<String>(
+                color: const Color(0xFF2B2B2B),
+                icon: Icon(
+                  group.pinned ? Icons.push_pin : Icons.more_horiz,
+                  color: group.pinned ? blue : Colors.white60,
+                ),
+                onSelected: (value) {
+                  if (value == 'pin') {
+                    _togglePinGroup(group);
+                  } else if (value == 'open') {
+                    _openGroupDetail(group.id);
+                  } else if (value == 'edit') {
+                    Navigator.pushNamed(
+                      context,
+                      AppRoutes.groupTripCreate,
+                      arguments: {'tripId': group.id},
+                    ).then((changed) {
+                      if (mounted && changed == true) {
+                        _markChangedAndReload();
+                      }
+                    });
+                  }
+                },
+                itemBuilder: (context) => [
+                  PopupMenuItem(
+                    value: 'pin',
+                    child: Text(
+                      group.pinned ? 'Bỏ ghim' : 'Ghim lịch trình',
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'open',
+                    child: Text(
+                      'Xem lịch trình',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                  ),
+                  if (isOwner)
+                    const PopupMenuItem(
+                      value: 'edit',
+                      child: Text(
+                        'Sửa lịch trình',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final plan = item.personal!;
+
     return InkWell(
       onTap: () => _openEdit(plan.id),
       child: Padding(
@@ -385,5 +607,48 @@ class _TrangLichTrinhPageState extends State<TrangLichTrinhPage> {
         ),
       ),
     );
+  }
+
+  Widget _typeBadge(String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: const Color(0xFF183B59),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        text,
+        style: _text(size: 10, weight: FontWeight.w800, color: blue),
+      ),
+    );
+  }
+}
+
+class _LichTrinhListItem {
+  final LichTrinh? personal;
+  final TripGroup? group;
+
+  const _LichTrinhListItem._({this.personal, this.group});
+
+  factory _LichTrinhListItem.personal(LichTrinh plan) {
+    return _LichTrinhListItem._(personal: plan);
+  }
+
+  factory _LichTrinhListItem.group(TripGroup group) {
+    return _LichTrinhListItem._(group: group);
+  }
+
+  bool get isGroup => group != null;
+
+  bool get pinned => personal?.pinned == true || group?.pinned == true;
+
+  DateTime get sortTime {
+    final personalTime =
+        personal?.actualStartTime ?? personal?.startDate ?? personal?.endDate;
+    if (personalTime != null) return personalTime;
+    return group?.actualStartTime ??
+        group?.createdAt ??
+        group?.startDate ??
+        DateTime(1970);
   }
 }

@@ -39,6 +39,8 @@ class TripGroup {
   final DateTime? endDate;
   final String status;
   final DateTime? createdAt;
+  final bool pinned;
+  final DateTime? actualStartTime;
   final int memberCount;
   final int stopCount;
 
@@ -51,6 +53,8 @@ class TripGroup {
     required this.endDate,
     required this.status,
     required this.createdAt,
+    required this.pinned,
+    required this.actualStartTime,
     required this.memberCount,
     required this.stopCount,
   });
@@ -59,6 +63,8 @@ class TripGroup {
     Map<String, dynamic> map, {
     int memberCount = 0,
     int stopCount = 0,
+    bool pinned = false,
+    DateTime? actualStartTime,
   }) {
     final members = map['trip_members'];
     final stops = map['trip_stops'];
@@ -72,6 +78,8 @@ class TripGroup {
       endDate: _asDate(map['end_date']),
       status: map['status']?.toString() ?? 'active',
       createdAt: _asDateTime(map['created_at']),
+      pinned: pinned || map['pinned'] == true,
+      actualStartTime: actualStartTime ?? _asDateTime(map['actual_start_time']),
       memberCount: members is List
           ? members
                 .where(
@@ -113,6 +121,8 @@ class TripMember {
   final String userId;
   final String role;
   final String status;
+  final bool pinned;
+  final DateTime? actualStartTime;
   final String name;
   final String? avatarUrl;
 
@@ -122,6 +132,8 @@ class TripMember {
     required this.userId,
     required this.role,
     required this.status,
+    required this.pinned,
+    required this.actualStartTime,
     required this.name,
     this.avatarUrl,
   });
@@ -137,6 +149,8 @@ class TripMember {
       userId: map['user_id']?.toString() ?? '',
       role: map['role']?.toString() ?? 'member',
       status: map['status']?.toString() ?? 'active',
+      pinned: map['pinned'] == true,
+      actualStartTime: _asDateTime(map['actual_start_time']),
       name: profile.isEmpty ? 'Thành viên' : _profileDisplayName(profile),
       avatarUrl: _emptyToNull(profile['avatar_url']),
     );
@@ -149,6 +163,8 @@ class TripMember {
       userId: userId,
       role: role,
       status: status,
+      pinned: pinned,
+      actualStartTime: actualStartTime,
       name: _profileDisplayName(profile),
       avatarUrl: _emptyToNull(profile['avatar_url']),
     );
@@ -196,7 +212,7 @@ class TripStop {
       latitude: _asDouble(map['latitude']),
       longitude: _asDouble(map['longitude']),
       address: map['address']?.toString() ?? '',
-      arriveAt: _asDateTime(map['arrive_at']) ?? DateTime.now(),
+      arriveAt: _asScheduleDateTime(map['arrive_at']) ?? DateTime.now(),
       checkRadiusM: _asInt(map['check_radius_m'], fallback: 300),
       sortOrder: _asInt(map['sort_order']),
       status: map['status']?.toString() ?? 'active',
@@ -204,11 +220,10 @@ class TripStop {
   }
 
   String get timeText {
-    final local = arriveAt.toLocal();
-    final hour = local.hour.toString().padLeft(2, '0');
-    final minute = local.minute.toString().padLeft(2, '0');
+    final hour = arriveAt.hour.toString().padLeft(2, '0');
+    final minute = arriveAt.minute.toString().padLeft(2, '0');
 
-    return '${local.day}/${local.month}/${local.year} $hour:$minute';
+    return '${arriveAt.day}/${arriveAt.month}/${arriveAt.year} $hour:$minute';
   }
 }
 
@@ -386,15 +401,24 @@ class LichTrinhNhomService {
 
     final memberRows = await _client
         .from('trip_members')
-        .select('trip_id')
+        .select('trip_id, pinned, actual_start_time')
         .eq('user_id', user.id)
         .eq('status', 'active');
 
-    final tripIds = List<Map<String, dynamic>>.from(memberRows)
+    final memberMaps = List<Map<String, dynamic>>.from(memberRows);
+    final tripIds = memberMaps
         .map((row) => _asInt(row['trip_id']))
         .where((id) => id > 0)
         .toSet()
         .toList();
+    final pinnedByTrip = {
+      for (final row in memberMaps)
+        _asInt(row['trip_id']): row['pinned'] == true,
+    };
+    final actualStartByTrip = {
+      for (final row in memberMaps)
+        _asInt(row['trip_id']): _asDateTime(row['actual_start_time']),
+    };
 
     if (tripIds.isEmpty) return [];
 
@@ -416,9 +440,15 @@ class LichTrinhNhomService {
         .neq('status', 'deleted')
         .order('created_at', ascending: false);
 
-    return List<Map<String, dynamic>>.from(
-      rows,
-    ).map(TripGroup.fromMap).toList();
+    return List<Map<String, dynamic>>.from(rows)
+        .map(
+          (row) => TripGroup.fromMap(
+            row,
+            pinned: pinnedByTrip[_asInt(row['id'])] == true,
+            actualStartTime: actualStartByTrip[_asInt(row['id'])],
+          ),
+        )
+        .toList();
   }
 
   Future<TripGroupDetail> layChiTietLichTrinhNhom(int tripId) async {
@@ -453,6 +483,9 @@ class LichTrinhNhomService {
         Map<String, dynamic>.from(groupRow),
         memberCount: members.length,
         stopCount: stops.length,
+        pinned: members.any(
+          (member) => member.userId == userIdOrEmpty && member.pinned,
+        ),
       ),
       members: members,
       stops: stops,
@@ -460,6 +493,8 @@ class LichTrinhNhomService {
       locations: locations,
     );
   }
+
+  String get userIdOrEmpty => _user?.id ?? '';
 
   Future<List<TripGroupFriend>> layDanhSachBanBe() async {
     final user = _user;
@@ -616,6 +651,29 @@ class LichTrinhNhomService {
         .eq('owner_id', user.id);
   }
 
+  Future<void> doiTrangThaiGhimNhom({
+    required int tripId,
+    required bool pinned,
+  }) async {
+    final user = _user;
+    if (user == null) {
+      throw Exception('Bạn cần đăng nhập để ghim lịch trình nhóm.');
+    }
+
+    await _client.rpc(
+      'set_my_group_trip_pin',
+      params: {'p_trip_id': tripId, 'p_pinned': pinned},
+    );
+  }
+
+  Future<void> kiemTraLichTrinhNhomDangGhim() async {
+    final user = _user;
+    if (user == null) return;
+
+    await capNhatViTriHienTai(silent: true);
+    await _guiNhacNhoNhomNeuDenGio(user.id);
+  }
+
   Future<Position?> capNhatViTriHienTai({bool silent = false}) async {
     final user = _user;
     if (user == null) {
@@ -766,6 +824,8 @@ class LichTrinhNhomService {
             user_id,
             role,
             status,
+            pinned,
+            actual_start_time,
             profiles(id, nickname, full_name, email, avatar_url)
           ''')
           .eq('trip_id', tripId)
@@ -779,7 +839,9 @@ class LichTrinhNhomService {
     } catch (_) {
       final rows = await _client
           .from('trip_members')
-          .select('id, trip_id, user_id, role, status, created_at')
+          .select(
+            'id, trip_id, user_id, role, status, pinned, actual_start_time, created_at',
+          )
           .eq('trip_id', tripId)
           .eq('status', 'active')
           .order('role', ascending: false)
@@ -895,6 +957,85 @@ class LichTrinhNhomService {
     }
   }
 
+  Future<void> _guiNhacNhoNhomNeuDenGio(String userId) async {
+    final pinnedRows = await _client
+        .from('trip_members')
+        .select('trip_id')
+        .eq('user_id', userId)
+        .eq('status', 'active')
+        .eq('pinned', true);
+
+    final tripIds = List<Map<String, dynamic>>.from(pinnedRows)
+        .map((row) => _asInt(row['trip_id']))
+        .where((id) => id > 0)
+        .toSet()
+        .toList();
+
+    if (tripIds.isEmpty) return;
+
+    final now = DateTime.now();
+    final remindUntil = now.add(const Duration(minutes: 45));
+    final keepUntil = now.subtract(const Duration(hours: 6));
+
+    final rows = await _client
+        .from('trip_stops')
+        .select('''
+          id,
+          trip_id,
+          place_id,
+          title,
+          arrive_at,
+          status,
+          trip_groups(id, title, status)
+        ''')
+        .inFilter('trip_id', tripIds)
+        .neq('status', 'deleted')
+        .lte('arrive_at', remindUntil.toIso8601String())
+        .gte('arrive_at', keepUntil.toIso8601String())
+        .order('arrive_at', ascending: true)
+        .limit(30);
+
+    for (final raw in rows as List) {
+      final row = Map<String, dynamic>.from(raw as Map);
+      final stopId = _asInt(row['id']);
+      final tripId = _asInt(row['trip_id']);
+      if (stopId <= 0 || tripId <= 0) continue;
+
+      final existing = await _client
+          .from('trip_stop_reminders')
+          .select('id')
+          .eq('trip_stop_id', stopId)
+          .eq('user_id', userId)
+          .maybeSingle();
+
+      if (existing != null) continue;
+
+      final placeName = row['title']?.toString().trim().isNotEmpty == true
+          ? row['title'].toString().trim()
+          : 'địa điểm';
+
+      await _client.from('notifications').insert({
+        'profile_id': userId,
+        'notification_type': 'group_itinerary_reminder',
+        'title': 'Sắp đến giờ đi $placeName',
+        'content':
+            'GoMate nhắc bạn chuẩn bị di chuyển đến $placeName trong lịch trình nhóm.',
+        'reference_id': tripId,
+        'place_id': row['place_id'],
+        'is_read': false,
+      });
+
+      await _client.from('trip_stop_reminders').upsert({
+        'trip_stop_id': stopId,
+        'trip_id': tripId,
+        'user_id': userId,
+        'remind_time': now.toIso8601String(),
+        'status': 'sent',
+        'sent_at': now.toIso8601String(),
+      }, onConflict: 'trip_stop_id,user_id');
+    }
+  }
+
   void _validateDraft({
     required String title,
     required List<TripGroupDraftStop> stops,
@@ -977,4 +1118,21 @@ DateTime? _asDateTime(dynamic value) {
   final text = value?.toString();
   if (text == null || text.trim().isEmpty) return null;
   return DateTime.tryParse(text)?.toLocal();
+}
+
+DateTime? _asScheduleDateTime(dynamic value) {
+  final text = value?.toString();
+  if (text == null || text.trim().isEmpty) return null;
+
+  final parsed = DateTime.tryParse(text);
+  if (parsed == null) return null;
+
+  return DateTime(
+    parsed.year,
+    parsed.month,
+    parsed.day,
+    parsed.hour,
+    parsed.minute,
+    parsed.second,
+  );
 }

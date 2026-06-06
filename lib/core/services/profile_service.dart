@@ -10,6 +10,7 @@ import '../../features/social/data/models/post_model.dart';
 /// posts: profile_id
 /// itineraries: profile_id
 /// itinerary_items: itinerary_id
+/// trip_groups/trip_members/trip_stops: lịch trình nhóm
 class MyProfile {
   final String id;
   final String nickname;
@@ -97,6 +98,9 @@ class ProfilePlanGroupData {
   final String name;
   final String routeText;
   final bool pinned;
+  final bool isGroup;
+  final String ownerId;
+  final DateTime? sortTime;
   final List<ProfilePlanItemData> items;
 
   const ProfilePlanGroupData({
@@ -104,6 +108,9 @@ class ProfilePlanGroupData {
     required this.name,
     required this.routeText,
     required this.pinned,
+    this.isGroup = false,
+    this.ownerId = '',
+    this.sortTime,
     required this.items,
   });
 }
@@ -358,6 +365,27 @@ class ProfileService {
   }
 
   Future<List<ProfilePlanGroupData>> _loadPlans(String userId) async {
+    final personalPlans = await _loadPersonalPlans(userId);
+    final groupPlans = await _loadGroupPlans(userId);
+    final plans = [...personalPlans, ...groupPlans];
+
+    plans.sort((a, b) {
+      if (a.pinned != b.pinned) return a.pinned ? -1 : 1;
+
+      final aTime = a.sortTime;
+      final bTime = b.sortTime;
+
+      if (aTime == null && bTime == null) return 0;
+      if (aTime == null) return 1;
+      if (bTime == null) return -1;
+
+      return bTime.compareTo(aTime);
+    });
+
+    return plans;
+  }
+
+  Future<List<ProfilePlanGroupData>> _loadPersonalPlans(String userId) async {
     try {
       final planRows = await _client
           .from('itineraries')
@@ -365,7 +393,7 @@ class ProfileService {
           .eq('profile_id', userId)
           .order('pinned', ascending: false)
           .order('created_at', ascending: false)
-          .limit(10);
+          .limit(30);
 
       final plans = <ProfilePlanGroupData>[];
 
@@ -374,10 +402,7 @@ class ProfileService {
         final planId = plan['id']?.toString() ?? '';
         final pinned = plan['pinned'] == true;
 
-        final items = await _loadPlanItems(
-          itineraryId: planId,
-          pinned: pinned,
-        );
+        final items = await _loadPlanItems(itineraryId: planId, pinned: pinned);
 
         plans.add(
           ProfilePlanGroupData(
@@ -387,6 +412,75 @@ class ProfileService {
                 ? _firstText([plan['description']], fallback: 'Chưa có tuyến')
                 : items.take(3).map((item) => item.title).join(' - '),
             pinned: pinned,
+            isGroup: false,
+            sortTime: _parseDateTime(plan['created_at']),
+            items: items,
+          ),
+        );
+      }
+
+      return plans;
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<List<ProfilePlanGroupData>> _loadGroupPlans(String userId) async {
+    try {
+      final memberRows = await _client
+          .from('trip_members')
+          .select('trip_id, pinned, actual_start_time')
+          .eq('user_id', userId)
+          .eq('status', 'active');
+
+      final memberMaps = List<Map<String, dynamic>>.from(memberRows as List);
+      final tripIds = memberMaps
+          .map((row) => _asInt(row['trip_id']))
+          .where((id) => id > 0)
+          .toSet()
+          .toList();
+      final pinnedByTrip = {
+        for (final row in memberMaps)
+          _asInt(row['trip_id']): row['pinned'] == true,
+      };
+      final actualStartByTrip = {
+        for (final row in memberMaps)
+          _asInt(row['trip_id']): _parseDateTime(row['actual_start_time']),
+      };
+
+      if (tripIds.isEmpty) return [];
+
+      final groupRows = await _client
+          .from('trip_groups')
+          .select(
+            'id, owner_id, title, description, start_date, end_date, status, created_at',
+          )
+          .inFilter('id', tripIds)
+          .neq('status', 'deleted')
+          .order('created_at', ascending: false)
+          .limit(30);
+
+      final plans = <ProfilePlanGroupData>[];
+
+      for (final rawGroup in groupRows as List) {
+        final group = rawGroup as Map;
+        final groupId = group['id']?.toString() ?? '';
+        final items = await _loadGroupPlanItems(groupId);
+
+        plans.add(
+          ProfilePlanGroupData(
+            id: groupId,
+            name: _firstText([group['title']], fallback: 'Lịch trình nhóm'),
+            routeText: items.isEmpty
+                ? _firstText([group['description']], fallback: 'Chưa có tuyến')
+                : items.take(3).map((item) => item.title).join(' - '),
+            pinned: pinnedByTrip[_asInt(group['id'])] == true,
+            isGroup: true,
+            ownerId: group['owner_id']?.toString() ?? '',
+            sortTime:
+                actualStartByTrip[_asInt(group['id'])] ??
+                _parseDateTime(group['created_at']) ??
+                _parseDateTime(group['start_date']),
             items: items,
           ),
         );
@@ -422,6 +516,7 @@ class ProfileService {
       parsed.second,
     );
   }
+
   Future<List<ProfilePlanItemData>> _loadPlanItems({
     required String itineraryId,
     required bool pinned,
@@ -465,19 +560,18 @@ class ProfileService {
         final place = item['places'] is Map ? item['places'] as Map : {};
         final status = item['status']?.toString() ?? 'planned';
         final gpsConfirmed = item['gps_confirmed'] == true;
-        final plannedTime = _parseSupabaseTimeForDisplay(
-          item['planned_time'],
-        );
+        final plannedTime = _parseSupabaseTimeForDisplay(item['planned_time']);
 
         items.add(
           ProfilePlanItemData(
             id: item['id']?.toString() ?? '',
             placeId: _asInt(item['place_id']),
             title: _firstText([place['name']], fallback: 'Địa điểm'),
-            province: _firstText(
-              [place['province'], place['district'], place['address']],
-              fallback: 'Tỉnh thành',
-            ),
+            province: _firstText([
+              place['province'],
+              place['district'],
+              place['address'],
+            ], fallback: 'Tỉnh thành'),
             timeText: _formatPlanTime(plannedTime),
             dayText: _formatPlanDay(plannedTime),
             hourText: _formatPlanHour(plannedTime),
@@ -508,6 +602,63 @@ class ProfileService {
       });
 
       return items;
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<List<ProfilePlanItemData>> _loadGroupPlanItems(String tripId) async {
+    if (tripId.isEmpty) {
+      return [];
+    }
+
+    try {
+      final stopRows = await _client
+          .from('trip_stops')
+          .select('id, place_id, title, address, arrive_at, status, sort_order')
+          .eq('trip_id', tripId)
+          .neq('status', 'deleted')
+          .order('arrive_at', ascending: true)
+          .order('sort_order', ascending: true)
+          .limit(30);
+
+      final items = <ProfilePlanItemData>[];
+
+      for (final rawStop in stopRows as List) {
+        final stop = rawStop as Map;
+        final arriveAt = _parseSupabaseTimeForDisplay(stop['arrive_at']);
+        final status = stop['status']?.toString() ?? 'active';
+
+        items.add(
+          ProfilePlanItemData(
+            id: stop['id']?.toString() ?? '',
+            placeId: _asInt(stop['place_id']),
+            title: _firstText([stop['title']], fallback: 'Địa điểm'),
+            province: _firstText([stop['address']], fallback: 'Địa chỉ'),
+            timeText: _formatPlanTime(arriveAt),
+            dayText: _formatPlanDay(arriveAt),
+            hourText: _formatPlanHour(arriveAt),
+            actionText: '',
+            isActive: _isActiveItem(status),
+            canShowAction: false,
+            status: status,
+            gpsConfirmed: false,
+            plannedTime: arriveAt,
+            imageUrl: null,
+          ),
+        );
+      }
+
+      items.sort((a, b) {
+        final aTime = a.plannedTime;
+        final bTime = b.plannedTime;
+
+        if (aTime == null && bTime == null) return 0;
+        if (aTime == null) return 1;
+        if (bTime == null) return -1;
+
+        return aTime.compareTo(bTime);
+      });
 
       return items;
     } catch (_) {
@@ -519,6 +670,12 @@ class ProfileService {
     if (value is int) return value;
     if (value is num) return value.toInt();
     return int.tryParse(value?.toString() ?? '') ?? 0;
+  }
+
+  DateTime? _parseDateTime(dynamic value) {
+    final text = value?.toString();
+    if (text == null || text.trim().isEmpty) return null;
+    return DateTime.tryParse(text)?.toLocal();
   }
 
   String? _firstPlaceImage(dynamic rawMedia) {
@@ -541,15 +698,7 @@ class ProfileService {
   String _formatPlanDay(DateTime? dateTime) {
     if (dateTime == null) return '--';
 
-    const thu = {
-      1: 'T2',
-      2: 'T3',
-      3: 'T4',
-      4: 'T5',
-      5: 'T6',
-      6: 'T7',
-      7: 'CN',
-    };
+    const thu = {1: 'T2', 2: 'T3', 3: 'T4', 4: 'T5', 5: 'T6', 6: 'T7', 7: 'CN'};
 
     return '${thu[dateTime.weekday]}-${dateTime.day}';
   }
@@ -601,22 +750,6 @@ class ProfileService {
     }
 
     return fallback;
-  }
-
-  String _formatTime(String raw) {
-    if (raw.trim().isEmpty) {
-      return 'Chưa có thời gian';
-    }
-
-    try {
-      final dateTime = DateTime.parse(raw).toLocal();
-      final hour = dateTime.hour.toString().padLeft(2, '0');
-      final minute = dateTime.minute.toString().padLeft(2, '0');
-
-      return '${dateTime.day}/${dateTime.month}, $hour:$minute';
-    } catch (_) {
-      return raw;
-    }
   }
 
   bool _isActiveItem(dynamic status) {

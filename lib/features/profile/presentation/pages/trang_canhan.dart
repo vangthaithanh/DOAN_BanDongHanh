@@ -8,6 +8,7 @@ import '../../../users/data/block_service.dart';
 import '../../../../shared/navigation/app_bottom_nav.dart';
 import '../../../../shared/navigation/main_tab.dart';
 import '../../../social/presentation/widgets/post_card.dart';
+import '../../../itinerary/data/services/lich_trinh_nhom_service.dart';
 import '../../../itinerary/data/services/lich_trinh_service.dart';
 
 class TrangCaNhanPage extends StatefulWidget {
@@ -23,10 +24,10 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
   static const Color blue = Color(0xFF4AA8FF);
   static const Color divider = Color(0xFF242424);
   static const Color softGrey = Color(0xFF2D2D2D);
-  static const Color textGrey = Color(0xFFA9A9A9);
 
   final ProfileService _service = ProfileService();
   final LichTrinhService _lichTrinhService = LichTrinhService();
+  final LichTrinhNhomService _lichTrinhNhomService = LichTrinhNhomService();
 
   late Future<ProfilePageData> _future;
   bool _isActionLoading = false;
@@ -55,9 +56,11 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
       _loadData();
     });
   }
+
   Future<void> _kiemTraGpsLichTrinhDangGhim() async {
     try {
       await _lichTrinhService.kiemTraLichTrinhDangGhimBangGps();
+      await _lichTrinhNhomService.kiemTraLichTrinhNhomDangGhim();
 
       if (!mounted) return;
 
@@ -66,7 +69,48 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
       // Không chặn trang cá nhân nếu user chưa bật GPS/quyền vị trí.
     }
   }
+
   Future<void> _togglePinPlan(ProfilePlanGroupData plan) async {
+    if (plan.isGroup) {
+      final tripId = int.tryParse(plan.id);
+
+      if (tripId == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Không xác định được lịch trình nhóm.')),
+        );
+        return;
+      }
+
+      try {
+        await _lichTrinhNhomService.doiTrangThaiGhimNhom(
+          tripId: tripId,
+          pinned: !plan.pinned,
+        );
+
+        if (!mounted) return;
+
+        _reloadProfile();
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              plan.pinned
+                  ? 'Đã bỏ ghim lịch trình nhóm.'
+                  : 'Đã ghim lịch trình nhóm. GoMate sẽ nhắc giờ cho lịch trình này.',
+            ),
+          ),
+        );
+      } catch (e) {
+        if (!mounted) return;
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+        );
+      }
+
+      return;
+    }
+
     final planId = int.tryParse(plan.id);
 
     if (planId == null) {
@@ -99,11 +143,41 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(e.toString().replaceFirst('Exception: ', '')),
-        ),
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
       );
     }
+  }
+
+  Future<void> _openPlanDetail(ProfilePlanGroupData plan) async {
+    if (plan.isGroup) {
+      final tripId = int.tryParse(plan.id);
+      if (tripId == null) return;
+
+      await Navigator.pushNamed(
+        context,
+        AppRoutes.groupTripDetail,
+        arguments: {'tripId': tripId},
+      );
+
+      if (!mounted) return;
+
+      _reloadProfile();
+
+      return;
+    }
+
+    final itineraryId = int.tryParse(plan.id);
+    if (itineraryId == null) return;
+
+    await Navigator.pushNamed(
+      context,
+      AppRoutes.tripCreate,
+      arguments: {'itineraryId': itineraryId},
+    );
+
+    if (!mounted) return;
+
+    _reloadProfile();
   }
 
   Future<void> _handlePlanItemAction(ProfilePlanItemData item) async {
@@ -558,10 +632,7 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
                 child: _grayButton(
                   'Lịch trình',
                   onTap: () async {
-                    final changed = await Navigator.pushNamed(
-                      context,
-                      AppRoutes.tripList,
-                    );
+                    await Navigator.pushNamed(context, AppRoutes.tripList);
 
                     if (!mounted) return;
 
@@ -570,9 +641,7 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
                       isPlanPickerOpen = false;
                     });
 
-                    if (changed == true) {
-                      _reloadProfile();
-                    }
+                    _reloadProfile();
                   },
                 ),
               ),
@@ -585,7 +654,10 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
                 child: ElevatedButton(
                   onPressed: () {
                     if (data.isFollowing) {
-                      _showUnfollowSheet(data.profile.id, data.profile.displayName);
+                      _showUnfollowSheet(
+                        data.profile.id,
+                        data.profile.displayName,
+                      );
                     } else {
                       _handleFollow(data.profile.id);
                     }
@@ -870,68 +942,85 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
       borderRadius: BorderRadius.circular(16),
       child: Container(
         width: _planMenuWidth(context),
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(context).height * 0.48,
+        ),
         color: const Color(0xFF3A3A3A),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (int i = 0; i < data.plans.length; i++) ...[
-              InkWell(
-                onTap: () {
-                  setState(() {
-                    selectedPlanIndex = i;
-                    isPlanPickerOpen = false;
-                    selectedTab = 1;
-                  });
-                },
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              data.plans[i].name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: _textStyle(
-                                size: 16,
-                                weight: FontWeight.w700,
+        child: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (int i = 0; i < data.plans.length; i++) ...[
+                InkWell(
+                  onTap: () {
+                    setState(() {
+                      selectedPlanIndex = i;
+                      isPlanPickerOpen = false;
+                      selectedTab = 1;
+                    });
+                  },
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                data.plans[i].name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: _textStyle(
+                                  size: 16,
+                                  weight: FontWeight.w700,
+                                ),
                               ),
-                            ),
-                            const SizedBox(height: 5),
-                            Text(
-                              data.plans[i].routeText,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: _textStyle(
-                                size: 13,
-                                weight: FontWeight.w600,
-                                color: Colors.white70,
+                              const SizedBox(height: 5),
+                              Row(
+                                children: [
+                                  if (data.plans[i].isGroup) ...[
+                                    _planTypeBadge('Nhóm'),
+                                    const SizedBox(width: 6),
+                                  ],
+                                  if (data.plans[i].pinned)
+                                    _planTypeBadge('Đã ghim'),
+                                ],
                               ),
-                            ),
-                          ],
+                              const SizedBox(height: 5),
+                              Text(
+                                data.plans[i].routeText,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: _textStyle(
+                                  size: 13,
+                                  weight: FontWeight.w600,
+                                  color: Colors.white70,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                      if (selectedPlanIndex == i)
-                        const Padding(
-                          padding: EdgeInsets.only(left: 8),
-                          child: Icon(Icons.check, color: blue, size: 18),
-                        ),
-                    ],
+                        if (selectedPlanIndex == i)
+                          const Padding(
+                            padding: EdgeInsets.only(left: 8),
+                            child: Icon(Icons.check, color: blue, size: 18),
+                          ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-              if (i != data.plans.length - 1)
-                Container(
-                  width: double.infinity,
-                  height: 6,
-                  color: Colors.white.withValues(alpha: 0.08),
-                ),
+                if (i != data.plans.length - 1)
+                  Container(
+                    width: double.infinity,
+                    height: 6,
+                    color: Colors.white.withValues(alpha: 0.08),
+                  ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
@@ -969,21 +1058,17 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
     }
 
     return groups.entries.map((entry) {
-      return _PlanDayGroup(
-        date: dates[entry.key],
-        items: entry.value,
-      );
-    }).toList()
-      ..sort((a, b) {
-        final aDate = a.date;
-        final bDate = b.date;
+      return _PlanDayGroup(date: dates[entry.key], items: entry.value);
+    }).toList()..sort((a, b) {
+      final aDate = a.date;
+      final bDate = b.date;
 
-        if (aDate == null && bDate == null) return 0;
-        if (aDate == null) return 1;
-        if (bDate == null) return -1;
+      if (aDate == null && bDate == null) return 0;
+      if (aDate == null) return 1;
+      if (bDate == null) return -1;
 
-        return aDate.compareTo(bDate);
-      });
+      return aDate.compareTo(bDate);
+    });
   }
 
   String _thuDayDu(DateTime? date) {
@@ -1025,6 +1110,16 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
   }
 
   Widget _planList(BuildContext context, ProfilePageData data) {
+    final hasPinnedPlan = data.plans.any((plan) => plan.pinned);
+
+    if (!hasPinnedPlan && data.plans.length > 1) {
+      return Column(
+        children: [
+          for (final plan in data.plans) _planBlock(context, data, plan),
+        ],
+      );
+    }
+
     final plan = _currentPlan(data);
 
     if (plan == null) {
@@ -1092,6 +1187,14 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
       );
     }
 
+    return _planBlock(context, data, plan);
+  }
+
+  Widget _planBlock(
+    BuildContext context,
+    ProfilePageData data,
+    ProfilePlanGroupData plan,
+  ) {
     final dayGroups = _groupPlanItemsByDay(plan.items);
 
     return Container(
@@ -1119,11 +1222,28 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
                 ),
                 const SizedBox(width: 5),
                 Expanded(
-                  child: Text(
-                    plan.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: _textStyle(size: 18, weight: FontWeight.w800),
+                  child: InkWell(
+                    onTap: () => _openPlanDetail(plan),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            plan.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: _textStyle(
+                              size: 18,
+                              weight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                        if (plan.isGroup) ...[
+                          const SizedBox(width: 8),
+                          _planTypeBadge('Nhóm'),
+                        ],
+                      ],
+                    ),
                   ),
                 ),
                 if (data.isMe) ...[
@@ -1163,7 +1283,9 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
                 18,
               ),
               child: Text(
-                'Lịch trình này chưa có điểm đến',
+                plan.isGroup
+                    ? 'Lịch trình nhóm này chưa có điểm dừng'
+                    : 'Lịch trình này chưa có điểm đến',
                 style: _textStyle(size: 15, color: Colors.white70),
               ),
             )
@@ -1216,10 +1338,7 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
                   const SizedBox(width: 8),
                   Text(
                     _thuDayDu(group.date),
-                    style: _textStyle(
-                      size: 17,
-                      weight: FontWeight.w900,
-                    ),
+                    style: _textStyle(size: 17, weight: FontWeight.w900),
                   ),
                   const SizedBox(width: 8),
                   Text(
@@ -1243,11 +1362,7 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
               ),
             ),
             for (int i = 0; i < items.length; i++)
-              _planRow(
-                context,
-                items[i],
-                isLastInDay: i == items.length - 1,
-              ),
+              _planRow(context, items[i], isLastInDay: i == items.length - 1),
           ],
         ),
       ),
@@ -1264,31 +1379,27 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
         height: 52,
         color: const Color(0xFF2B2B2B),
         child: url.isEmpty
-            ? const Icon(
-          Icons.image_outlined,
-          color: Colors.white38,
-          size: 22,
-        )
+            ? const Icon(Icons.image_outlined, color: Colors.white38, size: 22)
             : Image.network(
-          url,
-          fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) {
-            return const Icon(
-              Icons.image_outlined,
-              color: Colors.white38,
-              size: 22,
-            );
-          },
-        ),
+                url,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return const Icon(
+                    Icons.image_outlined,
+                    color: Colors.white38,
+                    size: 22,
+                  );
+                },
+              ),
       ),
     );
   }
 
   Widget _planRow(
-      BuildContext context,
-      ProfilePlanItemData item, {
-        bool isLastInDay = false,
-      }) {
+    BuildContext context,
+    ProfilePlanItemData item, {
+    bool isLastInDay = false,
+  }) {
     final isSmallPhone = _isSmallPhone(context);
 
     return InkWell(
@@ -1307,8 +1418,8 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
           border: isLastInDay
               ? null
               : const Border(
-            bottom: BorderSide(color: Color(0xFF242424), width: 1),
-          ),
+                  bottom: BorderSide(color: Color(0xFF242424), width: 1),
+                ),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
@@ -1379,11 +1490,7 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
                 onTap: () => _handlePlanItemAction(item),
               )
             else
-              const Icon(
-                Icons.chevron_right,
-                color: Colors.white38,
-                size: 20,
-              ),
+              const Icon(Icons.chevron_right, color: Colors.white38, size: 20),
           ],
         ),
       ),
@@ -1391,10 +1498,10 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
   }
 
   Widget _planActionButton(
-      BuildContext context,
-      String text, {
-        VoidCallback? onTap,
-      }) {
+    BuildContext context,
+    String text, {
+    VoidCallback? onTap,
+  }) {
     final isSmallPhone = _isSmallPhone(context);
 
     return InkWell(
@@ -1423,6 +1530,20 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _planTypeBadge(String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: const Color(0xFF183B59),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        text,
+        style: _textStyle(size: 10, weight: FontWeight.w800, color: blue),
       ),
     );
   }
@@ -1501,8 +1622,10 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
                     context: context,
                     builder: (ctx) => AlertDialog(
                       backgroundColor: const Color(0xFF1C1C1E),
-                      title: const Text('Chặn tài khoản',
-                          style: TextStyle(color: Colors.white)),
+                      title: const Text(
+                        'Chặn tài khoản',
+                        style: TextStyle(color: Colors.white),
+                      ),
                       content: Text(
                         'Chặn $displayName? Họ sẽ không thể xem hồ sơ và bài viết của bạn.',
                         style: const TextStyle(color: Colors.white70),
@@ -1514,8 +1637,10 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
                         ),
                         TextButton(
                           onPressed: () => Navigator.pop(ctx, true),
-                          child: const Text('Chặn',
-                              style: TextStyle(color: Colors.redAccent)),
+                          child: const Text(
+                            'Chặn',
+                            style: TextStyle(color: Colors.redAccent),
+                          ),
                         ),
                       ],
                     ),
@@ -1655,12 +1780,10 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
     );
   }
 }
+
 class _PlanDayGroup {
   final DateTime? date;
   final List<ProfilePlanItemData> items;
 
-  const _PlanDayGroup({
-    required this.date,
-    required this.items,
-  });
+  const _PlanDayGroup({required this.date, required this.items});
 }

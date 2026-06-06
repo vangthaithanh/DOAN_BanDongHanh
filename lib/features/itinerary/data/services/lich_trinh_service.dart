@@ -224,9 +224,9 @@ class LichTrinh {
   });
 
   factory LichTrinh.fromMap(
-      Map<String, dynamic> map, {
-        List<LichTrinhItem> items = const [],
-      }) {
+    Map<String, dynamic> map, {
+    List<LichTrinhItem> items = const [],
+  }) {
     return LichTrinh(
       id: _asInt(map['id']),
       profileId: map['profile_id']?.toString() ?? '',
@@ -351,9 +351,7 @@ class LichTrinhService {
     return LichTrinh.fromMap(Map<String, dynamic>.from(row), items: items);
   }
 
-  Future<List<LichTrinhItem>> layDiaDiemTrongLichTrinh(
-      int itineraryId,
-      ) async {
+  Future<List<LichTrinhItem>> layDiaDiemTrongLichTrinh(int itineraryId) async {
     final rows = await _client
         .from('itinerary_items')
         .select('''
@@ -389,14 +387,12 @@ class LichTrinhService {
         .eq('itinerary_id', itineraryId)
         .order('order_no', ascending: true);
 
-    return List<Map<String, dynamic>>.from(rows)
-        .map(LichTrinhItem.fromMap)
-        .toList();
+    return List<Map<String, dynamic>>.from(
+      rows,
+    ).map(LichTrinhItem.fromMap).toList();
   }
 
-  Future<List<DiaDiemLichTrinh>> layDiaDiemDeChon({
-    String keyword = '',
-  }) async {
+  Future<List<DiaDiemLichTrinh>> layDiaDiemDeChon({String keyword = ''}) async {
     var query = _client
         .from('places')
         .select('''
@@ -435,9 +431,9 @@ class LichTrinhService {
 
     final rows = await query.order('name', ascending: true).limit(50);
 
-    return List<Map<String, dynamic>>.from(rows)
-        .map(DiaDiemLichTrinh.fromMap)
-        .toList();
+    return List<Map<String, dynamic>>.from(
+      rows,
+    ).map(DiaDiemLichTrinh.fromMap).toList();
   }
 
   Future<int> taoLichTrinh({
@@ -470,17 +466,17 @@ class LichTrinhService {
     final planRow = await _client
         .from('itineraries')
         .insert({
-      'profile_id': user.id,
-      'name': name.trim(),
-      'description': description.trim(),
-      'province': firstProvince,
-      'planned_start_date': _dateOnly(startDate),
-      'planned_end_date': _dateOnly(endDate),
-      'status': pinned ? 'active' : 'draft',
-      'pinned': pinned,
-      'actual_start_time': pinned ? DateTime.now().toIso8601String() : null,
-      'updated_at': DateTime.now().toIso8601String(),
-    })
+          'profile_id': user.id,
+          'name': name.trim(),
+          'description': description.trim(),
+          'province': firstProvince,
+          'planned_start_date': _dateOnly(startDate),
+          'planned_end_date': _dateOnly(endDate),
+          'status': pinned ? 'active' : 'draft',
+          'pinned': pinned,
+          'actual_start_time': pinned ? DateTime.now().toIso8601String() : null,
+          'updated_at': DateTime.now().toIso8601String(),
+        })
         .select('id')
         .single();
 
@@ -522,10 +518,9 @@ class LichTrinhService {
         .select('id')
         .eq('itinerary_id', itineraryId);
 
-    final oldItemIds = List<Map<String, dynamic>>.from(oldItems)
-        .map((row) => _asInt(row['id']))
-        .where((id) => id > 0)
-        .toList();
+    final oldItemIds = List<Map<String, dynamic>>.from(
+      oldItems,
+    ).map((row) => _asInt(row['id'])).where((id) => id > 0).toList();
 
     if (oldItemIds.isNotEmpty) {
       await _client
@@ -549,16 +544,16 @@ class LichTrinhService {
     await _client
         .from('itineraries')
         .update({
-      'name': name.trim(),
-      'description': description.trim(),
-      'province': firstProvince,
-      'planned_start_date': _dateOnly(startDate),
-      'planned_end_date': _dateOnly(endDate),
-      'status': pinned ? 'active' : 'draft',
-      'pinned': pinned,
-      'actual_start_time': pinned ? DateTime.now().toIso8601String() : null,
-      'updated_at': DateTime.now().toIso8601String(),
-    })
+          'name': name.trim(),
+          'description': description.trim(),
+          'province': firstProvince,
+          'planned_start_date': _dateOnly(startDate),
+          'planned_end_date': _dateOnly(endDate),
+          'status': pinned ? 'active' : 'draft',
+          'pinned': pinned,
+          'actual_start_time': pinned ? DateTime.now().toIso8601String() : null,
+          'updated_at': DateTime.now().toIso8601String(),
+        })
         .eq('id', itineraryId)
         .eq('profile_id', user.id);
 
@@ -581,11 +576,11 @@ class LichTrinhService {
     await _client
         .from('itineraries')
         .update({
-      'pinned': pinned,
-      'status': pinned ? 'active' : 'draft',
-      'actual_start_time': pinned ? DateTime.now().toIso8601String() : null,
-      'updated_at': DateTime.now().toIso8601String(),
-    })
+          'pinned': pinned,
+          'status': pinned ? 'active' : 'draft',
+          'actual_start_time': pinned ? DateTime.now().toIso8601String() : null,
+          'updated_at': DateTime.now().toIso8601String(),
+        })
         .eq('id', itineraryId)
         .eq('profile_id', user.id);
   }
@@ -593,10 +588,7 @@ class LichTrinhService {
   Future<void> danhDauBoQua(int itemId) async {
     await _client
         .from('itinerary_items')
-        .update({
-      'status': 'skipped',
-      'gps_confirmed': false,
-    })
+        .update({'status': 'skipped', 'gps_confirmed': false})
         .eq('id', itemId);
   }
 
@@ -607,11 +599,11 @@ class LichTrinhService {
     await _client
         .from('itinerary_items')
         .update({
-      'status': 'visited',
-      'gps_confirmed': true,
-      'gps_distance': distance,
-      'actual_start_time': DateTime.now().toIso8601String(),
-    })
+          'status': 'visited',
+          'gps_confirmed': true,
+          'gps_distance': distance,
+          'actual_start_time': DateTime.now().toIso8601String(),
+        })
         .eq('id', itemId);
 
     await _client.from('place_visits').insert({
@@ -734,7 +726,9 @@ class LichTrinhService {
         'profile_id': userId,
         'notification_type': 'itinerary_reminder',
         'title': row['title']?.toString() ?? 'Nhắc lịch trình',
-        'content': row['content']?.toString() ?? 'Sắp đến giờ đi địa điểm trong lịch trình.',
+        'content':
+            row['content']?.toString() ??
+            'Sắp đến giờ đi địa điểm trong lịch trình.',
         'reference_id': itineraryId,
         'place_id': itemMap['place_id'],
         'is_read': false,
@@ -763,7 +757,7 @@ class LichTrinhService {
     }
 
     return Geolocator.getCurrentPosition(
-      desiredAccuracy: LocationAccuracy.high,
+      locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
     );
   }
 
@@ -812,10 +806,13 @@ class LichTrinhService {
 
       reminderRows.add({
         'itinerary_item_id': _asInt(item['id']),
-        'remind_time': plannedTime.subtract(const Duration(minutes: 45)).toIso8601String(),
+        'remind_time': plannedTime
+            .subtract(const Duration(minutes: 45))
+            .toIso8601String(),
         'remind_before_minutes': 45,
         'title': 'Sắp đến giờ đi $placeName',
-        'content': 'GoMate nhắc bạn chuẩn bị di chuyển đến $placeName trong lịch trình đã ghim.',
+        'content':
+            'GoMate nhắc bạn chuẩn bị di chuyển đến $placeName trong lịch trình đã ghim.',
         'status': 'pending',
       });
     }
@@ -829,12 +826,14 @@ class LichTrinhService {
     await _client
         .from('itineraries')
         .update({
-      'pinned': false,
-      'status': 'draft',
-      'updated_at': DateTime.now().toIso8601String(),
-    })
+          'pinned': false,
+          'status': 'draft',
+          'updated_at': DateTime.now().toIso8601String(),
+        })
         .eq('profile_id', profileId)
         .eq('pinned', true);
+
+    await _client.rpc('clear_my_group_trip_pins');
   }
 
   Future<String?> _layTinhThanhDauTien(int placeId) async {

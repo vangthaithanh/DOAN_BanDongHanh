@@ -17,6 +17,7 @@ class _TrangLichTrinhNhomPageState extends State<TrangLichTrinhNhomPage> {
 
   final LichTrinhNhomService _service = LichTrinhNhomService();
   late Future<List<TripGroup>> _future;
+  bool _hasChanges = false;
 
   @override
   void initState() {
@@ -27,6 +28,17 @@ class _TrangLichTrinhNhomPageState extends State<TrangLichTrinhNhomPage> {
 
   void _reload() {
     _future = _service.layDanhSachLichTrinhCuaToi();
+  }
+
+  void _markChangedAndReload() {
+    setState(() {
+      _hasChanges = true;
+      _reload();
+    });
+  }
+
+  void _close() {
+    Navigator.pop(context, _hasChanges);
   }
 
   TextStyle _text({
@@ -51,7 +63,7 @@ class _TrangLichTrinhNhomPageState extends State<TrangLichTrinhNhomPage> {
     if (!mounted) return;
 
     if (changed == true) {
-      setState(_reload);
+      _markChangedAndReload();
     }
   }
 
@@ -65,47 +77,54 @@ class _TrangLichTrinhNhomPageState extends State<TrangLichTrinhNhomPage> {
     if (!mounted) return;
 
     if (changed == true) {
-      setState(_reload);
+      _markChangedAndReload();
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      bottomNavigationBar: SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(34, 12, 34, 20),
-          child: SizedBox(
-            height: 48,
-            child: ElevatedButton(
-              onPressed: _openCreate,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: blue,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(999),
+    // ignore: deprecated_member_use
+    return WillPopScope(
+      onWillPop: () async {
+        _close();
+        return false;
+      },
+      child: Scaffold(
+        backgroundColor: Colors.black,
+        bottomNavigationBar: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(34, 12, 34, 20),
+            child: SizedBox(
+              height: 48,
+              child: ElevatedButton(
+                onPressed: _openCreate,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: blue,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(999),
+                  ),
                 ),
-              ),
-              child: Text(
-                'Tạo lịch trình nhóm',
-                style: _text(size: 16, weight: FontWeight.w800),
+                child: Text(
+                  'Tạo lịch trình nhóm',
+                  style: _text(size: 16, weight: FontWeight.w800),
+                ),
               ),
             ),
           ),
         ),
-      ),
-      body: SafeArea(
-        child: FutureBuilder<List<TripGroup>>(
-          future: _future,
-          builder: (context, snapshot) {
-            return Column(
-              children: [
-                _topBar(),
-                Expanded(child: _body(snapshot)),
-              ],
-            );
-          },
+        body: SafeArea(
+          child: FutureBuilder<List<TripGroup>>(
+            future: _future,
+            builder: (context, snapshot) {
+              return Column(
+                children: [
+                  _topBar(),
+                  Expanded(child: _body(snapshot)),
+                ],
+              );
+            },
+          ),
         ),
       ),
     );
@@ -117,7 +136,7 @@ class _TrangLichTrinhNhomPageState extends State<TrangLichTrinhNhomPage> {
       child: Row(
         children: [
           InkWell(
-            onTap: () => Navigator.pop(context),
+            onTap: _close,
             borderRadius: BorderRadius.circular(18),
             child: Container(
               width: 32,
