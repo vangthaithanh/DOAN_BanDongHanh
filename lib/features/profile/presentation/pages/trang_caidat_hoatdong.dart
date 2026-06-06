@@ -17,14 +17,37 @@ class _TrangCaiDatHoatDongPageState extends State<TrangCaiDatHoatDongPage> {
   final BlockService _blockService = BlockService();
 
   bool _loggingOut = false;
+  bool _isAdmin = false;
   int _blockedCount = 0;
 
   @override
   void initState() {
     super.initState();
-    _blockService.countBlocked().then((c) {
-      if (mounted) setState(() => _blockedCount = c);
-    });
+    _loadBlockedCount();
+    _loadAdminStatus();
+  }
+
+  Future<void> _loadBlockedCount() async {
+    final c = await _blockService.countBlocked();
+    if (mounted) setState(() => _blockedCount = c);
+  }
+
+  Future<void> _loadAdminStatus() async {
+    try {
+      final profile = await _authService.getCurrentProfile();
+
+      if (!mounted) return;
+
+      setState(() {
+        _isAdmin = profile?['role'] == 'admin';
+      });
+    } catch (_) {
+      if (!mounted) return;
+
+      setState(() {
+        _isAdmin = false;
+      });
+    }
   }
 
   Future<void> _showChangePasswordSheet() async {
@@ -126,6 +149,10 @@ class _TrangCaiDatHoatDongPageState extends State<TrangCaiDatHoatDongPage> {
         SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
       );
     }
+  }
+
+  void _goAdminPage() {
+    Navigator.pushNamed(context, AppRoutes.adminDashboard);
   }
 
   void _comingSoon(String title) {
@@ -253,6 +280,18 @@ class _TrangCaiDatHoatDongPageState extends State<TrangCaiDatHoatDongPage> {
               onTap: () => _comingSoon('Tin, khoảnh khắc và vị trí'),
             ),
             _divider(),
+
+            if (_isAdmin) ...[
+              _sectionTitle('Quản trị'),
+              _item(
+                icon: Icons.admin_panel_settings_outlined,
+                title: 'Quản trị viên',
+                subtitle: 'Quản lý tài khoản, bài viết và thống kê',
+                trailingText: 'Admin',
+                onTap: _loggingOut ? null : _goAdminPage,
+              ),
+              _divider(),
+            ],
 
             _sectionTitle('Đăng nhập'),
             _item(

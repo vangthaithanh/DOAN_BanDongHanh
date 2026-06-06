@@ -144,9 +144,11 @@ class ProfileService {
 
   Future<ProfilePageData> loadMine() async {
     final user = _currentUser;
+
     if (user == null) {
       throw Exception('Chưa đăng nhập');
     }
+
     return loadProfile(user.id);
   }
 
@@ -171,11 +173,11 @@ class ProfileService {
     final plans = await _loadPlans(profileId);
 
     bool isFollowing = false;
+
     if (currentUserId != null && currentUserId != profileId) {
       isFollowing = await _checkIsFollowing(currentUserId, profileId);
     }
 
-    // Truyền isFollowing: người xem đang follow profile owner = là follower của họ
     final posts = await _loadUserPosts(profileId, profile, isFollowing);
 
     return ProfilePageData(
@@ -199,6 +201,7 @@ class ProfileService {
           .eq('following_id', followingId)
           .eq('status', 'active')
           .maybeSingle();
+
       return row != null;
     } catch (_) {
       return false;
@@ -207,20 +210,24 @@ class ProfileService {
 
   Future<void> toggleFollow(String targetProfileId) async {
     final user = _currentUser;
-    if (user == null) throw Exception('Chưa đăng nhập');
-    if (user.id == targetProfileId) return;
+
+    if (user == null) {
+      throw Exception('Chưa đăng nhập');
+    }
+
+    if (user.id == targetProfileId) {
+      return;
+    }
 
     final isFollowing = await _checkIsFollowing(user.id, targetProfileId);
 
     if (isFollowing) {
-      // Unfollow: Xóa hoặc cập nhật status
       await _client
           .from('follows')
           .delete()
           .eq('follower_id', user.id)
           .eq('following_id', targetProfileId);
     } else {
-      // Follow: Thêm mới
       await _client.from('follows').insert({
         'follower_id': user.id,
         'following_id': targetProfileId,
@@ -300,14 +307,7 @@ class ProfileService {
     }
   }
 
-  /// NOTE SỬA:
   /// Bạn bè = 2 người theo dõi nhau trong bảng follows.
-  ///
-  /// Ví dụ:
-  /// A theo dõi B: follows.follower_id = A, follows.following_id = B
-  /// B theo dõi A: follows.follower_id = B, follows.following_id = A
-  ///
-  /// Khi có đủ 2 chiều active thì tính là 1 bạn bè.
   Future<int> _countFriends(String userId) async {
     try {
       final following = await _client
@@ -342,7 +342,8 @@ class ProfileService {
           .from('posts')
           .select('id')
           .eq('profile_id', userId)
-          .eq('status', 'active');
+          .eq('status', 'active')
+          .or('is_hidden.is.null,is_hidden.eq.false');
 
       return (rows as List).length;
     } catch (_) {
@@ -356,14 +357,24 @@ class ProfileService {
     final plans = [...personalPlans, ...groupPlans];
 
     plans.sort((a, b) {
-      if (a.pinned != b.pinned) return a.pinned ? -1 : 1;
+      if (a.pinned != b.pinned) {
+        return a.pinned ? -1 : 1;
+      }
 
       final aTime = a.sortTime;
       final bTime = b.sortTime;
 
-      if (aTime == null && bTime == null) return 0;
-      if (aTime == null) return 1;
-      if (bTime == null) return -1;
+      if (aTime == null && bTime == null) {
+        return 0;
+      }
+
+      if (aTime == null) {
+        return 1;
+      }
+
+      if (bTime == null) {
+        return -1;
+      }
 
       return bTime.compareTo(aTime);
     });
@@ -425,16 +436,20 @@ class ProfileService {
           .where((id) => id > 0)
           .toSet()
           .toList();
+
       final pinnedByTrip = {
         for (final row in memberMaps)
           _asInt(row['trip_id']): row['pinned'] == true,
       };
+
       final actualStartByTrip = {
         for (final row in memberMaps)
           _asInt(row['trip_id']): _parseDateTime(row['actual_start_time']),
       };
 
-      if (tripIds.isEmpty) return [];
+      if (tripIds.isEmpty) {
+        return [];
+      }
 
       final groupRows = await _client
           .from('trip_groups')
@@ -580,9 +595,17 @@ class ProfileService {
         final aTime = a.plannedTime;
         final bTime = b.plannedTime;
 
-        if (aTime == null && bTime == null) return 0;
-        if (aTime == null) return 1;
-        if (bTime == null) return -1;
+        if (aTime == null && bTime == null) {
+          return 0;
+        }
+
+        if (aTime == null) {
+          return 1;
+        }
+
+        if (bTime == null) {
+          return -1;
+        }
 
         return aTime.compareTo(bTime);
       });
@@ -639,9 +662,17 @@ class ProfileService {
         final aTime = a.plannedTime;
         final bTime = b.plannedTime;
 
-        if (aTime == null && bTime == null) return 0;
-        if (aTime == null) return 1;
-        if (bTime == null) return -1;
+        if (aTime == null && bTime == null) {
+          return 0;
+        }
+
+        if (aTime == null) {
+          return 1;
+        }
+
+        if (bTime == null) {
+          return -1;
+        }
 
         return aTime.compareTo(bTime);
       });
@@ -653,22 +684,36 @@ class ProfileService {
   }
 
   int _asInt(dynamic value) {
-    if (value is int) return value;
-    if (value is num) return value.toInt();
+    if (value is int) {
+      return value;
+    }
+
+    if (value is num) {
+      return value.toInt();
+    }
+
     return int.tryParse(value?.toString() ?? '') ?? 0;
   }
 
   DateTime? _parseDateTime(dynamic value) {
     final text = value?.toString();
-    if (text == null || text.trim().isEmpty) return null;
+
+    if (text == null || text.trim().isEmpty) {
+      return null;
+    }
+
     return DateTime.tryParse(text)?.toLocal();
   }
 
   String? _firstPlaceImage(dynamic rawMedia) {
-    if (rawMedia is! List || rawMedia.isEmpty) return null;
+    if (rawMedia is! List || rawMedia.isEmpty) {
+      return null;
+    }
 
     for (final item in rawMedia) {
-      if (item is! Map) continue;
+      if (item is! Map) {
+        continue;
+      }
 
       final type = item['media_type']?.toString() ?? 'image';
       final url = item['url']?.toString() ?? '';
@@ -682,15 +727,27 @@ class ProfileService {
   }
 
   String _formatPlanDay(DateTime? dateTime) {
-    if (dateTime == null) return '--';
+    if (dateTime == null) {
+      return '--';
+    }
 
-    const thu = {1: 'T2', 2: 'T3', 3: 'T4', 4: 'T5', 5: 'T6', 6: 'T7', 7: 'CN'};
+    const thu = {
+      1: 'T2',
+      2: 'T3',
+      3: 'T4',
+      4: 'T5',
+      5: 'T6',
+      6: 'T7',
+      7: 'CN',
+    };
 
     return '${thu[dateTime.weekday]}-${dateTime.day}';
   }
 
   String _formatPlanHour(DateTime? dateTime) {
-    if (dateTime == null) return '--:--';
+    if (dateTime == null) {
+      return '--:--';
+    }
 
     final hour = dateTime.hour.toString().padLeft(2, '0');
     final minute = dateTime.minute.toString().padLeft(2, '0');
@@ -699,7 +756,9 @@ class ProfileService {
   }
 
   String _formatPlanTime(DateTime? dateTime) {
-    if (dateTime == null) return 'Chưa có thời gian';
+    if (dateTime == null) {
+      return 'Chưa có thời gian';
+    }
 
     return '${_formatPlanDay(dateTime)}, ${_formatPlanHour(dateTime)}';
   }
@@ -709,7 +768,9 @@ class ProfileService {
     required String status,
     required bool gpsConfirmed,
   }) {
-    if (!pinned) return '';
+    if (!pinned) {
+      return '';
+    }
 
     final cleanStatus = status.toLowerCase();
 
@@ -750,6 +811,7 @@ class ProfileService {
     bool mutualFollow,
   ) async {
     final currentUserId = _client.auth.currentUser?.id;
+
     try {
       var query = _client
           .from('posts')
@@ -758,26 +820,24 @@ class ProfileService {
             'post_media(url, display_order)',
           )
           .eq('profile_id', userId)
-          .eq('status', 'active');
+          .eq('status', 'active')
+          .or('is_hidden.is.null,is_hidden.eq.false');
 
-      // Lọc bài viết theo quyền riêng tư nếu không phải chính mình xem
       if (userId != currentUserId) {
         if (mutualFollow) {
-          // Follower (người đang follow profile owner) thấy public + follower
           query = query.inFilter('visibility', ['public', 'follower']);
         } else {
-          // Người chưa follow chỉ thấy public
           query = query.eq('visibility', 'public');
         }
       }
-      // Chính mình → không lọc, thấy tất cả kể cả private
 
       final rows = await query.order('created_at', ascending: false).limit(20);
 
       final postList = rows as List;
       final postIds = postList
-          .map((r) => (r as Map<String, dynamic>)['id'] as int)
+          .map((row) => (row as Map<String, dynamic>)['id'] as int)
           .toList();
+
       final hashtagMap = await _loadHashtagsForPosts(postIds);
       final tagMap = await _loadTagsForPosts(postIds);
 
@@ -792,11 +852,12 @@ class ProfileService {
           if (media is List && media.isNotEmpty) {
             final sorted =
                 List<Map<String, dynamic>>.from(
-                  media.map((m) => m as Map<String, dynamic>),
+                  media.map((item) => item as Map<String, dynamic>),
                 )..sort((a, b) {
-                  final aO = (a['display_order'] as int?) ?? 0;
-                  final bO = (b['display_order'] as int?) ?? 0;
-                  return aO.compareTo(bO);
+                  final aOrder = (a['display_order'] as int?) ?? 0;
+                  final bOrder = (b['display_order'] as int?) ?? 0;
+
+                  return aOrder.compareTo(bOrder);
                 });
 
             firstMediaUrl = sorted.first['url']?.toString();
@@ -810,9 +871,8 @@ class ProfileService {
             id: postId,
             authorId: userId,
             tenNguoiDang: profile.displayName,
-            anhDaiDienNguoiDang: profile.avatarUrl.isNotEmpty
-                ? profile.avatarUrl
-                : null,
+            anhDaiDienNguoiDang:
+                profile.avatarUrl.isNotEmpty ? profile.avatarUrl : null,
             thoiGian: _timeAgo(createdAtRaw),
             caption: content.isNotEmpty
                 ? content
@@ -840,16 +900,21 @@ class ProfileService {
   Future<Map<int, List<String>>> _loadHashtagsForPosts(
     List<int> postIds,
   ) async {
-    if (postIds.isEmpty) return {};
+    if (postIds.isEmpty) {
+      return {};
+    }
+
     try {
       final phRows = await _client
           .from('post_hashtags')
           .select('post_id, hashtag_id')
           .inFilter('post_id', postIds);
 
-      if ((phRows as List).isEmpty) return {};
+      if ((phRows as List).isEmpty) {
+        return {};
+      }
 
-      final hashtagIds = phRows.map((r) => r['hashtag_id']).toSet().toList();
+      final hashtagIds = phRows.map((row) => row['hashtag_id']).toSet().toList();
 
       final hRows = await _client
           .from('hashtags')
@@ -857,19 +922,24 @@ class ProfileService {
           .inFilter('id', hashtagIds);
 
       final nameById = <int, String>{};
-      for (final Map<String, dynamic> h in hRows as List) {
-        nameById[(h['id'] as num).toInt()] = h['name']?.toString() ?? '';
+
+      for (final Map<String, dynamic> hashtag in hRows as List) {
+        nameById[(hashtag['id'] as num).toInt()] =
+            hashtag['name']?.toString() ?? '';
       }
 
       final result = <int, List<String>>{};
+
       for (final Map<String, dynamic> ph in phRows) {
         final postId = (ph['post_id'] as num).toInt();
         final hashtagId = (ph['hashtag_id'] as num).toInt();
         final name = nameById[hashtagId];
+
         if (name != null && name.isNotEmpty) {
           result.putIfAbsent(postId, () => []).add(name);
         }
       }
+
       return result;
     } catch (_) {
       return {};
@@ -877,22 +947,38 @@ class ProfileService {
   }
 
   Future<Map<int, List<String>>> _loadTagsForPosts(List<int> postIds) async {
-    if (postIds.isEmpty) return {};
+    if (postIds.isEmpty) {
+      return {};
+    }
+
     try {
       final rows = await _client
           .from('post_tags')
           .select('post_id, profiles(nickname)')
           .inFilter('post_id', postIds);
+
       final result = <int, List<String>>{};
-      for (final r in rows as List) {
-        final m = r as Map<String, dynamic>;
-        final postId = (m['post_id'] as num?)?.toInt() ?? 0;
-        if (postId == 0) continue;
-        final p = m['profiles'];
-        final nick = p is Map ? p['nickname']?.toString().trim() ?? '' : '';
-        if (nick.isEmpty) continue;
-        result.putIfAbsent(postId, () => []).add(nick);
+
+      for (final row in rows as List) {
+        final map = row as Map<String, dynamic>;
+        final postId = (map['post_id'] as num?)?.toInt() ?? 0;
+
+        if (postId == 0) {
+          continue;
+        }
+
+        final profile = map['profiles'];
+        final nickname = profile is Map
+            ? profile['nickname']?.toString().trim() ?? ''
+            : '';
+
+        if (nickname.isEmpty) {
+          continue;
+        }
+
+        result.putIfAbsent(postId, () => []).add(nickname);
       }
+
       return result;
     } catch (_) {
       return {};
@@ -919,15 +1005,31 @@ class ProfileService {
   }
 
   String _timeAgo(String raw) {
-    if (raw.isEmpty) return '';
+    if (raw.isEmpty) {
+      return '';
+    }
+
     try {
-      final dt = DateTime.parse(raw).toLocal();
-      final diff = DateTime.now().difference(dt);
-      if (diff.inMinutes < 1) return 'Vừa xong';
-      if (diff.inMinutes < 60) return '${diff.inMinutes} phút trước';
-      if (diff.inHours < 24) return '${diff.inHours} giờ trước';
-      if (diff.inDays < 7) return '${diff.inDays} ngày trước';
-      return '${dt.day}/${dt.month}/${dt.year}';
+      final dateTime = DateTime.parse(raw).toLocal();
+      final diff = DateTime.now().difference(dateTime);
+
+      if (diff.inMinutes < 1) {
+        return 'Vừa xong';
+      }
+
+      if (diff.inMinutes < 60) {
+        return '${diff.inMinutes} phút trước';
+      }
+
+      if (diff.inHours < 24) {
+        return '${diff.inHours} giờ trước';
+      }
+
+      if (diff.inDays < 7) {
+        return '${diff.inDays} ngày trước';
+      }
+
+      return '${dateTime.day}/${dateTime.month}/${dateTime.year}';
     } catch (_) {
       return raw;
     }

@@ -25,6 +25,8 @@ class PostService {
             'id, profile_id, title, content, visibility, like_count, comment_count, created_at, location_name',
           )
           .eq('id', postId)
+          .eq('status', 'active')
+          .or('is_hidden.is.null,is_hidden.eq.false')
           .maybeSingle();
     });
 
@@ -97,7 +99,10 @@ class PostService {
         final ownerId = post?['profile_id']?.toString() ?? '';
         if (ownerId.isNotEmpty && ownerId != user.id) {
           final me = await _loadPublicProfile(user.id);
-          final myName = _firstText([me?['nickname'], me?['full_name']], fallback: 'Ai đó');
+          final myName = _firstText([
+            me?['nickname'],
+            me?['full_name'],
+          ], fallback: 'Ai đó');
           await _client.from('notifications').insert({
             'profile_id': ownerId,
             'notification_type': 'like',
@@ -188,7 +193,10 @@ class PostService {
     });
 
     final profile = await _loadPublicProfile(user.id);
-    final myName = _firstText([profile?['nickname'], profile?['full_name']], fallback: 'Ai đó');
+    final myName = _firstText([
+      profile?['nickname'],
+      profile?['full_name'],
+    ], fallback: 'Ai đó');
 
     // Gửi thông báo cho chủ bài viết (trừ khi tự bình luận bài của mình)
     try {
@@ -301,7 +309,9 @@ class PostService {
     if (content != null) fields['content'] = content.trim();
     if (visibility != null) fields['visibility'] = visibility;
     if (locationName != null) {
-      fields['location_name'] = locationName.trim().isEmpty ? null : locationName.trim();
+      fields['location_name'] = locationName.trim().isEmpty
+          ? null
+          : locationName.trim();
     }
 
     await _wrapSupabaseError(() {
@@ -594,7 +604,10 @@ class PostService {
     final user = _client.auth.currentUser;
     if (user == null) return;
     final me = await _loadPublicProfile(user.id);
-    final myName = _firstText([me?['nickname'], me?['full_name']], fallback: 'Ai đó');
+    final myName = _firstText([
+      me?['nickname'],
+      me?['full_name'],
+    ], fallback: 'Ai đó');
 
     for (final nickname in nicknames) {
       final clean = nickname.trim();

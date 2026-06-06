@@ -9,6 +9,7 @@ class AuthService {
   AuthService();
 
   static const String demoOtp = '123456';
+  static const String lockedAccountMessage = 'Tài khoản của bạn đã bị khóa';
 
   final SupabaseClient _client = Supabase.instance.client;
 
@@ -31,12 +32,33 @@ class AuthService {
     final data = await _client
         .from('profiles')
         .select(
-          'id, email, phone, nickname, full_name, avatar_url, bio, facebook_url, role, status',
+          'id, email, phone, nickname, full_name, avatar_url, bio, facebook_url, role, status, lock_reason',
         )
         .eq('id', user.id)
         .maybeSingle();
 
     return data;
+  }
+
+  Future<void> checkCurrentAccountNotLocked() async {
+    final user = currentUser;
+
+    if (user == null) {
+      return;
+    }
+
+    final profile = await _client
+        .from('profiles')
+        .select('id, status, lock_reason')
+        .eq('id', user.id)
+        .maybeSingle();
+
+    final status = profile?['status']?.toString().trim().toLowerCase() ?? '';
+
+    if (status == 'locked') {
+      await _client.auth.signOut();
+      throw Exception(lockedAccountMessage);
+    }
   }
 
   Future<void> _updateLastLogin(String userId) async {
@@ -148,6 +170,7 @@ class AuthService {
         .maybeSingle();
 
     if (existedProfile != null) {
+      await checkCurrentAccountNotLocked();
       await _ensureUserSettings(user.id);
       await _updateLastLogin(user.id);
       return false;
@@ -226,6 +249,7 @@ class AuthService {
     // Google login không đi qua màn đăng ký thường,
     // nên phải đảm bảo có profiles + user_settings.
     await ensureProfileAfterOAuth();
+    await checkCurrentAccountNotLocked();
 
     // Không bắt avatar, không bắt khảo sát nữa.
     // Loading xong thì vào trang chủ.
@@ -342,6 +366,7 @@ class AuthService {
       final user = currentUser;
 
       if (user != null) {
+        await checkCurrentAccountNotLocked();
         await _ensureUserSettings(user.id);
         await _updateLastLogin(user.id);
       }
@@ -563,6 +588,8 @@ class AuthService {
         email: user.email!,
         password: cleanOldPassword,
       );
+
+      await checkCurrentAccountNotLocked();
 
       await _client.auth.updateUser(UserAttributes(password: cleanNewPassword));
     } on AuthException catch (e) {

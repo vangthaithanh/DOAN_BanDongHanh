@@ -2,16 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../../../app/routes/app_routes.dart';
 import '../../../../core/services/auth_service.dart';
 
-/// NOTE SỬA:
-/// Màn hình chờ không còn tự nhảy cứng vào '/trang-chu'.
-///
-/// Sau khi loading 100%, màn này gọi AuthService.getNextRouteAfterAuth():
-/// - Chưa đăng nhập        -> trang bắt đầu
-/// - Chưa có avatar        -> thêm ảnh đại diện
-/// - Chưa trả lời câu hỏi  -> khảo sát
-/// - Đủ dữ liệu            -> trang chủ
 class ManHinhChoPage extends StatefulWidget {
   const ManHinhChoPage({super.key});
 
@@ -56,9 +49,6 @@ class _ManHinhChoPageState extends State<ManHinhChoPage> {
 
   Future<void> goNextByAuthState() async {
     try {
-      /// NOTE SỬA:
-      /// Đây là chỗ quan trọng nhất.
-      /// Không đi thẳng vào trang chủ nữa.
       final nextRoute = await authService.getNextRouteAfterAuth();
 
       if (!mounted) return;
@@ -67,17 +57,34 @@ class _ManHinhChoPageState extends State<ManHinhChoPage> {
     } catch (e) {
       if (!mounted) return;
 
+      final message = e.toString().replaceFirst('Exception: ', '');
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(e.toString().replaceFirst('Exception: ', '')),
+          content: Text(message),
           behavior: SnackBarBehavior.floating,
           margin: const EdgeInsets.all(16),
         ),
       );
 
-      setState(() {
-        isCheckingRoute = false;
-      });
+      await Future<void>.delayed(const Duration(milliseconds: 900));
+
+      if (!mounted) return;
+
+      if (message.contains(AuthService.lockedAccountMessage)) {
+        Navigator.pushNamedAndRemoveUntil(
+          context,
+          AppRoutes.loginEmail,
+          (route) => false,
+        );
+        return;
+      }
+
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        AppRoutes.start,
+        (route) => false,
+      );
     }
   }
 

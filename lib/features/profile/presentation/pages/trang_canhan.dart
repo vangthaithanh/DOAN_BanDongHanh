@@ -4,12 +4,12 @@ import 'package:flutter/material.dart';
 
 import '../../../../app/routes/app_routes.dart';
 import '../../../../core/services/profile_service.dart';
-import '../../../users/data/block_service.dart';
 import '../../../../shared/navigation/app_bottom_nav.dart';
 import '../../../../shared/navigation/main_tab.dart';
-import '../../../social/presentation/widgets/post_card.dart';
 import '../../../itinerary/data/services/lich_trinh_nhom_service.dart';
 import '../../../itinerary/data/services/lich_trinh_service.dart';
+import '../../../social/presentation/widgets/post_card.dart';
+import '../../../users/data/block_service.dart';
 
 class TrangCaNhanPage extends StatefulWidget {
   final String? userId;
@@ -666,6 +666,10 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
                 child: ElevatedButton(
                   onPressed: () {
                     if (data.isFollowing) {
+                      _showUnfollowSheet(
+                        data.profile.id,
+                        data.profile.displayName,
+                      );
                       _showUnfollowSheet(
                         data.profile.id,
                         data.profile.displayName,
