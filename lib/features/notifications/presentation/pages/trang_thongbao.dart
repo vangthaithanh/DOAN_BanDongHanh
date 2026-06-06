@@ -50,6 +50,10 @@ class _NotifGroup {
         return items.first.content.isNotEmpty
             ? items.first.content
             : 'nhắc lịch trình nhóm của bạn';
+      case 'group_trip_member_added':
+        return items.first.content.isNotEmpty
+            ? items.first.content
+            : 'đã thêm bạn vào lịch trình nhóm';
       default:
         return items.first.content;
     }
@@ -80,6 +84,8 @@ class _NotifGroup {
         return LucideIcons.camera;
       case 'place_share':
         return LucideIcons.mapPin;
+      case 'group_trip_member_added':
+        return LucideIcons.users;
       case 'itinerary_reminder':
       case 'group_itinerary_reminder':
         return Icons.event_available_rounded;
@@ -100,6 +106,8 @@ class _NotifGroup {
         return Colors.orangeAccent;
       case 'place_share':
         return const Color(0xFF4AA8FF);
+      case 'group_trip_member_added':
+        return const Color(0xFF4AA8FF);
       case 'itinerary_reminder':
       case 'group_itinerary_reminder':
         return Colors.amberAccent;
@@ -119,7 +127,8 @@ List<_NotifGroup> _groupNotifications(List<NotificationItem> items) {
         item.type == 'comment' ||
         item.type == 'place_share' ||
         item.type == 'itinerary_reminder' ||
-        item.type == 'group_itinerary_reminder';
+        item.type == 'group_itinerary_reminder' ||
+        item.type == 'group_trip_member_added';
 
     final key = shouldGroupByReference
         ? '${item.type}_${item.referenceId ?? 0}'
@@ -361,6 +370,7 @@ class _TrangThongBaoPageState extends State<TrangThongBaoPage> {
               Navigator.pushNamed(context, AppRoutes.tripList);
             }
           case 'group_itinerary_reminder':
+          case 'group_trip_member_added':
             if ((group.latestReferenceId ?? 0) > 0) {
               Navigator.pushNamed(
                 context,

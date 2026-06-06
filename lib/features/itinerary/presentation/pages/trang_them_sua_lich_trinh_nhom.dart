@@ -27,6 +27,7 @@ class _TrangThemSuaLichTrinhNhomPageState
   bool _saving = false;
   DateTime? _startDate;
   DateTime? _endDate;
+  int _selectedDayIndex = 0;
   List<TripGroupFriend> _friends = [];
   List<DiaDiemLichTrinh> _places = [];
   final Set<String> _selectedFriendIds = {};
@@ -89,9 +90,29 @@ class _TrangThemSuaLichTrinhNhomPageState
               ),
             ),
           );
+      } else {
+        final now = DateTime.now();
+        _startDate = DateTime(now.year, now.month, now.day);
+        _endDate = _startDate;
+      }
+
+      if (_startDate == null && _stops.isNotEmpty) {
+        final first = _stops
+            .map((item) => item.arriveAt)
+            .reduce((a, b) => a.isBefore(b) ? a : b);
+        _startDate = DateTime(first.year, first.month, first.day);
+      }
+
+      if (_endDate == null && _stops.isNotEmpty) {
+        final last = _stops
+            .map((item) => item.arriveAt)
+            .reduce((a, b) => a.isAfter(b) ? a : b);
+        _endDate = DateTime(last.year, last.month, last.day);
       }
 
       if (!mounted) return;
+
+      _balanceSelectedDay();
 
       setState(() {
         _friends = friends;
@@ -169,37 +190,30 @@ class _TrangThemSuaLichTrinhNhomPageState
         }
       } else {
         _endDate = picked;
+        if (_startDate != null && _startDate!.isAfter(picked)) {
+          _startDate = picked;
+        }
       }
+
+      _balanceSelectedDay();
+      _clampStopsToDateRange();
+      _sortStops();
     });
   }
 
   Future<void> _pickStopTime(int index) async {
     final stop = _stops[index];
-    final date = await showDatePicker(
-      context: context,
-      initialDate: stop.arriveAt,
-      firstDate: DateTime(DateTime.now().year - 1),
-      lastDate: DateTime(DateTime.now().year + 5),
-      builder: (context, child) {
-        return Theme(
-          data: ThemeData.dark().copyWith(
-            colorScheme: const ColorScheme.dark(
-              primary: blue,
-              surface: Color(0xFF202020),
-            ),
-          ),
-          child: child!,
-        );
-      },
-    );
+    final selectedDate = _selectedDate;
 
-    if (date == null) return;
-
-    if (!mounted) return;
+    if (selectedDate == null) {
+      _showError('Bạn cần chọn ngày bắt đầu và ngày kết thúc trước.');
+      return;
+    }
 
     final time = await showTimePicker(
       context: context,
       initialTime: TimeOfDay.fromDateTime(stop.arriveAt),
+      helpText: 'Chọn giờ có mặt',
       builder: (context, child) {
         return Theme(
           data: ThemeData.dark().copyWith(
@@ -213,15 +227,16 @@ class _TrangThemSuaLichTrinhNhomPageState
     if (time == null) return;
 
     final arriveAt = DateTime(
-      date.year,
-      date.month,
-      date.day,
+      selectedDate.year,
+      selectedDate.month,
+      selectedDate.day,
       time.hour,
       time.minute,
     );
 
     setState(() {
       _stops[index] = stop.copyWith(arriveAt: arriveAt);
+      _sortStops();
     });
   }
 
@@ -285,6 +300,11 @@ class _TrangThemSuaLichTrinhNhomPageState
   }
 
   Future<void> _showPlacePicker() async {
+    if (_startDate == null || _endDate == null || _selectedDate == null) {
+      _showError('Bạn cần chọn ngày bắt đầu và ngày kết thúc trước.');
+      return;
+    }
+
     final controller = TextEditingController();
     var keyword = '';
 
@@ -385,18 +405,54 @@ class _TrangThemSuaLichTrinhNhomPageState
 
     if (selected == null) return;
 
-    final baseDate = _startDate ?? DateTime.now();
-    final arriveAt = DateTime(
-      baseDate.year,
-      baseDate.month,
-      baseDate.day,
-      DateTime.now().hour,
-      DateTime.now().minute,
-    ).add(Duration(hours: _stops.length + 1));
+    final arriveAt = await _pickTimeForSelectedPlace(selected);
+
+    if (arriveAt == null) {
+      _showError('Bạn cần chọn giờ để thêm địa điểm vào lịch trình nhóm.');
+      return;
+    }
 
     setState(() {
       _stops.add(_DraftGroupStop(place: selected, arriveAt: arriveAt));
+      _sortStops();
     });
+  }
+
+  Future<DateTime?> _pickTimeForSelectedPlace(DiaDiemLichTrinh place) async {
+    final selectedDate = _selectedDate;
+
+    if (selectedDate == null) {
+      _showError('Bạn cần chọn ngày trong lịch trình trước.');
+      return null;
+    }
+
+    final now = DateTime.now();
+    final pickedTime = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay(
+        hour: now.hour + 1 > 23 ? 23 : now.hour + 1,
+        minute: 0,
+      ),
+      helpText: 'Chọn giờ đi ${place.ten}',
+      builder: (context, child) {
+        return Theme(
+          data: ThemeData.dark().copyWith(
+            colorScheme: const ColorScheme.dark(primary: blue),
+          ),
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
+    );
+
+    if (pickedTime == null) return null;
+
+    return DateTime(
+      selectedDate.year,
+      selectedDate.month,
+      selectedDate.day,
+      pickedTime.hour,
+      pickedTime.minute,
+    );
   }
 
   Future<void> _save() async {
@@ -405,6 +461,9 @@ class _TrangThemSuaLichTrinhNhomPageState
     setState(() => _saving = true);
 
     try {
+      _clampStopsToDateRange();
+      _sortStops();
+
       final draftStops = _stops
           .map(
             (item) => TripGroupDraftStop(
@@ -453,6 +512,138 @@ class _TrangThemSuaLichTrinhNhomPageState
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(error.toString().replaceFirst('Exception: ', ''))),
     );
+  }
+
+  int get _dayCount {
+    if (_startDate == null || _endDate == null) return 0;
+
+    final start = DateTime(
+      _startDate!.year,
+      _startDate!.month,
+      _startDate!.day,
+    );
+    final end = DateTime(_endDate!.year, _endDate!.month, _endDate!.day);
+    final count = end.difference(start).inDays + 1;
+
+    return count < 1 ? 1 : count;
+  }
+
+  DateTime? get _selectedDate {
+    final start = _startDate;
+    if (start == null) return null;
+
+    return DateTime(
+      start.year,
+      start.month,
+      start.day,
+    ).add(Duration(days: _selectedDayIndex));
+  }
+
+  List<_DraftGroupStop> get _stopsInSelectedDay {
+    final selectedDate = _selectedDate;
+    if (selectedDate == null) return [];
+
+    final result = _stops
+        .where((stop) => _sameDay(stop.arriveAt, selectedDate))
+        .toList();
+
+    result.sort((a, b) => a.arriveAt.compareTo(b.arriveAt));
+    return result;
+  }
+
+  bool _sameDay(DateTime a, DateTime b) {
+    return a.year == b.year && a.month == b.month && a.day == b.day;
+  }
+
+  void _balanceSelectedDay() {
+    final count = _dayCount;
+
+    if (count <= 0) {
+      _selectedDayIndex = 0;
+      return;
+    }
+
+    if (_selectedDayIndex >= count) {
+      _selectedDayIndex = count - 1;
+    }
+
+    if (_selectedDayIndex < 0) {
+      _selectedDayIndex = 0;
+    }
+  }
+
+  void _sortStops() {
+    _stops.sort((a, b) => a.arriveAt.compareTo(b.arriveAt));
+  }
+
+  void _clampStopsToDateRange() {
+    final startDate = _startDate;
+    final endDate = _endDate;
+
+    if (startDate == null || endDate == null) return;
+
+    final start = DateTime(startDate.year, startDate.month, startDate.day);
+    final end = DateTime(endDate.year, endDate.month, endDate.day);
+
+    for (var index = 0; index < _stops.length; index++) {
+      final stop = _stops[index];
+      final stopDate = DateTime(
+        stop.arriveAt.year,
+        stop.arriveAt.month,
+        stop.arriveAt.day,
+      );
+
+      DateTime? targetDate;
+      if (stopDate.isBefore(start)) {
+        targetDate = start;
+      } else if (stopDate.isAfter(end)) {
+        targetDate = end;
+      }
+
+      if (targetDate == null) continue;
+
+      _stops[index] = stop.copyWith(
+        arriveAt: DateTime(
+          targetDate.year,
+          targetDate.month,
+          targetDate.day,
+          stop.arriveAt.hour,
+          stop.arriveAt.minute,
+        ),
+      );
+    }
+  }
+
+  String _weekdayText(DateTime date) {
+    switch (date.weekday) {
+      case DateTime.monday:
+        return 'T2';
+      case DateTime.tuesday:
+        return 'T3';
+      case DateTime.wednesday:
+        return 'T4';
+      case DateTime.thursday:
+        return 'T5';
+      case DateTime.friday:
+        return 'T6';
+      case DateTime.saturday:
+        return 'T7';
+      default:
+        return 'CN';
+    }
+  }
+
+  String _selectedDateText() {
+    final date = _selectedDate;
+    if (date == null) return 'Chưa chọn ngày';
+
+    return '${_weekdayText(date)} - ${date.day}/${date.month}';
+  }
+
+  String _timeOnlyText(DateTime date) {
+    final hour = date.hour.toString().padLeft(2, '0');
+    final minute = date.minute.toString().padLeft(2, '0');
+    return '$hour:$minute';
   }
 
   @override
@@ -534,6 +725,8 @@ class _TrangThemSuaLichTrinhNhomPageState
                       ),
                     ],
                   ),
+                  const SizedBox(height: 14),
+                  _dayPicker(),
                   const SizedBox(height: 26),
                   _sectionTitle('Bạn bè'),
                   _friendsSection(),
@@ -581,6 +774,57 @@ class _TrangThemSuaLichTrinhNhomPageState
           ],
         ),
       ),
+    );
+  }
+
+  Widget _dayPicker() {
+    final count = _dayCount;
+
+    if (count <= 0) {
+      return Text(
+        'Chọn ngày bắt đầu và ngày kết thúc để chia lịch trình theo từng ngày.',
+        style: _text(size: 12, color: Colors.white54),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          height: 36,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: count,
+            separatorBuilder: (context, index) => const SizedBox(width: 10),
+            itemBuilder: (context, index) {
+              final active = index == _selectedDayIndex;
+
+              return InkWell(
+                onTap: () => setState(() => _selectedDayIndex = index),
+                borderRadius: BorderRadius.circular(999),
+                child: Container(
+                  width: 104,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: active ? blue : fieldGrey,
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: active ? blue : Colors.white12),
+                  ),
+                  child: Text(
+                    'Ngày ${index + 1}',
+                    style: _text(size: 13, weight: FontWeight.w800),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Đang thêm cho ${_selectedDateText()}',
+          style: _text(size: 12, color: Colors.white60),
+        ),
+      ],
     );
   }
 
@@ -644,9 +888,11 @@ class _TrangThemSuaLichTrinhNhomPageState
   }
 
   Widget _stopsSection() {
+    final visibleStops = _stopsInSelectedDay;
+
     return Column(
       children: [
-        if (_stops.isEmpty)
+        if (_selectedDate == null)
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(16),
@@ -655,12 +901,29 @@ class _TrangThemSuaLichTrinhNhomPageState
               borderRadius: BorderRadius.circular(14),
             ),
             child: Text(
-              'Chưa có điểm đến. Thêm địa điểm và đặt giờ có mặt cho nhóm.',
+              'Hãy chọn ngày bắt đầu và ngày kết thúc trước.',
+              style: _text(color: Colors.white60),
+            ),
+          )
+        else if (visibleStops.isEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: darkGrey,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Text(
+              'Chưa có điểm đến cho ${_selectedDateText()}.',
               style: _text(color: Colors.white60),
             ),
           )
         else
-          ...List.generate(_stops.length, _stopCard),
+          for (var index = 0; index < visibleStops.length; index++)
+            _stopCard(
+              realIndex: _stops.indexOf(visibleStops[index]),
+              displayIndex: index,
+            ),
         const SizedBox(height: 12),
         SizedBox(
           width: double.infinity,
@@ -682,8 +945,8 @@ class _TrangThemSuaLichTrinhNhomPageState
     );
   }
 
-  Widget _stopCard(int index) {
-    final stop = _stops[index];
+  Widget _stopCard({required int realIndex, required int displayIndex}) {
+    final stop = _stops[realIndex];
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -707,7 +970,7 @@ class _TrangThemSuaLichTrinhNhomPageState
                 ),
                 child: Center(
                   child: Text(
-                    '${index + 1}',
+                    '${displayIndex + 1}',
                     style: _text(weight: FontWeight.w800, color: blue),
                   ),
                 ),
@@ -734,7 +997,7 @@ class _TrangThemSuaLichTrinhNhomPageState
                 ),
               ),
               IconButton(
-                onPressed: () => setState(() => _stops.removeAt(index)),
+                onPressed: () => setState(() => _stops.removeAt(realIndex)),
                 icon: const Icon(Icons.close, color: Colors.white54),
               ),
             ],
@@ -744,7 +1007,7 @@ class _TrangThemSuaLichTrinhNhomPageState
             children: [
               Expanded(
                 child: InkWell(
-                  onTap: () => _pickStopTime(index),
+                  onTap: () => _pickStopTime(realIndex),
                   borderRadius: BorderRadius.circular(12),
                   child: Container(
                     padding: const EdgeInsets.all(12),
@@ -753,7 +1016,7 @@ class _TrangThemSuaLichTrinhNhomPageState
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
-                      _formatDateTime(stop.arriveAt),
+                      _timeOnlyText(stop.arriveAt),
                       style: _text(weight: FontWeight.w800),
                     ),
                   ),
@@ -761,7 +1024,7 @@ class _TrangThemSuaLichTrinhNhomPageState
               ),
               const SizedBox(width: 10),
               TextButton(
-                onPressed: () => _editStopNote(index),
+                onPressed: () => _editStopNote(realIndex),
                 child: Text(
                   stop.note.trim().isEmpty ? 'Ghi chú' : 'Sửa ghi chú',
                 ),
@@ -819,14 +1082,6 @@ class _TrangThemSuaLichTrinhNhomPageState
     if (date == null) return 'Chọn ngày';
     final local = date.toLocal();
     return '${local.day}/${local.month}/${local.year}';
-  }
-
-  String _formatDateTime(DateTime date) {
-    final local = date.toLocal();
-    final hour = local.hour.toString().padLeft(2, '0');
-    final minute = local.minute.toString().padLeft(2, '0');
-
-    return '${local.day}/${local.month}/${local.year} $hour:$minute';
   }
 }
 

@@ -622,11 +622,7 @@ class LichTrinhNhomService {
         .eq('id', tripId)
         .eq('owner_id', user.id);
 
-    await _client
-        .from('trip_members')
-        .delete()
-        .eq('trip_id', tripId)
-        .neq('role', 'owner');
+    await _deleteRemovedMembers(tripId: tripId, memberIds: memberIds);
 
     await _client.from('trip_stops').delete().eq('trip_id', tripId);
 
@@ -923,6 +919,36 @@ class LichTrinhNhomService {
     await _client
         .from('trip_members')
         .upsert(rows, onConflict: 'trip_id,user_id');
+  }
+
+  Future<void> _deleteRemovedMembers({
+    required int tripId,
+    required List<String> memberIds,
+  }) async {
+    final keepIds = memberIds
+        .map((id) => id.trim())
+        .where((id) => id.isNotEmpty)
+        .toSet();
+
+    final rows = await _client
+        .from('trip_members')
+        .select('user_id')
+        .eq('trip_id', tripId)
+        .neq('role', 'owner');
+
+    for (final raw in rows as List) {
+      final row = Map<String, dynamic>.from(raw as Map);
+      final userId = row['user_id']?.toString() ?? '';
+
+      if (userId.isEmpty || keepIds.contains(userId)) continue;
+
+      await _client
+          .from('trip_members')
+          .delete()
+          .eq('trip_id', tripId)
+          .eq('user_id', userId)
+          .neq('role', 'owner');
+    }
   }
 
   Future<void> _insertStops({
