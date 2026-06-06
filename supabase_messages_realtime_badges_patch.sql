@@ -52,6 +52,14 @@ begin
     and cm.profile_id <> new.sender_profile_id
     and cm.status = 'active';
 
+  -- Khi người nhận đã ẩn (status = 'deleted'), kích hoạt lại cuộc trò chuyện
+  -- để cuộc trò chuyện xuất hiện trở lại trong danh sách khi có tin nhắn mới
+  update public.conversation_members
+  set status = 'active'
+  where conversation_id = new.conversation_id
+    and profile_id <> new.sender_profile_id
+    and status = 'deleted';
+
   return new;
 end;
 $$;

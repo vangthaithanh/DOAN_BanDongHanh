@@ -566,6 +566,12 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
                         _profileStatText(
                           text: '${data.followerCount} Người theo dõi',
                           onTap: () {
+                            if (!data.isMe && !data.isFollowing) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Hãy theo dõi để xem danh sách này')),
+                              );
+                              return;
+                            }
                             _openProfileConnections(
                               targetUserId: data.profile.id,
                               type: 'followers',
@@ -575,6 +581,12 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
                         _profileStatText(
                           text: '${data.friendCount} Bạn bè',
                           onTap: () {
+                            if (!data.isMe && !data.isFollowing) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Hãy theo dõi để xem danh sách này')),
+                              );
+                              return;
+                            }
                             _openProfileConnections(
                               targetUserId: data.profile.id,
                               type: 'friends',
@@ -583,7 +595,7 @@ class _TrangCaNhanPageState extends State<TrangCaNhanPage> {
                         ),
                         _profileStatText(
                           text:
-                              '${data.posts.where((post) => post.status != 'archived' && post.status != 'deleted' && !post.isArchived).length} Bài viết',
+                          '${data.posts.where((post) => post.status != 'archived' && post.status != 'deleted' && !post.isArchived).length} Bài viết',
                         ),
                       ],
                     ),

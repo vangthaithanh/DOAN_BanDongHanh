@@ -57,11 +57,10 @@ class _TrangTinNhanPageState extends State<TrangTinNhanPage> {
         .onPostgresChanges(
           event: PostgresChangeEvent.update,
           schema: 'public',
-          table: 'messages',
+          table: 'conversation_members', // Lắng nghe để hiện lại cuộc trò chuyện khi status đổi sang active
           callback: (_) => _reloadSilently(),
         )
         .subscribe();
-
   }
 
   Future<void> _reload() async {
@@ -70,7 +69,7 @@ class _TrangTinNhanPageState extends State<TrangTinNhanPage> {
     setState(() {
       _future = future;
       _badgeVersion++;
-
+      _dismissedIds.clear(); // Xóa cache ẩn tạm thời khi refresh thủ công
     });
 
     await future;
@@ -84,6 +83,7 @@ class _TrangTinNhanPageState extends State<TrangTinNhanPage> {
     setState(() {
       _future = _messageService.loadConversations(waiting: false);
       _badgeVersion++;
+      // Không clear _dismissedIds ở đây để tránh giật lag khi đang vuốt xóa
     });
   }
 
@@ -101,7 +101,7 @@ class _TrangTinNhanPageState extends State<TrangTinNhanPage> {
               child: FutureBuilder<List<ConversationPreview>>(
                 future: _future,
                 builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
+                  if (snapshot.connectionState == ConnectionState.waiting && !_dismissedIds.isNotEmpty) {
                     return const Center(child: CircularProgressIndicator());
                   }
 
@@ -417,13 +417,15 @@ class _TrangTinNhanPageState extends State<TrangTinNhanPage> {
           context: context,
           builder: (ctx) => AlertDialog(
             backgroundColor: const Color(0xFF1C1C1E),
-            title: const Text('Xóa đoạn chat', style: TextStyle(color: Colors.white)),
-            content: const Text('Đoạn chat sẽ bị xóa khỏi danh sách của bạn.',
-                style: TextStyle(color: Colors.white70)),
+            title: const Text('Xóa cuộc trò chuyện?', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            content: const Text(
+              'Toàn bộ lịch sử trò chuyện sẽ bị ẩn khỏi danh sách của bạn nhưng vẫn còn với người kia.',
+              style: TextStyle(color: Colors.white70),
+            ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('Hủy'),
+                child: const Text('Hủy', style: TextStyle(color: Colors.white54)),
               ),
               TextButton(
                 onPressed: () => Navigator.pop(ctx, true),

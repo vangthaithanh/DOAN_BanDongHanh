@@ -287,14 +287,15 @@ class ProfileService {
 
   Future<int> _countFollowers(String userId) async {
     try {
-      final rows = await _client
+      final res = await _client
           .from('follows')
           .select('id')
           .eq('following_id', userId)
           .eq('status', 'active');
 
-      return (rows as List).length;
-    } catch (_) {
+      return res.length;
+    } catch (e) {
+      print('❌ _countFollowers error: $e');
       return 0;
     }
   }
@@ -309,43 +310,28 @@ class ProfileService {
   /// Khi có đủ 2 chiều active thì tính là 1 bạn bè.
   Future<int> _countFriends(String userId) async {
     try {
-      final followingRows = await _client
+      final following = await _client
           .from('follows')
           .select('following_id')
           .eq('follower_id', userId)
-          .eq('status', 'active')
-          .neq('following_id', userId);
+          .eq('status', 'active');
 
-      final followingIds = (followingRows as List)
-          .map((row) {
-            final map = row as Map<String, dynamic>;
-            return map['following_id']?.toString() ?? '';
-          })
-          .where((id) => id.isNotEmpty)
-          .toSet()
-          .toList();
+      final followingIds = following
+          .map((e) => e['following_id'])
+          .toSet();
 
-      if (followingIds.isEmpty) {
-        return 0;
-      }
+      if (followingIds.isEmpty) return 0;
 
-      final mutualRows = await _client
+      final mutual = await _client
           .from('follows')
           .select('follower_id')
-          .inFilter('follower_id', followingIds)
+          .inFilter('follower_id', followingIds.toList())
           .eq('following_id', userId)
           .eq('status', 'active');
 
-      final mutualIds = (mutualRows as List)
-          .map((row) {
-            final map = row as Map<String, dynamic>;
-            return map['follower_id']?.toString() ?? '';
-          })
-          .where((id) => id.isNotEmpty)
-          .toSet();
-
-      return mutualIds.length;
-    } catch (_) {
+      return mutual.length;
+    } catch (e) {
+      print('❌ _countFriends error: $e');
       return 0;
     }
   }

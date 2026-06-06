@@ -851,16 +851,6 @@ class _TrangDoanChatPageState extends State<TrangDoanChatPage>
       ),
       body: Column(
         children: [
-          const SizedBox(height: 16),
-          const Text(
-            '18:20, TH 5',
-            style: TextStyle(
-              color: Colors.white38,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 16),
 
           if (_loadingMessages)
             const Expanded(child: Center(child: CircularProgressIndicator()))
