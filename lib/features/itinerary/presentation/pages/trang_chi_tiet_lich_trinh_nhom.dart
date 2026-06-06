@@ -22,6 +22,7 @@ class _TrangChiTietLichTrinhNhomPageState
   final LichTrinhNhomService _service = LichTrinhNhomService();
   late Future<TripGroupDetail> _future;
   int? _checkingStopId;
+  bool _hasChanges = false;
 
   @override
   void initState() {
@@ -32,6 +33,10 @@ class _TrangChiTietLichTrinhNhomPageState
 
   void _reload() {
     _future = _service.layChiTietLichTrinhNhom(widget.tripId);
+  }
+
+  void _close() {
+    Navigator.pop(context, _hasChanges);
   }
 
   TextStyle _text({
@@ -57,6 +62,7 @@ class _TrangChiTietLichTrinhNhomPageState
     if (!mounted) return;
 
     if (changed == true) {
+      _hasChanges = true;
       setState(_reload);
     }
   }
@@ -111,6 +117,7 @@ class _TrangChiTietLichTrinhNhomPageState
       await _showCheckResult(result);
 
       if (!mounted) return;
+      _hasChanges = true;
       setState(_reload);
     } catch (e) {
       _showError(e);
@@ -228,6 +235,29 @@ class _TrangChiTietLichTrinhNhomPageState
     );
   }
 
+  void _openStopMap(TripStop stop) {
+    final placeId = stop.placeId;
+
+    if (placeId != null && placeId > 0) {
+      Navigator.pushNamed(
+        context,
+        AppRoutes.placeMap,
+        arguments: {'selectedPlaceId': placeId},
+      );
+      return;
+    }
+
+    Navigator.pushNamed(
+      context,
+      AppRoutes.map,
+      arguments: {
+        'lat': stop.latitude,
+        'lng': stop.longitude,
+        'ten': stop.title,
+      },
+    );
+  }
+
   void _showError(Object error) {
     if (!mounted) return;
 
@@ -238,50 +268,59 @@ class _TrangChiTietLichTrinhNhomPageState
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: SafeArea(
-        child: FutureBuilder<TripGroupDetail>(
-          future: _future,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
+    // ignore: deprecated_member_use
+    return WillPopScope(
+      onWillPop: () async {
+        _close();
+        return false;
+      },
+      child: Scaffold(
+        backgroundColor: Colors.black,
+        body: SafeArea(
+          child: FutureBuilder<TripGroupDetail>(
+            future: _future,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
 
-            if (snapshot.hasError) {
-              return _error(snapshot.error!);
-            }
+              if (snapshot.hasError) {
+                return _error(snapshot.error!);
+              }
 
-            final detail = snapshot.data;
-            if (detail == null) {
-              return _error('Không tìm thấy lịch trình nhóm.');
-            }
+              final detail = snapshot.data;
+              if (detail == null) {
+                return _error('Không tìm thấy lịch trình nhóm.');
+              }
 
-            return Column(
-              children: [
-                _topBar(detail),
-                Expanded(
-                  child: RefreshIndicator(
-                    onRefresh: () async => setState(_reload),
-                    child: ListView(
-                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-                      children: [
-                        _summary(detail),
-                        const SizedBox(height: 22),
-                        _sectionTitle('Thành viên'),
-                        ...detail.members.map(
-                          (member) => _memberTile(detail, member),
-                        ),
-                        const SizedBox(height: 22),
-                        _sectionTitle('Điểm dừng'),
-                        ...detail.stops.map((stop) => _stopCard(detail, stop)),
-                      ],
+              return Column(
+                children: [
+                  _topBar(detail),
+                  Expanded(
+                    child: RefreshIndicator(
+                      onRefresh: () async => setState(_reload),
+                      child: ListView(
+                        padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                        children: [
+                          _summary(detail),
+                          const SizedBox(height: 22),
+                          _sectionTitle('Thành viên'),
+                          ...detail.members.map(
+                            (member) => _memberTile(detail, member),
+                          ),
+                          const SizedBox(height: 22),
+                          _sectionTitle('Điểm dừng'),
+                          ...detail.stops.map(
+                            (stop) => _stopCard(detail, stop),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-              ],
-            );
-          },
+                ],
+              );
+            },
+          ),
         ),
       ),
     );
@@ -295,7 +334,7 @@ class _TrangChiTietLichTrinhNhomPageState
       child: Row(
         children: [
           InkWell(
-            onTap: () => Navigator.pop(context),
+            onTap: _close,
             borderRadius: BorderRadius.circular(18),
             child: Container(
               width: 34,
@@ -534,30 +573,74 @@ class _TrangChiTietLichTrinhNhomPageState
             Text(stop.note, style: _text(color: Colors.white60)),
           ],
           const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            height: 42,
-            child: ElevatedButton.icon(
-              onPressed: isChecking ? null : () => _checkStop(stop),
-              icon: isChecking
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.my_location, size: 18),
-              label: Text(
-                isChecking ? 'Đang kiểm tra...' : 'Kiểm tra ngay',
-                style: _text(weight: FontWeight.w800),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: blue,
-                disabledBackgroundColor: Colors.white24,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(999),
+          Row(
+            children: [
+              Expanded(
+                child: SizedBox(
+                  height: 42,
+                  child: OutlinedButton(
+                    onPressed: () => _openStopMap(stop),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      side: const BorderSide(color: blue),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.directions_rounded, size: 18),
+                        const SizedBox(width: 6),
+                        Flexible(
+                          child: Text(
+                            'Đường đi',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: _text(weight: FontWeight.w800),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
-            ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: SizedBox(
+                  height: 42,
+                  child: ElevatedButton(
+                    onPressed: isChecking ? null : () => _checkStop(stop),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: blue,
+                      disabledBackgroundColor: Colors.white24,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                    ),
+                    child: Center(
+                      child: isChecking
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : Text(
+                              'Kiểm tra',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.center,
+                              style: _text(weight: FontWeight.w800),
+                            ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),

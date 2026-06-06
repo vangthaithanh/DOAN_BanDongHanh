@@ -25,6 +25,7 @@ class PostService {
             'id, profile_id, title, content, visibility, like_count, comment_count, created_at, location_name',
           )
           .eq('id', postId)
+          .eq('status', 'active')
           .or('is_hidden.is.null,is_hidden.eq.false')
           .maybeSingle();
     });

@@ -151,6 +151,10 @@ class _TrangCaiDatHoatDongPageState extends State<TrangCaiDatHoatDongPage> {
     }
   }
 
+  void _goAdminPage() {
+    Navigator.pushNamed(context, AppRoutes.adminDashboard);
+  }
+
   void _comingSoon(String title) {
     ScaffoldMessenger.of(context).clearSnackBars();
 
@@ -161,10 +165,6 @@ class _TrangCaiDatHoatDongPageState extends State<TrangCaiDatHoatDongPage> {
         margin: const EdgeInsets.all(16),
       ),
     );
-  }
-
-  void _goAdminPage() {
-    Navigator.pushNamed(context, AppRoutes.adminDashboard);
   }
 
   @override
@@ -218,6 +218,10 @@ class _TrangCaiDatHoatDongPageState extends State<TrangCaiDatHoatDongPage> {
             _item(
               icon: Icons.archive_outlined,
               title: 'Kho lưu trữ',
+
+              // NOTE SỬA LƯU TRỮ:
+              // Nếu Kho lưu trữ trả về true sau khi khôi phục bài,
+              // màn Cài đặt cũng pop true về Trang cá nhân để Trang cá nhân reload.
               onTap: _loggingOut
                   ? null
                   : () async {
@@ -263,6 +267,7 @@ class _TrangCaiDatHoatDongPageState extends State<TrangCaiDatHoatDongPage> {
               trailingText: _blockedCount > 0 ? '$_blockedCount' : null,
               onTap: () async {
                 await Navigator.pushNamed(context, AppRoutes.blockedUsers);
+                // Cập nhật lại số đếm sau khi bỏ chặn
                 if (mounted) {
                   final c = await _blockService.countBlocked();
                   if (mounted) setState(() => _blockedCount = c);

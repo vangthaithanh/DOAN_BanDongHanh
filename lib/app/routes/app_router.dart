@@ -142,7 +142,6 @@ class AppRouter {
       AppRoutes.placeDetail: (_) => const TrangChiTietDiaDiemPage(),
       AppRoutes.placeReview: (_) => const TrangDanhGiaDiaDiemPage(),
       AppRoutes.placeMap: (_) => const TrangBanDoDiaDiemPage(),
-
       AppRoutes.tripList: (_) => const TrangLichTrinhPage(),
       AppRoutes.tripCreate: (context) {
         final args =
@@ -161,7 +160,6 @@ class AppRouter {
           itineraryId: args?['itineraryId'] as int?,
         );
       },
-
       AppRoutes.groupTripList: (_) => const TrangLichTrinhNhomPage(),
       AppRoutes.groupTripCreate: (context) {
         final args =
@@ -186,7 +184,6 @@ class AppRouter {
           focusUserId: args?['focusUserId'] as String?,
         );
       },
-
       AppRoutes.editProfile: (context) {
         final args = ModalRoute.of(context)?.settings.arguments;
         return TrangChinhSuaHoSoPage(
