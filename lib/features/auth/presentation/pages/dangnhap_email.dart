@@ -155,9 +155,7 @@ class _DangNhapEmailPageState extends State<DangNhapEmailPage> {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         _backButton(context),
-
                         SizedBox(height: topGap),
-
                         Text(
                           'Nhập Email của bạn',
                           textAlign: TextAlign.center,
@@ -167,9 +165,7 @@ class _DangNhapEmailPageState extends State<DangNhapEmailPage> {
                             fontWeight: FontWeight.w800,
                           ),
                         ),
-
                         const SizedBox(height: 18),
-
                         TextField(
                           controller: emailController,
                           onChanged: (_) => setState(() {}),
@@ -191,9 +187,7 @@ class _DangNhapEmailPageState extends State<DangNhapEmailPage> {
                             ),
                           ),
                         ),
-
                         const SizedBox(height: 12),
-
                         GestureDetector(
                           onTap: () {
                             Navigator.pushReplacementNamed(
@@ -211,9 +205,7 @@ class _DangNhapEmailPageState extends State<DangNhapEmailPage> {
                             ),
                           ),
                         ),
-
                         const SizedBox(height: 18),
-
                         SizedBox(
                           width: double.infinity,
                           height: buttonHeight,
@@ -240,9 +232,7 @@ class _DangNhapEmailPageState extends State<DangNhapEmailPage> {
                             ),
                           ),
                         ),
-
                         const SizedBox(height: 24),
-
                         const Text(
                           'Bằng cách nhấn vào nút Tiếp tục,\n'
                           'bạn đồng ý với chúng tôi Điều khoản\n'
@@ -254,16 +244,13 @@ class _DangNhapEmailPageState extends State<DangNhapEmailPage> {
                             height: 1.5,
                           ),
                         ),
-
                         const SizedBox(height: 18),
-
                         _primaryButton(
                           label: 'Tiếp tục',
                           color: isValidEmail ? blue : Colors.grey,
                           height: buttonHeight,
                           onTap: isValidEmail ? goToPasswordEmail : null,
                         ),
-
                         const SizedBox(height: 24),
                       ],
                     ),

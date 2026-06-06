@@ -21,12 +21,10 @@ class _GoogleLoginCallbackPageState extends State<GoogleLoginCallbackPage> {
   void initState() {
     super.initState();
 
-    // Nếu session đã có rồi thì qua loading luôn.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       goLoadingIfLoggedIn();
     });
 
-    // Nếu session chưa kịp có thì nghe sự kiện signedIn.
     authSub = Supabase.instance.client.auth.onAuthStateChange.listen((data) {
       if (data.event == AuthChangeEvent.signedIn) {
         goLoadingIfLoggedIn();
@@ -60,7 +58,6 @@ class _GoogleLoginCallbackPageState extends State<GoogleLoginCallbackPage> {
 
   @override
   Widget build(BuildContext context) {
-    // Màn này chỉ dùng để hứng deep link, không cho hiện "không tìm thấy màn hình".
     return const Scaffold(
       backgroundColor: Colors.black,
       body: Center(child: CircularProgressIndicator(color: Color(0xFF4AA8FF))),

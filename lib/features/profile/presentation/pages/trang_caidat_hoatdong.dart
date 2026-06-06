@@ -17,14 +17,37 @@ class _TrangCaiDatHoatDongPageState extends State<TrangCaiDatHoatDongPage> {
   final BlockService _blockService = BlockService();
 
   bool _loggingOut = false;
+  bool _isAdmin = false;
   int _blockedCount = 0;
 
   @override
   void initState() {
     super.initState();
-    _blockService.countBlocked().then((c) {
-      if (mounted) setState(() => _blockedCount = c);
-    });
+    _loadBlockedCount();
+    _loadAdminStatus();
+  }
+
+  Future<void> _loadBlockedCount() async {
+    final c = await _blockService.countBlocked();
+    if (mounted) setState(() => _blockedCount = c);
+  }
+
+  Future<void> _loadAdminStatus() async {
+    try {
+      final profile = await _authService.getCurrentProfile();
+
+      if (!mounted) return;
+
+      setState(() {
+        _isAdmin = profile?['role'] == 'admin';
+      });
+    } catch (_) {
+      if (!mounted) return;
+
+      setState(() {
+        _isAdmin = false;
+      });
+    }
   }
 
   Future<void> _showChangePasswordSheet() async {
@@ -140,6 +163,10 @@ class _TrangCaiDatHoatDongPageState extends State<TrangCaiDatHoatDongPage> {
     );
   }
 
+  void _goAdminPage() {
+    Navigator.pushNamed(context, AppRoutes.adminDashboard);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -191,10 +218,6 @@ class _TrangCaiDatHoatDongPageState extends State<TrangCaiDatHoatDongPage> {
             _item(
               icon: Icons.archive_outlined,
               title: 'Kho lưu trữ',
-
-              // NOTE SỬA LƯU TRỮ:
-              // Nếu Kho lưu trữ trả về true sau khi khôi phục bài,
-              // màn Cài đặt cũng pop true về Trang cá nhân để Trang cá nhân reload.
               onTap: _loggingOut
                   ? null
                   : () async {
@@ -240,7 +263,6 @@ class _TrangCaiDatHoatDongPageState extends State<TrangCaiDatHoatDongPage> {
               trailingText: _blockedCount > 0 ? '$_blockedCount' : null,
               onTap: () async {
                 await Navigator.pushNamed(context, AppRoutes.blockedUsers);
-                // Cập nhật lại số đếm sau khi bỏ chặn
                 if (mounted) {
                   final c = await _blockService.countBlocked();
                   if (mounted) setState(() => _blockedCount = c);
@@ -253,6 +275,18 @@ class _TrangCaiDatHoatDongPageState extends State<TrangCaiDatHoatDongPage> {
               onTap: () => _comingSoon('Tin, khoảnh khắc và vị trí'),
             ),
             _divider(),
+
+            if (_isAdmin) ...[
+              _sectionTitle('Quản trị'),
+              _item(
+                icon: Icons.admin_panel_settings_outlined,
+                title: 'Quản trị viên',
+                subtitle: 'Quản lý tài khoản, bài viết và thống kê',
+                trailingText: 'Admin',
+                onTap: _loggingOut ? null : _goAdminPage,
+              ),
+              _divider(),
+            ],
 
             _sectionTitle('Đăng nhập'),
             _item(

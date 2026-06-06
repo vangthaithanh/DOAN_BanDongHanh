@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/services/profile_service.dart';
 import '../../core/widgets/coming_soon_page.dart';
+import '../../features/admin/presentation/pages/admin_page.dart';
 import '../../features/auth/data/models/du_lieu_quen_matkhau.dart';
 import '../../features/auth/presentation/pages/dangki_email.dart';
 import '../../features/auth/presentation/pages/dangki_matkhau_email.dart';
@@ -23,6 +24,12 @@ import '../../features/auth/presentation/pages/them_anh_daidien.dart';
 import '../../features/auth/presentation/pages/trang_bat_dau.dart';
 import '../../features/home/presentation/pages/global_user_search_page.dart';
 import '../../features/home/presentation/pages/trang_chu.dart';
+import '../../features/itinerary/presentation/pages/trang_ban_do_vi_tri_nhom.dart';
+import '../../features/itinerary/presentation/pages/trang_chi_tiet_lich_trinh_nhom.dart';
+import '../../features/itinerary/presentation/pages/trang_lich_trinh.dart';
+import '../../features/itinerary/presentation/pages/trang_lich_trinh_nhom.dart';
+import '../../features/itinerary/presentation/pages/trang_them_sua_lich_trinh.dart';
+import '../../features/itinerary/presentation/pages/trang_them_sua_lich_trinh_nhom.dart';
 import '../../features/map/presentation/pages/map.dart';
 import '../../features/messages/presentation/pages/trang_doan_chat.dart';
 import '../../features/messages/presentation/pages/trang_tinnhan.dart';
@@ -46,18 +53,12 @@ import '../../features/profile/presentation/pages/trang_caidat_hoatdong.dart';
 import '../../features/profile/presentation/pages/trang_canhan.dart';
 import '../../features/profile/presentation/pages/trang_chinhsua_hoso.dart';
 import '../../features/profile/presentation/pages/trang_danhsach_ketnoi.dart';
-import '../../features/users/presentation/pages/trang_danhsach_dachan.dart';
 import '../../features/profile/presentation/pages/trang_kho_luu_tru.dart';
 import '../../features/profile/presentation/pages/trang_xem_baiviet_luutru.dart';
 import '../../features/social/data/models/post_model.dart';
 import '../../features/social/presentation/pages/trang_binhluan.dart';
 import '../../features/social/presentation/pages/trang_tao_baiviet.dart';
-import '../../features/itinerary/presentation/pages/trang_ban_do_vi_tri_nhom.dart';
-import '../../features/itinerary/presentation/pages/trang_chi_tiet_lich_trinh_nhom.dart';
-import '../../features/itinerary/presentation/pages/trang_lich_trinh.dart';
-import '../../features/itinerary/presentation/pages/trang_lich_trinh_nhom.dart';
-import '../../features/itinerary/presentation/pages/trang_them_sua_lich_trinh.dart';
-import '../../features/itinerary/presentation/pages/trang_them_sua_lich_trinh_nhom.dart';
+import '../../features/users/presentation/pages/trang_danhsach_dachan.dart';
 import 'app_routes.dart';
 
 class AppRouter {
@@ -116,7 +117,6 @@ class AppRouter {
       AppRoutes.notifications: (_) => const TrangThongBaoPage(),
       AppRoutes.messages: (_) => const TrangTinNhanPage(),
 
-      // NOTE SỬA: Cập nhật route profile để nhận tham số userId (từ arguments)
       AppRoutes.profile: (context) {
         final userId = ModalRoute.of(context)?.settings.arguments as String?;
         return TrangCaNhanPage(userId: userId);
@@ -130,19 +130,19 @@ class AppRouter {
           type: args?['type'] as String? ?? 'followers',
         );
       },
+
       AppRoutes.createPost: (_) => const TrangTaoBaiViet(),
       AppRoutes.postDetail: (_) =>
           const ComingSoonPage(title: 'Chi tiết bài viết'),
 
       AppRoutes.search: (_) => const ComingSoonPage(title: 'Tìm kiếm'),
-
       AppRoutes.globalUserSearch: (_) => const GlobalUserSearchPage(),
 
       AppRoutes.placeList: (_) => const TrangDiaDiemPage(),
       AppRoutes.placeDetail: (_) => const TrangChiTietDiaDiemPage(),
       AppRoutes.placeReview: (_) => const TrangDanhGiaDiaDiemPage(),
-
       AppRoutes.placeMap: (_) => const TrangBanDoDiaDiemPage(),
+
       AppRoutes.tripList: (_) => const TrangLichTrinhPage(),
       AppRoutes.tripCreate: (context) {
         final args =
@@ -161,6 +161,7 @@ class AppRouter {
           itineraryId: args?['itineraryId'] as int?,
         );
       },
+
       AppRoutes.groupTripList: (_) => const TrangLichTrinhNhomPage(),
       AppRoutes.groupTripCreate: (context) {
         final args =
@@ -185,6 +186,7 @@ class AppRouter {
           focusUserId: args?['focusUserId'] as String?,
         );
       },
+
       AppRoutes.editProfile: (context) {
         final args = ModalRoute.of(context)?.settings.arguments;
         return TrangChinhSuaHoSoPage(
@@ -204,14 +206,16 @@ class AppRouter {
 
         return TrangXemBaiVietLuuTruPage(post: post);
       },
+
       AppRoutes.followRequests: (_) =>
           const ComingSoonPage(title: 'Yêu cầu theo dõi'),
       AppRoutes.friendSuggestions: (_) =>
           const ComingSoonPage(title: 'Gợi ý bạn bè'),
-      AppRoutes.adminDashboard: (_) =>
-          const ComingSoonPage(title: 'Quản trị viên'),
+
+      AppRoutes.adminDashboard: (_) => const TrangAdminPage(),
       AppRoutes.adminReports: (_) =>
           const ComingSoonPage(title: 'Báo cáo vi phạm'),
+
       AppRoutes.trangBinhLuan: (context) {
         final postId = ModalRoute.of(context)?.settings.arguments as int? ?? 1;
         return TrangBinhLuan(postId: postId);
@@ -222,8 +226,10 @@ class AppRouter {
       AppRoutes.chatDetail: (context) {
         final args =
             ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+
         final name = args?['name'] as String? ?? 'Người dùng';
         final isWaiting = args?['isWaiting'] as bool? ?? false;
+
         return TrangDoanChatPage(
           name: name,
           isWaiting: isWaiting,

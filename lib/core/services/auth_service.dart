@@ -9,6 +9,7 @@ class AuthService {
   AuthService();
 
   static const String demoOtp = '123456';
+  static const String lockedAccountMessage = 'Tài khoản của bạn đã bị khóa';
 
   final SupabaseClient _client = Supabase.instance.client;
 
@@ -25,18 +26,42 @@ class AuthService {
       return null;
     }
 
-    // Nếu là Google login mà chưa có profile thì tạo trước.
     await ensureProfileAfterOAuth();
 
     final data = await _client
         .from('profiles')
         .select(
-          'id, email, phone, nickname, full_name, avatar_url, bio, facebook_url, role, status',
+          'id, email, phone, nickname, full_name, avatar_url, bio, facebook_url, role, status, lock_reason',
         )
         .eq('id', user.id)
         .maybeSingle();
 
     return data;
+  }
+
+  Future<void> checkCurrentAccountNotLocked() async {
+    final user = currentUser;
+
+    if (user == null) {
+      return;
+    }
+
+    final profile = await _client
+        .from('profiles')
+        .select('id, status, lock_reason')
+        .eq('id', user.id)
+        .maybeSingle();
+
+    if (profile == null) {
+      return;
+    }
+
+    final status = profile['status']?.toString().trim().toLowerCase();
+
+    if (status == 'locked') {
+      await _client.auth.signOut();
+      throw Exception(lockedAccountMessage);
+    }
   }
 
   Future<void> _updateLastLogin(String userId) async {
@@ -83,7 +108,6 @@ class AuthService {
       return false;
     }
 
-    // Ưu tiên RPC nếu bạn đã tạo function is_nickname_taken trên Supabase.
     try {
       final result = await _client.rpc(
         'is_nickname_taken',
@@ -92,7 +116,6 @@ class AuthService {
 
       return result == true;
     } catch (_) {
-      // Nếu chưa có RPC thì fallback sang query trực tiếp.
       try {
         final data = await _client
             .from('profiles')
@@ -130,8 +153,6 @@ class AuthService {
     return nickname;
   }
 
-  /// Dùng chủ yếu cho Google OAuth.
-  ///
   /// true  = vừa tạo profile mới
   /// false = profile đã tồn tại hoặc chưa có user
   Future<bool> ensureProfileAfterOAuth() async {
@@ -143,11 +164,12 @@ class AuthService {
 
     final existedProfile = await _client
         .from('profiles')
-        .select('id')
+        .select('id, status')
         .eq('id', user.id)
         .maybeSingle();
 
     if (existedProfile != null) {
+      await checkCurrentAccountNotLocked();
       await _ensureUserSettings(user.id);
       await _updateLastLogin(user.id);
       return false;
@@ -192,7 +214,6 @@ class AuthService {
         'last_login_at': now,
       });
     } catch (_) {
-      // Nếu DB chưa có cột last_login_at thì thử insert lại không có cột đó.
       await _client.from('profiles').insert({
         'id': user.id,
         'email': email,
@@ -222,13 +243,9 @@ class AuthService {
       return AppRoutes.start;
     }
 
-    // Quan trọng:
-    // Google login không đi qua màn đăng ký thường,
-    // nên phải đảm bảo có profiles + user_settings.
     await ensureProfileAfterOAuth();
+    await checkCurrentAccountNotLocked();
 
-    // Không bắt avatar, không bắt khảo sát nữa.
-    // Loading xong thì vào trang chủ.
     return AppRoutes.home;
   }
 
@@ -342,6 +359,7 @@ class AuthService {
       final user = currentUser;
 
       if (user != null) {
+        await checkCurrentAccountNotLocked();
         await _ensureUserSettings(user.id);
         await _updateLastLogin(user.id);
       }
@@ -524,8 +542,6 @@ class AuthService {
       throw Exception('Mật khẩu tối thiểu 8 ký tự');
     }
 
-    // Đây vẫn là demo.
-    // Muốn đổi mật khẩu thật khi user chưa đăng nhập thì phải dùng Edge Function service_role.
     await Future.delayed(const Duration(milliseconds: 500));
   }
 
@@ -558,11 +574,12 @@ class AuthService {
     }
 
     try {
-      // Kiểm tra mật khẩu cũ có đúng không.
       await _client.auth.signInWithPassword(
         email: user.email!,
         password: cleanOldPassword,
       );
+
+      await checkCurrentAccountNotLocked();
 
       await _client.auth.updateUser(UserAttributes(password: cleanNewPassword));
     } on AuthException catch (e) {

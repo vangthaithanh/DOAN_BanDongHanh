@@ -38,6 +38,7 @@ class AppRoutes {
   static const String profileConnections = '/profile-connections';
   static const String notifications = '/trang_thongbao';
   static const String trangViTri = '/trang-vi-tri';
+  static const String admin = '/admin';
 
   // Posts/social
   static const String createPost = '/bai-viet/tao';
