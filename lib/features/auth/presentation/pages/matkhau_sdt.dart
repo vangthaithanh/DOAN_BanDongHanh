@@ -58,7 +58,15 @@ class _MatKhauSdtPageState extends State<MatKhauSdtPage> {
         (route) => false,
       );
     } catch (e) {
-      _showMessage('Số điện thoại hoặc mật khẩu không đúng');
+      if (!mounted) return;
+
+      final message = e.toString().replaceFirst('Exception: ', '');
+
+      if (message.contains(AuthService.lockedAccountMessage)) {
+        _showMessage(AuthService.lockedAccountMessage);
+      } else {
+        _showMessage('Số điện thoại hoặc mật khẩu không đúng');
+      }
     }
 
     if (mounted) {

@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+
 import '../../../social/data/models/post_model.dart';
 
 class HomeFeedService {
@@ -27,9 +28,10 @@ class HomeFeedService {
             post_media(url, display_order)
           ''')
             .inFilter('profile_id', mutualIds)
-        // CHỈNH SỬA TẠI ĐÂY: Lấy cả bài viết chế độ 'người theo dõi' và 'bạn bè'
+            // CHỈNH SỬA TẠI ĐÂY: Lấy cả bài viết chế độ 'người theo dõi' và 'bạn bè'
             .inFilter('visibility', ['follower', 'friend'])
             .eq('status', 'active')
+            .or('is_hidden.is.null,is_hidden.eq.false')
             .order('created_at', ascending: false)
             .limit(20);
 
@@ -38,6 +40,7 @@ class HomeFeedService {
         return [];
       }
     }
+
     List<PostModel> followerPosts = [];
     if (user != null) {
       followerPosts = await loadMutualFollowerPosts(user.id);
@@ -116,14 +119,18 @@ class HomeFeedService {
           .select('following_id')
           .eq('follower_id', userId)
           .eq('status', 'active');
-      final followingIds = (followingRes as List).map((e) => e['following_id'].toString()).toSet();
+      final followingIds = (followingRes as List)
+          .map((e) => e['following_id'].toString())
+          .toSet();
 
       final followersRes = await _client
           .from('follows')
           .select('follower_id')
           .eq('following_id', userId)
           .eq('status', 'active');
-      final followerIds = (followersRes as List).map((e) => e['follower_id'].toString()).toSet();
+      final followerIds = (followersRes as List)
+          .map((e) => e['follower_id'].toString())
+          .toSet();
 
       return followingIds.intersection(followerIds).toList();
     } catch (_) {
@@ -151,10 +158,14 @@ class HomeFeedService {
         soLuotThich: _asInt(row['like_count']),
         soLuotBinhLuan: _asInt(row['comment_count']),
         laBaiVietCuaToi: currentUserId != null && authorId == currentUserId,
-        createdAt: DateTime.tryParse(row['created_at']?.toString() ?? '')?.toLocal(),
+        createdAt: DateTime.tryParse(
+          row['created_at']?.toString() ?? '',
+        )?.toLocal(),
         visibility: row['visibility']?.toString(),
         status: row['status']?.toString(),
-        isArchived: row['status']?.toString() == 'archived' || row['is_archived'] == true,
+        isArchived:
+            row['status']?.toString() == 'archived' ||
+            row['is_archived'] == true,
       );
     }).toList();
   }
@@ -170,19 +181,27 @@ class HomeFeedService {
       final createdAtRaw = row['created_at']?.toString().trim() ?? '';
 
       final isMine = currentUserId != null && authorProfileId == currentUserId;
-      final isLiked = currentUserId == null ? false : await _isPostLikedByMe(postId, currentUserId);
+      final isLiked = currentUserId == null
+          ? false
+          : await _isPostLikedByMe(postId, currentUserId);
 
       posts.add(
         PostModel(
           id: postId,
           authorId: authorProfileId,
-          tenNguoiDang: _firstText([row['author_nickname']], fallback: 'Người dùng'),
+          tenNguoiDang: _firstText([
+            row['author_nickname'],
+          ], fallback: 'Người dùng'),
           anhDaiDienNguoiDang: _emptyToNull(row['author_avatar_url']),
           thoiGian: _timeAgo(createdAtRaw),
           caption: _caption(row),
           danhSachAnh: mediaUrl.isEmpty ? const [] : [mediaUrl],
-          viTri: _emptyToNull(row['location_name']) ?? _emptyToNull(row['tagged_places']),
-          danhSachHashTag: _parseHashTags(row['matched_hashtags'] ?? row['hashtags']),
+          viTri:
+              _emptyToNull(row['location_name']) ??
+              _emptyToNull(row['tagged_places']),
+          danhSachHashTag: _parseHashTags(
+            row['matched_hashtags'] ?? row['hashtags'],
+          ),
           soLuotThich: _asInt(row['like_count']),
           soLuotBinhLuan: _asInt(row['comment_count']),
           daThich: isLiked,
@@ -190,7 +209,9 @@ class HomeFeedService {
           createdAt: DateTime.tryParse(createdAtRaw)?.toLocal(),
           visibility: row['visibility']?.toString(),
           status: row['status']?.toString(),
-          isArchived: row['status']?.toString() == 'archived' || row['is_archived'] == true,
+          isArchived:
+              row['status']?.toString() == 'archived' ||
+              row['is_archived'] == true,
         ),
       );
     }
@@ -263,7 +284,9 @@ class HomeFeedService {
     final all = [...recommended, ...followers, ...public];
 
     for (final post in all) {
-      if (post.status == 'archived' || post.status == 'deleted' || post.isArchived) {
+      if (post.status == 'archived' ||
+          post.status == 'deleted' ||
+          post.isArchived) {
         continue;
       }
       if (blockedIds.contains(post.authorId)) continue;
@@ -273,7 +296,10 @@ class HomeFeedService {
       }
     }
 
-    mergedPosts.sort((a, b) => (b.createdAt ?? DateTime(0)).compareTo(a.createdAt ?? DateTime(0)));
+    mergedPosts.sort(
+      (a, b) =>
+          (b.createdAt ?? DateTime(0)).compareTo(a.createdAt ?? DateTime(0)),
+    );
     return mergedPosts;
   }
 
@@ -281,14 +307,19 @@ class HomeFeedService {
     final title = row['title']?.toString().trim() ?? '';
     final content = row['content']?.toString().trim() ?? '';
     if (title.isEmpty && content.isEmpty) return null;
-    if (title.isNotEmpty && content.isNotEmpty && title != content) return '$title\n$content';
+    if (title.isNotEmpty && content.isNotEmpty && title != content)
+      return '$title\n$content';
     return content.isNotEmpty ? content : title;
   }
 
   List<String> _parseHashTags(dynamic value) {
     final text = value?.toString().trim() ?? '';
     if (text.isEmpty) return const [];
-    return text.split(RegExp(r'[\s,]+')).map((item) => item.trim().replaceFirst(RegExp(r'^#+'), '')).where((item) => item.isNotEmpty).toList();
+    return text
+        .split(RegExp(r'[\s,]+'))
+        .map((item) => item.trim().replaceFirst(RegExp(r'^#+'), ''))
+        .where((item) => item.isNotEmpty)
+        .toList();
   }
 
   String _timeAgo(dynamic value) {

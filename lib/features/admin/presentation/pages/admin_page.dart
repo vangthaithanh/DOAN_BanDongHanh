@@ -159,6 +159,7 @@ class _TrangAdminPageState extends State<TrangAdminPage>
 
       if (mounted) {
         setState(() {});
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
@@ -193,6 +194,7 @@ class _TrangAdminPageState extends State<TrangAdminPage>
 
       if (mounted) {
         setState(() {});
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(isHidden ? 'Đã hiện lại bài viết' : 'Đã ẩn bài viết'),

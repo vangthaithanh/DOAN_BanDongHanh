@@ -77,7 +77,13 @@ class _MatKhauEmailPageState extends State<MatKhauEmailPage> {
     } catch (e) {
       if (!mounted) return;
 
-      _showMessage('Email hoặc mật khẩu không đúng');
+      final message = e.toString().replaceFirst('Exception: ', '');
+
+      if (message.contains(AuthService.lockedAccountMessage)) {
+        _showMessage(AuthService.lockedAccountMessage);
+      } else {
+        _showMessage('Email hoặc mật khẩu không đúng');
+      }
     } finally {
       if (mounted) {
         setState(() {

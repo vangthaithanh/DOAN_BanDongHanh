@@ -349,7 +349,8 @@ class ProfileService {
           .from('posts')
           .select('id')
           .eq('profile_id', userId)
-          .eq('status', 'active');
+          .eq('status', 'active')
+          .or('is_hidden.is.null,is_hidden.eq.false');
 
       return (rows as List).length;
     } catch (_) {
@@ -374,10 +375,7 @@ class ProfileService {
         final planId = plan['id']?.toString() ?? '';
         final pinned = plan['pinned'] == true;
 
-        final items = await _loadPlanItems(
-          itineraryId: planId,
-          pinned: pinned,
-        );
+        final items = await _loadPlanItems(itineraryId: planId, pinned: pinned);
 
         plans.add(
           ProfilePlanGroupData(
@@ -422,6 +420,7 @@ class ProfileService {
       parsed.second,
     );
   }
+
   Future<List<ProfilePlanItemData>> _loadPlanItems({
     required String itineraryId,
     required bool pinned,
@@ -465,19 +464,18 @@ class ProfileService {
         final place = item['places'] is Map ? item['places'] as Map : {};
         final status = item['status']?.toString() ?? 'planned';
         final gpsConfirmed = item['gps_confirmed'] == true;
-        final plannedTime = _parseSupabaseTimeForDisplay(
-          item['planned_time'],
-        );
+        final plannedTime = _parseSupabaseTimeForDisplay(item['planned_time']);
 
         items.add(
           ProfilePlanItemData(
             id: item['id']?.toString() ?? '',
             placeId: _asInt(item['place_id']),
             title: _firstText([place['name']], fallback: 'Địa điểm'),
-            province: _firstText(
-              [place['province'], place['district'], place['address']],
-              fallback: 'Tỉnh thành',
-            ),
+            province: _firstText([
+              place['province'],
+              place['district'],
+              place['address'],
+            ], fallback: 'Tỉnh thành'),
             timeText: _formatPlanTime(plannedTime),
             dayText: _formatPlanDay(plannedTime),
             hourText: _formatPlanHour(plannedTime),
@@ -541,15 +539,7 @@ class ProfileService {
   String _formatPlanDay(DateTime? dateTime) {
     if (dateTime == null) return '--';
 
-    const thu = {
-      1: 'T2',
-      2: 'T3',
-      3: 'T4',
-      4: 'T5',
-      5: 'T6',
-      6: 'T7',
-      7: 'CN',
-    };
+    const thu = {1: 'T2', 2: 'T3', 3: 'T4', 4: 'T5', 5: 'T6', 6: 'T7', 7: 'CN'};
 
     return '${thu[dateTime.weekday]}-${dateTime.day}';
   }
@@ -639,7 +629,8 @@ class ProfileService {
             'post_media(url, display_order)',
           )
           .eq('profile_id', userId)
-          .eq('status', 'active');
+          .eq('status', 'active')
+          .or('is_hidden.is.null,is_hidden.eq.false');
 
       // Lọc bài viết theo quyền riêng tư nếu không phải chính mình xem
       if (userId != currentUserId) {

@@ -109,6 +109,13 @@ class _DangNhapEmailPageState extends State<DangNhapEmailPage> {
   void goToPasswordEmail() {
     if (!isValidEmail) return;
 
+    // NOTE SỬA:
+    // Khi chuyển sang màn nhập mật khẩu thì hủy listener ở màn email.
+    // Nếu không, sau khi signIn thành công listener này sẽ tự nhảy qua màn hình chờ
+    // trước khi MatKhauEmailPage kịp bắt lỗi tài khoản bị khóa.
+    authSub?.cancel();
+    authSub = null;
+
     Navigator.pushNamed(
       context,
       AppRoutes.passwordEmail,
