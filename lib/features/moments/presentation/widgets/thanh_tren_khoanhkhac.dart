@@ -13,26 +13,6 @@ class ThanhTrenKhoanhKhac extends StatelessWidget {
       child: Stack(
         alignment: Alignment.center,
         children: [
-          Positioned(
-            left: 31,
-            top: 24,
-            child: InkWell(
-              onTap: () {
-                Navigator.pushNamed(context, AppRoutes.search);
-              },
-              borderRadius: BorderRadius.circular(20),
-              child: const SizedBox(
-                width: 32,
-                height: 32,
-                child: Icon(
-                  LucideIcons.search,
-                  color: Colors.white,
-                  size: 25,
-                ),
-              ),
-            ),
-          ),
-
           const Positioned(
             top: 28,
             child: Text.rich(

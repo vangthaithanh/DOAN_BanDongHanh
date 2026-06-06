@@ -27,6 +27,7 @@ class _TrangTinNhanPageState extends State<TrangTinNhanPage> {
 
   RealtimeChannel? _messagesChannel;
   int _badgeVersion = 0;
+  final Set<int> _dismissedIds = {};
 
   @override
   void initState() {
@@ -116,7 +117,9 @@ class _TrangTinNhanPageState extends State<TrangTinNhanPage> {
                     );
                   }
 
-                  final conversations = snapshot.data ?? const [];
+                  final conversations = (snapshot.data ?? const [])
+                      .where((c) => !_dismissedIds.contains(c.conversationId))
+                      .toList();
 
                   if (conversations.isEmpty) {
                     return _messageState(
@@ -196,24 +199,24 @@ class _TrangTinNhanPageState extends State<TrangTinNhanPage> {
   Widget _searchBar() {
     return Padding(
       padding: const EdgeInsets.all(16),
-      child: Container(
-        height: 45,
-        decoration: BoxDecoration(
-          color: const Color(0xFF1E1E1E),
-          borderRadius: BorderRadius.circular(25),
-        ),
-        child: const TextField(
-          style: TextStyle(color: Colors.white),
-          decoration: InputDecoration(
-            hintText: 'Tìm Kiếm',
-            hintStyle: TextStyle(color: Colors.white54, fontSize: 14),
-            prefixIcon: Icon(
-              LucideIcons.search,
-              color: Colors.white54,
-              size: 18,
-            ),
-            border: InputBorder.none,
-            contentPadding: EdgeInsets.symmetric(vertical: 10),
+      child: GestureDetector(
+        onTap: () => Navigator.pushNamed(context, AppRoutes.globalUserSearch),
+        child: Container(
+          height: 45,
+          decoration: BoxDecoration(
+            color: const Color(0xFF1E1E1E),
+            borderRadius: BorderRadius.circular(25),
+          ),
+          child: const Row(
+            children: [
+              SizedBox(width: 14),
+              Icon(LucideIcons.search, color: Colors.white54, size: 18),
+              SizedBox(width: 10),
+              Text(
+                'Tìm kiếm',
+                style: TextStyle(color: Colors.white54, fontSize: 14),
+              ),
+            ],
           ),
         ),
       ),
@@ -430,8 +433,9 @@ class _TrangTinNhanPageState extends State<TrangTinNhanPage> {
           ),
         ) ?? false;
       },
-      onDismissed: (_) async {
-        await _messageService.deleteConversation(chat.conversationId);
+      onDismissed: (_) {
+        setState(() => _dismissedIds.add(chat.conversationId));
+        _messageService.deleteConversation(chat.conversationId);
       },
       child: card,
     );
